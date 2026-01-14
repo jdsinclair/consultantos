@@ -764,6 +764,21 @@ export default function LiveSessionPage({ params }: { params: { id: string } }) 
                   <span className="hidden sm:inline">{session.startedAt ? "Resume" : "Start"}</span>
                 </Button>
               )}
+              {!isRecording && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive flex-shrink-0"
+                  onClick={handleDelete}
+                  disabled={deleting}
+                >
+                  {deleting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4" />
+                  )}
+                </Button>
+              )}
             </div>
           </div>
 
