@@ -1,244 +1,388 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
   Mic,
-  MicOff,
-  Send,
-  CheckCircle,
-  AlertTriangle,
-  Lightbulb,
-  MessageSquare,
-  Target,
+  Plus,
+  Calendar,
   Clock,
+  Users,
+  Search,
+  ChevronDown,
+  Loader2,
+  Play,
+  FileText,
 } from "lucide-react";
+import Link from "next/link";
+import { formatDistanceToNow, format } from "date-fns";
 
-export default function LiveSession() {
-  const [isLive, setIsLive] = useState(false);
-  const [message, setMessage] = useState("");
+interface Session {
+  id: string;
+  title: string;
+  status: string;
+  duration: number | null;
+  scheduledAt: string | null;
+  startedAt: string | null;
+  endedAt: string | null;
+  createdAt: string;
+  client: {
+    id: string;
+    name: string;
+    company: string | null;
+  } | null;
+}
 
-  // Mock data
-  const gameplan = [
-    { id: "1", text: "Discuss Florida state opportunity timeline", done: true },
-    { id: "2", text: "Review AOAC certification status", done: true },
-    { id: "3", text: "Align on one-pager design approach", done: false },
-    { id: "4", text: "Set next steps for investor update", done: false },
-  ];
+interface Client {
+  id: string;
+  name: string;
+}
 
-  const suggestions = [
-    {
-      id: "1",
-      type: "talking_point",
-      text: "Ask about their timeline for the state RFP response",
-      icon: Lightbulb,
-    },
-    {
-      id: "2",
-      type: "commitment",
-      text: "You committed to send the one-pager by Friday",
-      icon: AlertTriangle,
-    },
-    {
-      id: "3",
-      type: "insight",
-      text: "They mentioned budget constraints - might want to discuss phased approach",
-      icon: MessageSquare,
-    },
-  ];
+export default function SessionsPage() {
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [clientFilter, setClientFilter] = useState<string | null>(null);
+  const [showClientDropdown, setShowClientDropdown] = useState(false);
 
-  const detectedActions = [
-    { id: "1", text: "Send one-pager draft by Friday", owner: "You", timestamp: "14:23" },
-    { id: "2", text: "Schedule follow-up with procurement team", owner: "Client", timestamp: "14:31" },
-  ];
+  useEffect(() => {
+    fetchData();
+  }, [statusFilter, clientFilter]);
 
-  const transcript = [
-    { speaker: "Client", text: "So the Florida opportunity is really exciting for us...", time: "14:20" },
-    { speaker: "You", text: "Absolutely, I've been looking at similar state contracts and...", time: "14:21" },
-    { speaker: "Client", text: "The timeline is tight though, they want responses by end of month...", time: "14:22" },
-  ];
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (statusFilter) params.set("status", statusFilter);
+      if (clientFilter) params.set("clientId", clientFilter);
+
+      const [sessionsRes, clientsRes] = await Promise.all([
+        fetch(`/api/sessions?${params.toString()}`),
+        fetch("/api/clients"),
+      ]);
+
+      if (sessionsRes.ok) setSessions(await sessionsRes.json());
+      if (clientsRes.ok) setClients(await clientsRes.json());
+    } catch (error) {
+      console.error("Failed to fetch data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredSessions = sessions.filter((session) => {
+    if (!searchQuery) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      session.title.toLowerCase().includes(query) ||
+      session.client?.name.toLowerCase().includes(query) ||
+      session.client?.company?.toLowerCase().includes(query)
+    );
+  });
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "live":
+        return <Badge className="bg-red-500 hover:bg-red-600">LIVE</Badge>;
+      case "completed":
+        return <Badge variant="default">Completed</Badge>;
+      case "scheduled":
+        return <Badge variant="secondary">Scheduled</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
+  const formatDuration = (seconds: number | null) => {
+    if (!seconds) return null;
+    const mins = Math.floor(seconds / 60);
+    if (mins < 60) return `${mins} min`;
+    const hours = Math.floor(mins / 60);
+    const remainingMins = mins % 60;
+    return `${hours}h ${remainingMins}m`;
+  };
 
   return (
-    <div className="flex h-screen">
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col p-6 overflow-hidden">
-        {/* Header */}
-        <div className="mb-6 flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold">Live Session</h1>
-              {isLive && <Badge variant="live">LIVE</Badge>}
-            </div>
-            <p className="text-muted-foreground">Pathogen Detection Co - Florida Sales Prep</p>
-          </div>
+    <div className="p-8">
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Sessions</h1>
+          <p className="text-muted-foreground">
+            Your consulting calls and meetings
+          </p>
+        </div>
+        <Link href="/session/new">
+          <Button className="gap-2">
+            <Mic className="h-4 w-4" />
+            Start New Session
+          </Button>
+        </Link>
+      </div>
+
+      {/* Filters */}
+      <div className="mb-6 flex gap-4 flex-wrap">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search sessions..."
+            className="pl-10"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+
+        <div className="flex gap-2">
           <Button
-            size="lg"
-            variant={isLive ? "destructive" : "default"}
-            onClick={() => setIsLive(!isLive)}
-            className="gap-2"
+            variant={statusFilter === null ? "default" : "outline"}
+            size="sm"
+            onClick={() => setStatusFilter(null)}
           >
-            {isLive ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
-            {isLive ? "End Session" : "Start Recording"}
+            All
+          </Button>
+          <Button
+            variant={statusFilter === "scheduled" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setStatusFilter("scheduled")}
+          >
+            Scheduled
+          </Button>
+          <Button
+            variant={statusFilter === "completed" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setStatusFilter("completed")}
+          >
+            Completed
           </Button>
         </div>
 
-        {/* Main Grid */}
-        <div className="flex-1 grid grid-cols-2 gap-6 overflow-hidden">
-          {/* Left: Transcript + Chat */}
-          <div className="flex flex-col gap-6 overflow-hidden">
-            {/* Transcript */}
-            <Card className="flex-1 overflow-hidden">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <MessageSquare className="h-5 w-5" />
-                  Live Transcript
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="overflow-auto h-[calc(100%-4rem)]">
-                <div className="space-y-4">
-                  {transcript.map((entry, i) => (
-                    <div key={i} className="flex gap-3">
-                      <Badge variant={entry.speaker === "You" ? "default" : "secondary"} className="h-6">
-                        {entry.speaker}
-                      </Badge>
-                      <div className="flex-1">
-                        <p className="text-sm">{entry.text}</p>
-                        <p className="text-xs text-muted-foreground mt-1">{entry.time}</p>
-                      </div>
-                    </div>
-                  ))}
-                  {isLive && (
-                    <div className="flex gap-3">
-                      <Badge variant="secondary" className="h-6">Client</Badge>
-                      <div className="flex-1">
-                        <p className="text-sm text-muted-foreground italic">Listening...</p>
-                      </div>
-                    </div>
-                  )}
+        <div className="relative">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={() => setShowClientDropdown(!showClientDropdown)}
+          >
+            <Users className="h-4 w-4" />
+            {clientFilter
+              ? clients.find((c) => c.id === clientFilter)?.name
+              : "All Clients"}
+            <ChevronDown className="h-3 w-3" />
+          </Button>
+          {showClientDropdown && (
+            <div className="absolute top-full mt-1 w-48 bg-popover border rounded-md shadow-lg z-10">
+              <div
+                className="px-3 py-2 hover:bg-accent cursor-pointer text-sm"
+                onClick={() => {
+                  setClientFilter(null);
+                  setShowClientDropdown(false);
+                }}
+              >
+                All Clients
+              </div>
+              {clients.map((client) => (
+                <div
+                  key={client.id}
+                  className="px-3 py-2 hover:bg-accent cursor-pointer text-sm"
+                  onClick={() => {
+                    setClientFilter(client.id);
+                    setShowClientDropdown(false);
+                  }}
+                >
+                  {client.name}
                 </div>
-              </CardContent>
-            </Card>
-
-            {/* AI Chat */}
-            <Card className="h-48">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg">Ask Your AI</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Ask a question about this client or session..."
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                  />
-                  <Button size="icon">
-                    <Send className="h-4 w-4" />
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Try: "What did we discuss about pricing last time?" or "Summarize their AOAC status"
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Right: Suggestions + Actions */}
-          <div className="flex flex-col gap-6 overflow-hidden">
-            {/* AI Suggestions */}
-            <Card className="flex-1 overflow-hidden">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Lightbulb className="h-5 w-5 text-yellow-500" />
-                  AI Suggestions
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="overflow-auto h-[calc(100%-4rem)]">
-                <div className="space-y-3">
-                  {suggestions.map((suggestion) => (
-                    <div
-                      key={suggestion.id}
-                      className="flex items-start gap-3 p-3 rounded-lg bg-accent/50 hover:bg-accent transition-colors cursor-pointer"
-                    >
-                      <suggestion.icon className="h-5 w-5 mt-0.5 text-yellow-500" />
-                      <p className="text-sm">{suggestion.text}</p>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Detected Commitments */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <CheckCircle className="h-5 w-5 text-green-500" />
-                  Detected Commitments
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {detectedActions.map((action) => (
-                    <div key={action.id} className="flex items-start gap-3">
-                      <input type="checkbox" className="mt-1 h-4 w-4 rounded" />
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">{action.text}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {action.owner} · {action.timestamp}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Right Sidebar: Gameplan */}
-      <div className="w-80 border-l border-border p-6 overflow-auto">
-        <div className="mb-4 flex items-center gap-2">
-          <Target className="h-5 w-5" />
-          <h2 className="font-semibold">Session Gameplan</h2>
+      {/* Sessions List */}
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
+      ) : filteredSessions.length > 0 ? (
         <div className="space-y-3">
-          {gameplan.map((item) => (
-            <div key={item.id} className="flex items-start gap-3">
-              <input
-                type="checkbox"
-                checked={item.done}
-                className="mt-1 h-4 w-4 rounded"
-                readOnly
-              />
-              <p className={`text-sm ${item.done ? "line-through text-muted-foreground" : ""}`}>
-                {item.text}
-              </p>
-            </div>
+          {filteredSessions.map((session) => (
+            <Card
+              key={session.id}
+              className="hover:border-primary/30 transition-colors"
+            >
+              <CardContent className="p-4">
+                <div className="flex items-center gap-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
+                    {session.status === "live" ? (
+                      <Mic className="h-6 w-6 text-red-500 animate-pulse" />
+                    ) : (
+                      <FileText className="h-6 w-6 text-primary" />
+                    )}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Link
+                        href={`/session/${session.id}`}
+                        className="font-medium hover:text-primary truncate"
+                      >
+                        {session.title}
+                      </Link>
+                      {getStatusBadge(session.status)}
+                    </div>
+                    <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                      {session.client && (
+                        <Link
+                          href={`/clients/${session.client.id}`}
+                          className="hover:text-primary flex items-center gap-1"
+                        >
+                          <Users className="h-3 w-3" />
+                          {session.client.name}
+                        </Link>
+                      )}
+                      <span className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        {session.startedAt
+                          ? format(new Date(session.startedAt), "MMM d, yyyy")
+                          : session.scheduledAt
+                          ? format(new Date(session.scheduledAt), "MMM d, yyyy")
+                          : formatDistanceToNow(new Date(session.createdAt), {
+                              addSuffix: true,
+                            })}
+                      </span>
+                      {session.duration && (
+                        <span className="flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {formatDuration(session.duration)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {session.status === "scheduled" && (
+                      <Link href={`/session/${session.id}`}>
+                        <Button size="sm" className="gap-1">
+                          <Play className="h-4 w-4" />
+                          Start
+                        </Button>
+                      </Link>
+                    )}
+                    {session.status === "live" && (
+                      <Link href={`/session/${session.id}`}>
+                        <Button size="sm" variant="destructive" className="gap-1">
+                          <Mic className="h-4 w-4" />
+                          Join
+                        </Button>
+                      </Link>
+                    )}
+                    {session.status === "completed" && (
+                      <Link href={`/session/${session.id}`}>
+                        <Button size="sm" variant="outline">
+                          View Details
+                        </Button>
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           ))}
         </div>
-
-        <div className="mt-8">
-          <div className="mb-4 flex items-center gap-2">
-            <Clock className="h-5 w-5" />
-            <h2 className="font-semibold">Session Timer</h2>
+      ) : (
+        <div className="text-center py-12">
+          <div className="mx-auto h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-4">
+            <Mic className="h-6 w-6 text-muted-foreground" />
           </div>
-          <div className="text-3xl font-mono">
-            {isLive ? "00:14:32" : "00:00:00"}
-          </div>
+          <h3 className="text-lg font-medium mb-2">
+            {searchQuery || statusFilter || clientFilter
+              ? "No sessions found"
+              : "No sessions yet"}
+          </h3>
+          <p className="text-muted-foreground mb-4 max-w-md mx-auto">
+            {searchQuery || statusFilter || clientFilter
+              ? "Try adjusting your search or filters"
+              : "Start a session to record and transcribe your client calls with AI assistance"}
+          </p>
+          {!searchQuery && !statusFilter && !clientFilter && (
+            <Link href="/session/new">
+              <Button className="gap-2">
+                <Plus className="h-4 w-4" />
+                Start Your First Session
+              </Button>
+            </Link>
+          )}
         </div>
+      )}
 
-        <div className="mt-8">
-          <h2 className="font-semibold mb-3">Quick Context</h2>
-          <div className="text-sm text-muted-foreground space-y-2">
-            <p><strong>Last session:</strong> Jan 10, 2025</p>
-            <p><strong>Main focus:</strong> State sales opportunities</p>
-            <p><strong>Open items:</strong> 3 pending actions</p>
-          </div>
+      {/* Stats */}
+      {filteredSessions.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-8">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-muted-foreground">
+                Total Sessions
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-3xl font-bold">{sessions.length}</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-muted-foreground">
+                This Month
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-3xl font-bold">
+                {
+                  sessions.filter((s) => {
+                    const date = new Date(s.createdAt);
+                    const now = new Date();
+                    return (
+                      date.getMonth() === now.getMonth() &&
+                      date.getFullYear() === now.getFullYear()
+                    );
+                  }).length
+                }
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-muted-foreground">
+                Total Duration
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-3xl font-bold">
+                {formatDuration(
+                  sessions.reduce((acc, s) => acc + (s.duration || 0), 0)
+                ) || "0 min"}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-muted-foreground">
+                Unique Clients
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-3xl font-bold">
+                {new Set(sessions.map((s) => s.client?.id).filter(Boolean)).size}
+              </p>
+            </CardContent>
+          </Card>
         </div>
-      </div>
+      )}
     </div>
   );
 }
