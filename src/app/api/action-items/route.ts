@@ -16,31 +16,27 @@ const createActionItemSchema = z.object({
 });
 
 export async function GET(req: NextRequest) {
-  // Debug: Check auth and cookies
-  const authObj = await auth();
-  const cookies = req.cookies.getAll();
-  const sessionCookie = cookies.find(c => c.name === '__session');
-  
-  console.log('[action-items] Auth debug:', {
-    userId: authObj.userId,
-    sessionId: authObj.sessionId,
-    hasCookies: cookies.length,
-    hasSessionCookie: !!sessionCookie,
-    cookieNames: cookies.map(c => c.name),
-  });
-
-  if (!authObj.userId) {
-    return NextResponse.json({ 
-      error: "Unauthorized",
-      debug: {
-        hasCookies: cookies.length,
-        hasSessionCookie: !!sessionCookie,
-        cookieNames: cookies.map(c => c.name),
-      }
-    }, { status: 401 });
-  }
-
   try {
+    // Debug: Check cookies first
+    const cookies = req.cookies.getAll();
+    const sessionCookie = cookies.find(c => c.name === '__session');
+    
+    // Debug: Check auth
+    const authObj = await auth();
+
+    if (!authObj.userId) {
+      return NextResponse.json({ 
+        error: "Unauthorized",
+        debug: {
+          stage: "auth_check",
+          userId: authObj.userId,
+          hasCookies: cookies.length,
+          hasSessionCookie: !!sessionCookie,
+          cookieNames: cookies.map(c => c.name),
+        }
+      }, { status: 401 });
+    }
+
     const user = await requireUser();
     const { searchParams } = new URL(req.url);
     const clientId = searchParams.get("clientId");
@@ -59,7 +55,17 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(items);
   } catch (error) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    // Debug: catch any errors
+    const cookies = req.cookies.getAll();
+    return NextResponse.json({ 
+      error: "Unauthorized",
+      debug: {
+        stage: "catch",
+        errorMessage: error instanceof Error ? error.message : String(error),
+        hasCookies: cookies.length,
+        cookieNames: cookies.map(c => c.name),
+      }
+    }, { status: 401 });
   }
 }
 
