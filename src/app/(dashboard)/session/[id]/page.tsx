@@ -153,9 +153,8 @@ export default function LiveSessionPage({ params }: { params: { id: string } }) 
       .then((data) => {
         setSession(data);
         setGameplan(data.gameplan || []);
-        if (data.status === "live") {
-          setIsRecording(true);
-        }
+        // Don't auto-start recording - let user click Resume to start transcription
+        // This ensures the transcription object is properly created
       });
   }, [params.id]);
 
@@ -717,6 +716,11 @@ export default function LiveSessionPage({ params }: { params: { id: string } }) 
                 {isRecording && (
                   <Badge className="bg-red-500 text-white animate-pulse flex-shrink-0">LIVE</Badge>
                 )}
+                {session.status === "live" && !isRecording && (
+                  <Badge variant="outline" className="text-orange-500 border-orange-500 flex-shrink-0">
+                    Paused
+                  </Badge>
+                )}
               </div>
               <p className="text-sm text-muted-foreground truncate">
                 {session.client.name}
@@ -724,6 +728,16 @@ export default function LiveSessionPage({ params }: { params: { id: string } }) 
               </p>
             </div>
             <div className="flex items-center gap-3">
+              {/* Audio source indicator */}
+              {!isRecording && (
+                <div className="hidden sm:flex items-center gap-1 text-xs text-muted-foreground">
+                  {audioSource === "microphone" ? (
+                    <><Mic className="h-3 w-3" /> Mic</>
+                  ) : (
+                    <><Monitor className="h-3 w-3" /> Zoom</>
+                  )}
+                </div>
+              )}
               {/* Timer - always visible */}
               <div className="text-lg sm:text-xl font-mono text-muted-foreground">
                 {formatTime(elapsedTime)}
@@ -897,14 +911,23 @@ export default function LiveSessionPage({ params }: { params: { id: string } }) 
                   ) : (
                     <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
                       <Volume2 className="h-12 w-12 mb-4 opacity-50" />
-                      <p>Transcript will appear here as you speak</p>
-                      <p className="text-xs mt-2">
-                        {audioSource === "both"
-                          ? inElectron
-                            ? "Desktop mode: Select Zoom/Meet to capture both sides"
-                            : "Zoom mode: Will capture you + the other person"
-                          : "Mic mode: Will capture your voice only"}
-                      </p>
+                      {session.status === "live" && !isRecording ? (
+                        <>
+                          <p className="text-orange-500 font-medium">Session paused</p>
+                          <p className="text-xs mt-2">Click Resume to continue recording and transcription</p>
+                        </>
+                      ) : (
+                        <>
+                          <p>Transcript will appear here as you speak</p>
+                          <p className="text-xs mt-2">
+                            {audioSource === "both"
+                              ? inElectron
+                                ? "Desktop mode: Select Zoom/Meet to capture both sides"
+                                : "Zoom mode: Will capture you + the other person"
+                              : "Mic mode: Will capture your voice only"}
+                          </p>
+                        </>
+                      )}
                       {inElectron && (
                         <Badge variant="outline" className="mt-3 text-xs">
                           <Monitor className="h-3 w-3 mr-1" />
