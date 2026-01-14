@@ -1,45 +1,46 @@
 import { NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
 import { db } from "@/db";
-import { users, inboundEmails, sources, clients } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { users, inboundEmails, clients } from "@/db/schema";
+import { eq, ilike } from "drizzle-orm";
 
-// Webhook endpoint for receiving emails (e.g., from SendGrid Inbound Parse, Mailgun, etc.)
+// Webhook endpoint for receiving emails from Cloudflare Email Worker
 export async function POST(req: NextRequest) {
   try {
-    // Parse the inbound email
-    // This format depends on your email provider (SendGrid, Mailgun, Postmark, etc.)
-    const formData = await req.formData();
-
-    const to = formData.get("to") as string;
-    const from = formData.get("from") as string;
-    const subject = formData.get("subject") as string;
-    const text = formData.get("text") as string;
-    const html = formData.get("html") as string;
-
-    // Extract user ID from the ingest email address
-    // Format: inbox-{userId8chars}@ingest.consultantos.com
-    const match = to.match(/inbox-([a-z0-9]+)@/i);
-    if (!match) {
-      return NextResponse.json({ error: "Invalid ingest email" }, { status: 400 });
+    // Validate webhook secret
+    const secret = req.headers.get("x-webhook-secret");
+    if (!process.env.EMAIL_WEBHOOK_SECRET || secret !== process.env.EMAIL_WEBHOOK_SECRET) {
+      console.error("Invalid webhook secret");
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Find user by ingest email
+    // Parse JSON payload from CF Worker
+    const payload = await req.json();
+    const {
+      to,
+      from,
+      fromName,
+      fromEmail,
+      subject,
+      text,
+      html,
+      messageId,
+      inReplyTo,
+      attachments = [],
+    } = payload;
+
+    // Find user by ingest email address
     const user = await db.query.users.findFirst({
       where: eq(users.ingestEmail, to.toLowerCase()),
     });
 
     if (!user) {
+      console.error(`No user found for ingest email: ${to}`);
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Parse sender info
-    const fromMatch = from.match(/(?:"?([^"]*)"?\s)?(?:<)?(.+@[^>]+)(?:>)?/);
-    const fromName = fromMatch?.[1] || null;
-    const fromEmail = fromMatch?.[2] || from;
-
-    // Handle attachments
-    const attachments: Array<{
+    // Process attachments - upload to Vercel Blob
+    const processedAttachments: Array<{
       id: string;
       filename: string;
       contentType: string;
@@ -47,24 +48,35 @@ export async function POST(req: NextRequest) {
       blobUrl?: string;
     }> = [];
 
-    // Process attachments (format depends on email provider)
-    const attachmentCount = parseInt(formData.get("attachments") as string) || 0;
-    for (let i = 1; i <= attachmentCount; i++) {
-      const attachment = formData.get(`attachment${i}`) as File;
-      if (attachment) {
-        // Upload to Vercel Blob
-        const blob = await put(
-          `emails/${user.id}/${Date.now()}-${attachment.name}`,
-          attachment,
-          { access: "public" }
-        );
+    for (const att of attachments) {
+      try {
+        if (att.content) {
+          // Decode base64 content
+          const buffer = Buffer.from(att.content, "base64");
 
-        attachments.push({
-          id: `att-${Date.now()}-${i}`,
-          filename: attachment.name,
-          contentType: attachment.type,
-          size: attachment.size,
-          blobUrl: blob.url,
+          // Upload to Vercel Blob
+          const blob = await put(
+            `emails/${user.id}/${Date.now()}-${att.filename}`,
+            buffer,
+            { access: "public", contentType: att.contentType }
+          );
+
+          processedAttachments.push({
+            id: `att-${Date.now()}-${processedAttachments.length}`,
+            filename: att.filename,
+            contentType: att.contentType,
+            size: att.size,
+            blobUrl: blob.url,
+          });
+        }
+      } catch (attachError) {
+        console.error(`Failed to process attachment ${att.filename}:`, attachError);
+        // Still record the attachment metadata even if upload fails
+        processedAttachments.push({
+          id: `att-${Date.now()}-${processedAttachments.length}`,
+          filename: att.filename,
+          contentType: att.contentType,
+          size: att.size,
         });
       }
     }
@@ -74,29 +86,34 @@ export async function POST(req: NextRequest) {
       .insert(inboundEmails)
       .values({
         userId: user.id,
-        fromEmail,
-        fromName,
+        fromEmail: fromEmail || from,
+        fromName: fromName,
         toEmail: to,
         subject,
         bodyText: text,
         bodyHtml: html,
-        attachments,
+        attachments: processedAttachments,
+        messageId,
+        inReplyTo,
+        rawHeaders: payload.headers,
         status: "inbox",
       })
       .returning();
 
     // Try to auto-match to a client based on sender email domain
-    const senderDomain = fromEmail.split("@")[1];
-    const matchingClient = await db.query.clients.findFirst({
-      where: eq(clients.userId, user.id),
-      // Would need more sophisticated matching in production
-    });
+    const senderDomain = (fromEmail || from).split("@")[1]?.toLowerCase();
+    if (senderDomain) {
+      // Look for clients with matching website domain
+      const matchingClient = await db.query.clients.findFirst({
+        where: ilike(clients.website, `%${senderDomain}%`),
+      });
 
-    if (matchingClient) {
-      await db
-        .update(inboundEmails)
-        .set({ clientId: matchingClient.id })
-        .where(eq(inboundEmails.id, email.id));
+      if (matchingClient && matchingClient.userId === user.id) {
+        await db
+          .update(inboundEmails)
+          .set({ clientId: matchingClient.id })
+          .where(eq(inboundEmails.id, email.id));
+      }
     }
 
     return NextResponse.json({ success: true, emailId: email.id });

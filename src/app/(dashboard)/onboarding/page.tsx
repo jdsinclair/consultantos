@@ -333,12 +333,9 @@ export default function OnboardingPage() {
                   <Mail className="h-5 w-5 text-primary mt-0.5" />
                   <div>
                     <p className="font-medium">Your Email Inbox</p>
-                    <p className="text-sm text-muted-foreground mb-2">
-                      Forward emails to this address to import them into ConsultantOS:
+                    <p className="text-sm text-muted-foreground">
+                      After setup, you&apos;ll get a unique email address in <strong>Settings</strong> where you can forward client emails to import them automatically.
                     </p>
-                    <code className="text-sm bg-muted px-2 py-1 rounded">
-                      inbox-{data.nickname?.toLowerCase() || "you"}@ingest.consultantos.com
-                    </code>
                   </div>
                 </div>
               </div>
