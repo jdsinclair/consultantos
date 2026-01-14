@@ -22,9 +22,16 @@ export async function generateClarityInsightsFromSource(
     userId: string;
     sourceName: string;
     sourceType: string;
+    userProfile?: {
+      name?: string | null;
+      nickname?: string | null;
+      bio?: string | null;
+      specialties?: string[] | null;
+      businessName?: string | null;
+    };
   }
 ): Promise<void> {
-  const model = "claude-3-5-sonnet-20241022";
+  const model = "claude-sonnet-4-20250514";
 
   // Get existing clarity document to understand what's already defined
   const existingClarity = await getClarityDocument(context.clientId, context.userId);
@@ -54,7 +61,21 @@ export async function generateClarityInsightsFromSource(
           truncatedContent = content.slice(0, half) + "\n\n[...content truncated...]\n\n" + content.slice(-half);
         }
 
-        const prompt = `You are analyzing a document to extract business clarity insights for a consulting client.
+        // Build user context section
+        let userContextSection = "";
+        if (context.userProfile) {
+          const { name, nickname, bio, specialties, businessName } = context.userProfile;
+          const parts: string[] = [];
+          if (nickname || name) parts.push(`Consultant: ${nickname || name}`);
+          if (businessName) parts.push(`Business: ${businessName}`);
+          if (bio) parts.push(`Background: ${bio}`);
+          if (specialties?.length) parts.push(`Focus Areas: ${specialties.join(", ")}`);
+          if (parts.length > 0) {
+            userContextSection = `\n\nCONSULTANT PROFILE (consider their perspective when suggesting insights):\n${parts.join("\n")}\n`;
+          }
+        }
+
+        const prompt = `You are analyzing a document to extract business clarity insights for a consulting client.${userContextSection}
 
 SOURCE DOCUMENT (${context.sourceName}):
 ${truncatedContent}

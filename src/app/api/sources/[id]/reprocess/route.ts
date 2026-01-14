@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { getSource, updateSource, updateSourceContent, setSourceError, updateSourceSummary } from "@/lib/db/sources";
+import { getClient } from "@/lib/db/clients";
 import { processSourceEmbeddings } from "@/lib/rag";
 import { extractImageContent, formatImageContentForRAG } from "@/lib/ai/vision";
 import { generateSourceSummary } from "@/lib/ai/source-summary";
@@ -18,11 +19,23 @@ export async function POST(
       return NextResponse.json({ error: "Source not found" }, { status: 404 });
     }
 
+    // Get client for context
+    const client = await getClient(source.clientId, user.id);
+
     // Update status to processing
     await updateSource(params.id, user.id, { processingStatus: "processing" });
 
+    // Build user profile for AI context
+    const userProfile = {
+      name: user.name,
+      nickname: user.nickname,
+      bio: user.bio,
+      specialties: user.specialties,
+      businessName: user.businessName,
+    };
+
     // Start async reprocessing
-    reprocessSource(params.id, source.clientId, user.id, source).catch(console.error);
+    reprocessSource(params.id, source.clientId, user.id, source, userProfile, client?.name).catch(console.error);
 
     return NextResponse.json({ success: true, message: "Reprocessing started" });
   } catch (error) {
@@ -41,7 +54,15 @@ async function reprocessSource(
     blobUrl: string | null;
     fileType: string | null;
     clientId: string;
-  }
+  },
+  userProfile: {
+    name?: string | null;
+    nickname?: string | null;
+    bio?: string | null;
+    specialties?: string[] | null;
+    businessName?: string | null;
+  },
+  clientName?: string | null
 ) {
   try {
     let content = "";
@@ -81,6 +102,8 @@ async function reprocessSource(
         fileName: source.name,
         fileType: source.fileType || undefined,
         sourceType: source.type,
+        clientName: clientName || undefined,
+        userProfile,
       });
       await updateSourceSummary(sourceId, userId, summary);
     }
@@ -103,6 +126,7 @@ async function reprocessSource(
         userId,
         sourceName: source.name,
         sourceType: source.type,
+        userProfile,
       });
     }
   } catch (error) {

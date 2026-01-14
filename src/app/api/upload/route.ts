@@ -55,6 +55,15 @@ export async function POST(req: NextRequest) {
       where: eq(clients.id, clientId),
     });
 
+    // Build user profile for AI context
+    const userProfile = {
+      name: user.name,
+      nickname: user.nickname,
+      bio: user.bio,
+      specialties: user.specialties,
+      businessName: user.businessName,
+    };
+
     // Start async processing (text extraction + embeddings + AI summary)
     processDocument(
       source.id,
@@ -64,7 +73,8 @@ export async function POST(req: NextRequest) {
       fileType,
       file,
       isImage,
-      client?.name
+      client?.name,
+      userProfile
     ).catch(console.error);
 
     return NextResponse.json({
@@ -109,7 +119,14 @@ async function processDocument(
   fileType: string,
   file: File,
   isImage: boolean,
-  clientName?: string
+  clientName?: string,
+  userProfile?: {
+    name?: string | null;
+    nickname?: string | null;
+    bio?: string | null;
+    specialties?: string[] | null;
+    businessName?: string | null;
+  }
 ) {
   try {
     let content = "";
@@ -226,6 +243,7 @@ async function processDocument(
         fileType,
         clientName,
         sourceType: isImage ? "image" : "document",
+        userProfile,
       });
       await updateSourceSummary(sourceId, userId, summary);
     }
@@ -248,6 +266,7 @@ async function processDocument(
         userId,
         sourceName: file.name,
         sourceType: isImage ? "image" : "document",
+        userProfile,
       });
     }
   } catch (error) {

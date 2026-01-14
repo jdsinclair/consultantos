@@ -13,9 +13,16 @@ export async function generateSourceSummary(
     fileType?: string;
     clientName?: string;
     sourceType?: string;
+    userProfile?: {
+      name?: string | null;
+      nickname?: string | null;
+      bio?: string | null;
+      specialties?: string[] | null;
+      businessName?: string | null;
+    };
   }
 ): Promise<SourceAISummary> {
-  const model = "claude-3-5-sonnet-20241022";
+  const model = "claude-sonnet-4-20250514";
 
   return withAILogging(
     "source-summary",
@@ -29,7 +36,21 @@ export async function generateSourceSummary(
         truncatedContent = content.slice(0, half) + "\n\n[...content truncated...]\n\n" + content.slice(-half);
       }
 
-      const prompt = `Analyze this ${context.sourceType || "document"}${context.clientName ? ` for client "${context.clientName}"` : ""}:
+      // Build user context section
+      let userContextSection = "";
+      if (context.userProfile) {
+        const { name, nickname, bio, specialties, businessName } = context.userProfile;
+        const parts: string[] = [];
+        if (nickname || name) parts.push(`Consultant: ${nickname || name}`);
+        if (businessName) parts.push(`Business: ${businessName}`);
+        if (bio) parts.push(`Background: ${bio}`);
+        if (specialties?.length) parts.push(`Specialties: ${specialties.join(", ")}`);
+        if (parts.length > 0) {
+          userContextSection = `\n\nCONSULTANT CONTEXT (tailor insights to this perspective):\n${parts.join("\n")}`;
+        }
+      }
+
+      const prompt = `Analyze this ${context.sourceType || "document"}${context.clientName ? ` for client "${context.clientName}"` : ""}:${userContextSection}
 
 ${context.fileName ? `File: ${context.fileName}` : ""}
 ${context.fileType ? `Type: ${context.fileType}` : ""}
