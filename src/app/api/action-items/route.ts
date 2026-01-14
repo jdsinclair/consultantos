@@ -13,8 +13,10 @@ const createActionItemSchema = z.object({
   sessionId: z.string().uuid().optional(),
   noteId: z.string().uuid().optional(),
   emailId: z.string().uuid().optional(),
+  parentId: z.string().uuid().optional(), // For subtasks
   title: z.string().min(1),
   description: z.string().optional(),
+  notes: z.string().optional(), // Additional notes on the task
   owner: z.string().optional(),
   ownerType: z.enum(["me", "client"]).default("me"),
   dueDate: z.string().optional(), // More flexible date parsing
