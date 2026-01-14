@@ -11,77 +11,194 @@ export interface TranscriptSegment {
 export interface TranscriptionConfig {
   onTranscript: (segment: TranscriptSegment) => void;
   onError: (error: Error) => void;
+  onStreamReady?: (stream: MediaStream) => void;
+  onStatusChange?: (status: TranscriptionStatus) => void;
 }
+
+export type TranscriptionStatus =
+  | "idle"
+  | "requesting_permissions"
+  | "connecting"
+  | "connected"
+  | "recording"
+  | "error"
+  | "stopped";
+
+export type AudioSource = "microphone" | "system" | "both";
 
 export class RealtimeTranscription {
   private socket: WebSocket | null = null;
   private mediaRecorder: MediaRecorder | null = null;
-  private stream: MediaStream | null = null;
+  private micStream: MediaStream | null = null;
+  private systemStream: MediaStream | null = null;
+  private combinedStream: MediaStream | null = null;
   private config: TranscriptionConfig;
+  private status: TranscriptionStatus = "idle";
 
   constructor(config: TranscriptionConfig) {
     this.config = config;
   }
 
-  async start() {
-    try {
-      // Get microphone access
-      this.stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          channelCount: 1,
-          sampleRate: 16000,
-        },
-      });
+  private setStatus(status: TranscriptionStatus) {
+    this.status = status;
+    this.config.onStatusChange?.(status);
+  }
 
-      // Connect to Deepgram WebSocket
-      const apiKey = process.env.NEXT_PUBLIC_DEEPGRAM_API_KEY;
-      if (!apiKey) {
-        throw new Error("Deepgram API key not configured");
+  getStatus(): TranscriptionStatus {
+    return this.status;
+  }
+
+  getStream(): MediaStream | null {
+    return this.combinedStream || this.micStream;
+  }
+
+  /**
+   * Start transcription with specified audio source
+   * @param source - "microphone" for mic only, "system" for screen share audio, "both" for mixed
+   */
+  async start(source: AudioSource = "microphone") {
+    try {
+      this.setStatus("requesting_permissions");
+
+      if (source === "microphone" || source === "both") {
+        // Get microphone access
+        this.micStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            channelCount: 1,
+            sampleRate: 16000,
+            echoCancellation: true,
+            noiseSuppression: true,
+          },
+        });
       }
 
-      const wsUrl = `wss://api.deepgram.com/v1/listen?model=nova-2&language=en&smart_format=true&diarize=true&punctuate=true`;
+      if (source === "system" || source === "both") {
+        // Get system audio via screen share
+        // This requires user to share a tab/window with audio
+        try {
+          this.systemStream = await navigator.mediaDevices.getDisplayMedia({
+            video: true, // Required, but we'll ignore it
+            audio: {
+              // @ts-expect-error - Chrome-specific audio constraints
+              suppressLocalAudioPlayback: false,
+            },
+          });
 
-      this.socket = new WebSocket(wsUrl, ["token", apiKey]);
+          // Stop the video track - we only want audio
+          this.systemStream.getVideoTracks().forEach(track => track.stop());
 
-      this.socket.onopen = () => {
-        console.log("Deepgram connection opened");
-        this.startRecording();
-      };
-
-      this.socket.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        if (data.channel?.alternatives?.[0]) {
-          const alt = data.channel.alternatives[0];
-          const segment: TranscriptSegment = {
-            text: alt.transcript,
-            speaker: `Speaker ${alt.words?.[0]?.speaker || 0}`,
-            timestamp: data.start || Date.now(),
-            isFinal: data.is_final || false,
-          };
-          if (segment.text.trim()) {
-            this.config.onTranscript(segment);
+          // Check if we got audio
+          if (this.systemStream.getAudioTracks().length === 0) {
+            console.warn("No system audio captured - user may not have selected 'Share audio'");
+            if (source === "system") {
+              throw new Error("No system audio captured. Make sure to check 'Share audio' when sharing.");
+            }
           }
+        } catch (err) {
+          if (source === "system") throw err;
+          // For "both" mode, continue with just mic if system audio fails
+          console.warn("System audio capture failed, continuing with microphone only:", err);
         }
-      };
+      }
 
-      this.socket.onerror = (error) => {
-        console.error("Deepgram error:", error);
-        this.config.onError(new Error("Transcription connection error"));
-      };
+      // Combine streams if we have both
+      if (this.micStream && this.systemStream?.getAudioTracks().length) {
+        this.combinedStream = this.mixAudioStreams(this.micStream, this.systemStream);
+      } else {
+        this.combinedStream = this.micStream || this.systemStream || null;
+      }
 
-      this.socket.onclose = () => {
-        console.log("Deepgram connection closed");
-      };
+      if (!this.combinedStream) {
+        throw new Error("No audio stream available");
+      }
+
+      // Notify that stream is ready (for visualization)
+      this.config.onStreamReady?.(this.combinedStream);
+
+      // Connect to Deepgram WebSocket
+      this.setStatus("connecting");
+      await this.connectWebSocket();
     } catch (error) {
+      this.setStatus("error");
       this.config.onError(error as Error);
     }
   }
 
-  private startRecording() {
-    if (!this.stream || !this.socket) return;
+  private mixAudioStreams(stream1: MediaStream, stream2: MediaStream): MediaStream {
+    const audioContext = new AudioContext();
+    const destination = audioContext.createMediaStreamDestination();
 
-    this.mediaRecorder = new MediaRecorder(this.stream, {
-      mimeType: "audio/webm",
+    // Connect first stream
+    const source1 = audioContext.createMediaStreamSource(stream1);
+    source1.connect(destination);
+
+    // Connect second stream
+    const source2 = audioContext.createMediaStreamSource(stream2);
+    source2.connect(destination);
+
+    return destination.stream;
+  }
+
+  private async connectWebSocket() {
+    const apiKey = process.env.NEXT_PUBLIC_DEEPGRAM_API_KEY;
+    if (!apiKey) {
+      throw new Error("Deepgram API key not configured. Add NEXT_PUBLIC_DEEPGRAM_API_KEY to your environment.");
+    }
+
+    const wsUrl = `wss://api.deepgram.com/v1/listen?model=nova-2&language=en&smart_format=true&diarize=true&punctuate=true&interim_results=true`;
+
+    this.socket = new WebSocket(wsUrl, ["token", apiKey]);
+
+    this.socket.onopen = () => {
+      console.log("Deepgram connection opened");
+      this.setStatus("connected");
+      this.startRecording();
+    };
+
+    this.socket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.channel?.alternatives?.[0]) {
+        const alt = data.channel.alternatives[0];
+        const segment: TranscriptSegment = {
+          text: alt.transcript,
+          speaker: `Speaker ${alt.words?.[0]?.speaker || 0}`,
+          timestamp: data.start || Date.now(),
+          isFinal: data.is_final || false,
+        };
+        if (segment.text.trim()) {
+          this.config.onTranscript(segment);
+        }
+      }
+    };
+
+    this.socket.onerror = (error) => {
+      console.error("Deepgram error:", error);
+      this.setStatus("error");
+      this.config.onError(new Error("Transcription connection error"));
+    };
+
+    this.socket.onclose = (event) => {
+      console.log("Deepgram connection closed:", event.code, event.reason);
+      if (this.status === "recording") {
+        this.setStatus("stopped");
+      }
+    };
+  }
+
+  private startRecording() {
+    if (!this.combinedStream || !this.socket) return;
+
+    this.setStatus("recording");
+
+    // Try to use a compatible mime type
+    const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+      ? "audio/webm;codecs=opus"
+      : MediaRecorder.isTypeSupported("audio/webm")
+        ? "audio/webm"
+        : "audio/mp4";
+
+    this.mediaRecorder = new MediaRecorder(this.combinedStream, {
+      mimeType,
     });
 
     this.mediaRecorder.ondataavailable = (event) => {
@@ -94,17 +211,24 @@ export class RealtimeTranscription {
   }
 
   stop() {
+    this.setStatus("stopped");
+
     if (this.mediaRecorder && this.mediaRecorder.state !== "inactive") {
       this.mediaRecorder.stop();
     }
-    if (this.stream) {
-      this.stream.getTracks().forEach((track) => track.stop());
+    if (this.micStream) {
+      this.micStream.getTracks().forEach((track) => track.stop());
+    }
+    if (this.systemStream) {
+      this.systemStream.getTracks().forEach((track) => track.stop());
     }
     if (this.socket) {
       this.socket.close();
     }
     this.mediaRecorder = null;
-    this.stream = null;
+    this.micStream = null;
+    this.systemStream = null;
+    this.combinedStream = null;
     this.socket = null;
   }
 }

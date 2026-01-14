@@ -25,10 +25,19 @@ import {
   ExternalLink,
   Calendar,
   ArrowLeft,
+  Monitor,
+  Volume2,
 } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { useChat } from "ai/react";
+import { AudioVisualizer, AudioLevel } from "@/components/audio-visualizer";
+import {
+  RealtimeTranscription,
+  TranscriptSegment,
+  TranscriptionStatus,
+  AudioSource,
+} from "@/lib/transcription";
 
 interface GameplanItem {
   id: string;
@@ -98,6 +107,14 @@ export default function LiveSessionPage({ params }: { params: { id: string } }) 
   const [newCommitment, setNewCommitment] = useState("");
   const lastTranscriptLength = useRef(0);
 
+  // Audio transcription state
+  const [audioStream, setAudioStream] = useState<MediaStream | null>(null);
+  const [transcriptionStatus, setTranscriptionStatus] = useState<TranscriptionStatus>("idle");
+  const [audioSource, setAudioSource] = useState<AudioSource>("microphone");
+  const [liveTranscript, setLiveTranscript] = useState<TranscriptSegment[]>([]);
+  const [interimTranscript, setInterimTranscript] = useState<string>("");
+  const transcriptionRef = useRef<RealtimeTranscription | null>(null);
+
   const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
     api: "/api/chat",
     body: {
@@ -130,6 +147,15 @@ export default function LiveSessionPage({ params }: { params: { id: string } }) 
     }
     return () => clearInterval(interval);
   }, [isRecording, session?.startedAt]);
+
+  // Cleanup transcription on unmount
+  useEffect(() => {
+    return () => {
+      if (transcriptionRef.current) {
+        transcriptionRef.current.stop();
+      }
+    };
+  }, []);
 
   // Fetch AI suggestions periodically when recording
   useEffect(() => {
@@ -248,6 +274,7 @@ export default function LiveSessionPage({ params }: { params: { id: string } }) 
   };
 
   const startRecording = async () => {
+    // Update session status first
     await fetch(`/api/sessions/${params.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -255,18 +282,65 @@ export default function LiveSessionPage({ params }: { params: { id: string } }) 
     });
     setIsRecording(true);
     setSession((prev) => prev ? { ...prev, startedAt: new Date().toISOString() } : prev);
+
+    // Initialize transcription
+    transcriptionRef.current = new RealtimeTranscription({
+      onTranscript: (segment: TranscriptSegment) => {
+        if (segment.isFinal) {
+          setLiveTranscript((prev) => [...prev, segment]);
+          setInterimTranscript("");
+          // Also update session transcript for AI suggestions
+          setSession((prev) => {
+            if (!prev) return prev;
+            const newTranscript = (prev.transcript || "") + `\n${segment.speaker}: ${segment.text}`;
+            return { ...prev, transcript: newTranscript };
+          });
+        } else {
+          setInterimTranscript(segment.text);
+        }
+      },
+      onError: (error: Error) => {
+        console.error("Transcription error:", error);
+        // Show error to user but don't stop recording
+      },
+      onStreamReady: (stream: MediaStream) => {
+        setAudioStream(stream);
+      },
+      onStatusChange: (status: TranscriptionStatus) => {
+        setTranscriptionStatus(status);
+      },
+    });
+
+    // Start with selected audio source
+    await transcriptionRef.current.start(audioSource);
   };
 
   const endSession = async () => {
+    // Stop transcription
+    if (transcriptionRef.current) {
+      transcriptionRef.current.stop();
+      transcriptionRef.current = null;
+    }
+    setAudioStream(null);
+
     // Save all remaining commitments as action items
     for (const commitment of detectedCommitments) {
       await saveCommitmentAsAction(commitment);
     }
 
+    // Build final transcript from segments
+    const finalTranscript = liveTranscript
+      .map((seg) => `${seg.speaker}: ${seg.text}`)
+      .join("\n");
+
     await fetch(`/api/sessions/${params.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "completed", endedAt: new Date().toISOString() }),
+      body: JSON.stringify({
+        status: "completed",
+        endedAt: new Date().toISOString(),
+        transcript: finalTranscript || session?.transcript,
+      }),
     });
     setIsRecording(false);
   };
@@ -568,25 +642,102 @@ export default function LiveSessionPage({ params }: { params: { id: string } }) 
             {/* Live Transcript */}
             <Card className="flex-1 overflow-hidden">
               <CardHeader className="pb-3">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <MessageSquare className="h-5 w-5" />
-                  Live Transcript
-                  {isRecording && (
-                    <span className="ml-2 h-2 w-2 bg-red-500 rounded-full animate-pulse" />
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <MessageSquare className="h-5 w-5" />
+                    Live Transcript
+                    {isRecording && (
+                      <span className="ml-2 h-2 w-2 bg-red-500 rounded-full animate-pulse" />
+                    )}
+                    {transcriptionStatus === "recording" && (
+                      <AudioLevel stream={audioStream} isActive={isRecording} className="ml-2" />
+                    )}
+                  </CardTitle>
+                  {!isRecording && (
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="sm"
+                        variant={audioSource === "microphone" ? "default" : "outline"}
+                        onClick={() => setAudioSource("microphone")}
+                        className="h-7 text-xs"
+                        title="Capture microphone only"
+                      >
+                        <Mic className="h-3 w-3 mr-1" />
+                        Mic
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={audioSource === "both" ? "default" : "outline"}
+                        onClick={() => setAudioSource("both")}
+                        className="h-7 text-xs"
+                        title="Capture mic + system audio (for Zoom calls)"
+                      >
+                        <Monitor className="h-3 w-3 mr-1" />
+                        Zoom
+                      </Button>
+                    </div>
                   )}
-                </CardTitle>
+                </div>
+                {audioSource === "both" && !isRecording && (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Zoom mode will ask you to share a tab/window. Check &quot;Share audio&quot; to capture the other person.
+                  </p>
+                )}
               </CardHeader>
               <CardContent className="overflow-auto h-[calc(100%-4rem)]">
-                {session.transcript ? (
+                {/* Audio Visualizer */}
+                {isRecording && audioStream && (
+                  <div className="h-16 mb-4 bg-muted/30 rounded-lg overflow-hidden">
+                    <AudioVisualizer
+                      stream={audioStream}
+                      isActive={isRecording}
+                      variant="bars"
+                      barCount={48}
+                    />
+                  </div>
+                )}
+
+                {/* Status indicator */}
+                {isRecording && transcriptionStatus !== "recording" && (
+                  <div className="flex items-center gap-2 mb-4 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {transcriptionStatus === "requesting_permissions" && "Requesting microphone access..."}
+                    {transcriptionStatus === "connecting" && "Connecting to Deepgram..."}
+                    {transcriptionStatus === "connected" && "Starting transcription..."}
+                    {transcriptionStatus === "error" && "Connection error - check console"}
+                  </div>
+                )}
+
+                {/* Transcript content */}
+                {liveTranscript.length > 0 || interimTranscript ? (
+                  <div className="text-sm space-y-2">
+                    {liveTranscript.map((seg, i) => (
+                      <div key={i} className="flex gap-2">
+                        <span className="text-xs text-muted-foreground font-medium min-w-[70px]">
+                          {seg.speaker}:
+                        </span>
+                        <span>{seg.text}</span>
+                      </div>
+                    ))}
+                    {interimTranscript && (
+                      <div className="flex gap-2 text-muted-foreground italic">
+                        <span className="text-xs font-medium min-w-[70px]">...</span>
+                        <span>{interimTranscript}</span>
+                      </div>
+                    )}
+                  </div>
+                ) : session.transcript ? (
                   <div className="text-sm whitespace-pre-wrap">
                     {session.transcript}
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-                    <Mic className="h-12 w-12 mb-4 opacity-50" />
+                    <Volume2 className="h-12 w-12 mb-4 opacity-50" />
                     <p>Transcript will appear here as you speak</p>
                     <p className="text-xs mt-2">
-                      Connect Deepgram for real-time transcription
+                      {audioSource === "both"
+                        ? "Zoom mode: Will capture you + the other person"
+                        : "Mic mode: Will capture your voice only"}
                     </p>
                   </div>
                 )}
