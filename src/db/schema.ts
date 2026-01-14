@@ -99,6 +99,8 @@ export const clarityDocuments = pgTable('clarity_documents', {
   howWeWillDie: text('how_we_will_die'), // Biggest risks/threats
   // Additional sections
   sections: jsonb('sections').$type<ClaritySection[]>(), // Custom locked-in insights
+  // Field metadata (status, source for each field)
+  fieldMeta: jsonb('field_meta').$type<Record<string, ClarityFieldMeta>>(),
   // AI conversation history for this doc
   conversationId: uuid('conversation_id'),
   // Status
@@ -110,13 +112,41 @@ export const clarityDocuments = pgTable('clarity_documents', {
   userIdx: index('clarity_docs_user_idx').on(table.userId),
 }));
 
+// Clarity Insights - pending AI suggestions for clarity document updates
+export const clarityInsights = pgTable('clarity_insights', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  clientId: uuid('client_id').references(() => clients.id, { onDelete: 'cascade' }).notNull(),
+  userId: text('user_id').references(() => users.id).notNull(),
+  // What field this insight is for (or 'custom' for new fields)
+  fieldName: text('field_name').notNull(), // 'niche', 'whatWeDo', 'custom:slogan', etc.
+  customFieldTitle: text('custom_field_title'), // For custom fields, the display title
+  // The suggested content
+  suggestedValue: text('suggested_value').notNull(),
+  action: text('action').default('update'), // 'create', 'update', 'append', 'replace'
+  // Why this suggestion
+  reasoning: text('reasoning'), // AI explanation of why this is relevant
+  confidence: real('confidence'), // 0-1 confidence score
+  // Source of the insight
+  sourceType: text('source_type').notNull(), // 'source', 'session', 'chat', 'email'
+  sourceId: uuid('source_id'), // ID of source/session/etc
+  sourceContext: text('source_context'), // Relevant excerpt or context
+  // Status
+  status: text('status').default('pending'), // 'pending', 'accepted', 'rejected', 'deferred'
+  reviewedAt: timestamp('reviewed_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  clientIdx: index('clarity_insights_client_idx').on(table.clientId),
+  statusIdx: index('clarity_insights_status_idx').on(table.status),
+}));
+
 // Sources - documents, websites, repos, local folders linked to a client
 export const sources = pgTable('sources', {
   id: uuid('id').defaultRandom().primaryKey(),
   clientId: uuid('client_id').references(() => clients.id, { onDelete: 'cascade' }).notNull(),
   userId: text('user_id').references(() => users.id).notNull(),
   type: text('type').notNull(), // 'document', 'website', 'repo', 'folder', 'recording', 'local_folder', 'email', 'image'
-  name: text('name').notNull(),
+  name: text('name').notNull(), // AI-generated friendly name
+  originalName: text('original_name'), // Original filename as uploaded
   url: text('url'), // for websites, repos
   localPath: text('local_path'), // for local folder sources
   blobUrl: text('blob_url'), // for uploaded files (Vercel Blob)
@@ -364,6 +394,7 @@ export const clientsRelations = relations(clients, ({ one, many }) => ({
   contacts: many(contacts),
   inboundEmails: many(inboundEmails),
   clarityDocument: one(clarityDocuments, { fields: [clients.id], references: [clarityDocuments.clientId] }),
+  clarityInsights: many(clarityInsights),
 }));
 
 export const sourcesRelations = relations(sources, ({ one, many }) => ({
@@ -381,6 +412,11 @@ export const sourceChunksRelations = relations(sourceChunks, ({ one }) => ({
 export const clarityDocumentsRelations = relations(clarityDocuments, ({ one }) => ({
   client: one(clients, { fields: [clarityDocuments.clientId], references: [clients.id] }),
   user: one(users, { fields: [clarityDocuments.userId], references: [users.id] }),
+}));
+
+export const clarityInsightsRelations = relations(clarityInsights, ({ one }) => ({
+  client: one(clients, { fields: [clarityInsights.clientId], references: [clients.id] }),
+  user: one(users, { fields: [clarityInsights.userId], references: [users.id] }),
 }));
 
 export const sessionsRelations = relations(sessions, ({ one, many }) => ({
@@ -510,6 +546,20 @@ export interface ClaritySection {
   source?: string; // session ID or manual
 }
 
+// Clarity field metadata (status, source tracking per field)
+export interface ClarityFieldMeta {
+  status: 'draft' | 'confirmed' | 'locked';
+  source?: string; // 'manual', 'ai', 'session:uuid', 'source:uuid'
+  sourceContext?: string;
+  confirmedAt?: string;
+  lockedAt?: string;
+  history?: Array<{
+    content: string;
+    changedAt: string;
+    source: string;
+  }>;
+}
+
 // Export types for TypeScript
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -534,5 +584,7 @@ export type InboundEmail = typeof inboundEmails.$inferSelect;
 export type NewInboundEmail = typeof inboundEmails.$inferInsert;
 export type ClarityDocument = typeof clarityDocuments.$inferSelect;
 export type NewClarityDocument = typeof clarityDocuments.$inferInsert;
+export type ClarityInsight = typeof clarityInsights.$inferSelect;
+export type NewClarityInsight = typeof clarityInsights.$inferInsert;
 export type SourceChunk = typeof sourceChunks.$inferSelect;
 export type NewSourceChunk = typeof sourceChunks.$inferInsert;

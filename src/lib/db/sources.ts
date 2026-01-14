@@ -112,3 +112,19 @@ export async function getSourceWithChunks(sourceId: string, userId: string) {
   });
   return source;
 }
+
+export async function updateSourceName(
+  sourceId: string,
+  userId: string,
+  name: string
+) {
+  const [source] = await db
+    .update(sources)
+    .set({
+      name,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(sources.id, sourceId), eq(sources.userId, userId)))
+    .returning();
+  return source;
+}
