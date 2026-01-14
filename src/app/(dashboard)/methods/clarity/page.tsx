@@ -61,7 +61,7 @@ export default function ClarityMethodLandingPage() {
   );
 
   return (
-    <div className="p-8 max-w-5xl mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto">
       <Link
         href="/methods"
         className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6"
@@ -71,14 +71,14 @@ export default function ClarityMethodLandingPage() {
       </Link>
 
       {/* Hero Section */}
-      <div className="mb-8">
-        <div className="flex items-center gap-4 mb-4">
-          <div className="h-16 w-16 rounded-xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center">
-            <Target className="h-8 w-8 text-white" />
+      <div className="mb-6 sm:mb-8">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-4">
+          <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center flex-shrink-0">
+            <Target className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold">Clarity Method™</h1>
-            <p className="text-lg text-muted-foreground">
+            <h1 className="text-2xl sm:text-3xl font-bold">Clarity Method™</h1>
+            <p className="text-base sm:text-lg text-muted-foreground">
               Strategic Diagnosis + Execution Mapping for Founders
             </p>
           </div>

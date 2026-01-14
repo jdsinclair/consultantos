@@ -198,11 +198,11 @@ export default function TodosPage() {
   });
 
   return (
-    <div className="p-8 max-w-5xl mx-auto">
-      <div className="flex items-center justify-between mb-8">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
         <div>
-          <h1 className="text-2xl font-bold">Action Items</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-xl sm:text-2xl font-bold">Action Items</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">
             Track tasks, commitments, and follow-ups
           </p>
         </div>
