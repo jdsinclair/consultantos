@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { getSource, updateSource, updateSourceContent, setSourceError } from "@/lib/db/sources";
+import { processSourceEmbeddings } from "@/lib/rag";
 
 export async function POST(
   req: NextRequest,
@@ -20,10 +21,10 @@ export async function POST(
     // Process based on type
     switch (source.type) {
       case "website":
-        await processWebsite(params.id, user.id, source.url!);
+        await processWebsite(params.id, source.clientId, user.id, source.url!);
         break;
       case "repo":
-        await processRepo(params.id, user.id, source.url!);
+        await processRepo(params.id, source.clientId, user.id, source.url!);
         break;
       case "local_folder":
         // Local folders need special handling via desktop agent
@@ -41,7 +42,7 @@ export async function POST(
   }
 }
 
-async function processWebsite(sourceId: string, userId: string, url: string) {
+async function processWebsite(sourceId: string, clientId: string, userId: string, url: string) {
   try {
     // Try to fetch sitemap first
     const sitemapUrl = new URL("/sitemap.xml", url).toString();
@@ -87,17 +88,22 @@ async function processWebsite(sourceId: string, userId: string, url: string) {
     }
 
     const fullContent = allContent.join("\n");
-    const chunks = chunkContent(fullContent);
 
-    await updateSourceContent(sourceId, userId, fullContent, chunks);
+    // Store content in database
+    await updateSourceContent(sourceId, userId, fullContent);
     await updateSource(sourceId, userId, { metadata });
+
+    // Generate embeddings for RAG (in background, don't block response)
+    processSourceEmbeddings(sourceId, clientId, userId, fullContent, { type: 'website', url })
+      .catch(err => console.error('Embedding generation failed:', err));
+
   } catch (error) {
     console.error("Website processing error:", error);
     await setSourceError(sourceId, userId, String(error));
   }
 }
 
-async function processRepo(sourceId: string, userId: string, url: string) {
+async function processRepo(sourceId: string, clientId: string, userId: string, url: string) {
   try {
     // Parse GitHub URL
     const match = url.match(/github\.com\/([^\/]+)\/([^\/]+)/);
@@ -142,12 +148,17 @@ async function processRepo(sourceId: string, userId: string, url: string) {
     }
 
     const fullContent = allContent.join("\n");
-    const chunks = chunkContent(fullContent);
 
-    await updateSourceContent(sourceId, userId, fullContent, chunks);
+    // Store content in database
+    await updateSourceContent(sourceId, userId, fullContent);
     await updateSource(sourceId, userId, {
       metadata: { owner, repo, files: contents.length },
     });
+
+    // Generate embeddings for RAG
+    processSourceEmbeddings(sourceId, clientId, userId, fullContent, { type: 'repo', owner, repo })
+      .catch(err => console.error('Embedding generation failed:', err));
+
   } catch (error) {
     console.error("Repo processing error:", error);
     await setSourceError(sourceId, userId, String(error));
@@ -168,17 +179,4 @@ function extractTextContent(html: string): string {
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 10000); // Limit per page
-}
-
-function chunkContent(content: string, chunkSize = 1000, overlap = 200): string[] {
-  const chunks: string[] = [];
-  let start = 0;
-
-  while (start < content.length) {
-    const end = Math.min(start + chunkSize, content.length);
-    chunks.push(content.slice(start, end));
-    start = end - overlap;
-  }
-
-  return chunks;
 }

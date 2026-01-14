@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Loader2, Globe, Sparkles, Zap } from "lucide-react";
+import { ArrowLeft, Loader2, Globe, Sparkles, Zap, User, Mail, Phone } from "lucide-react";
 import Link from "next/link";
 
 const sourceTypes = [
@@ -18,12 +18,31 @@ const sourceTypes = [
   { id: "other", label: "Other" },
 ];
 
+const countryCodes = [
+  { code: "+1", label: "US/CA (+1)" },
+  { code: "+44", label: "UK (+44)" },
+  { code: "+61", label: "AU (+61)" },
+  { code: "+49", label: "DE (+49)" },
+  { code: "+33", label: "FR (+33)" },
+  { code: "+91", label: "IN (+91)" },
+  { code: "+86", label: "CN (+86)" },
+  { code: "+81", label: "JP (+81)" },
+  { code: "+82", label: "KR (+82)" },
+  { code: "+65", label: "SG (+65)" },
+  { code: "+972", label: "IL (+972)" },
+  { code: "+971", label: "UAE (+971)" },
+];
+
 export default function NewProspectPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [evaluating, setEvaluating] = useState(false);
   const [formData, setFormData] = useState({
-    name: "",
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    phoneCountryCode: "+1",
     company: "",
     website: "",
     industry: "",
@@ -37,12 +56,28 @@ export default function NewProspectPage() {
     setLoading(true);
 
     try {
+      // Compute display name from first/last name or company
+      const displayName = formData.firstName
+        ? `${formData.firstName} ${formData.lastName}`.trim()
+        : formData.company || "Unnamed Prospect";
+
       // Create the prospect
       const res = await fetch("/api/clients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...formData,
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          name: displayName,
+          email: formData.email,
+          phone: formData.phone,
+          phoneCountryCode: formData.phoneCountryCode,
+          company: formData.company,
+          website: formData.website,
+          industry: formData.industry,
+          description: formData.description,
+          sourceType: formData.sourceType,
+          sourceNotes: formData.sourceNotes,
           status: "prospect",
         }),
       });
@@ -93,6 +128,7 @@ export default function NewProspectPage() {
   };
 
   const canEvaluate = formData.website || formData.description;
+  const hasMinimumInfo = formData.firstName || formData.company || formData.website;
 
   return (
     <div className="p-8 max-w-2xl mx-auto">
@@ -137,7 +173,6 @@ export default function NewProspectPage() {
                         ...prev,
                         website: e.target.value,
                         company: name.charAt(0).toUpperCase() + name.slice(1),
-                        name: name.charAt(0).toUpperCase() + name.slice(1),
                       }));
                     } catch {
                       // Invalid URL, ignore
@@ -155,20 +190,89 @@ export default function NewProspectPage() {
                 Or add more details manually:
               </p>
 
-              <div className="grid grid-cols-2 gap-4">
+              {/* Contact Info */}
+              <div className="space-y-4 mb-6">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <User className="h-4 w-4" />
+                  Contact Information
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="firstName">First Name</Label>
+                    <Input
+                      id="firstName"
+                      placeholder="John"
+                      value={formData.firstName}
+                      onChange={(e) =>
+                        setFormData({ ...formData, firstName: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="lastName">Last Name</Label>
+                    <Input
+                      id="lastName"
+                      placeholder="Smith"
+                      value={formData.lastName}
+                      onChange={(e) =>
+                        setFormData({ ...formData, lastName: e.target.value })
+                      }
+                    />
+                  </div>
+                </div>
+
                 <div className="space-y-2">
-                  <Label htmlFor="name">Prospect Name *</Label>
+                  <Label htmlFor="email" className="flex items-center gap-2">
+                    <Mail className="h-3 w-3" />
+                    Email
+                  </Label>
                   <Input
-                    id="name"
-                    placeholder="e.g., Acme Project"
-                    value={formData.name}
+                    id="email"
+                    type="email"
+                    placeholder="john@company.com"
+                    value={formData.email}
                     onChange={(e) =>
-                      setFormData({ ...formData, name: e.target.value })
+                      setFormData({ ...formData, email: e.target.value })
                     }
-                    required
                   />
                 </div>
 
+                <div className="space-y-2">
+                  <Label htmlFor="phone" className="flex items-center gap-2">
+                    <Phone className="h-3 w-3" />
+                    Phone
+                  </Label>
+                  <div className="flex gap-2">
+                    <select
+                      className="flex h-10 w-28 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      value={formData.phoneCountryCode}
+                      onChange={(e) =>
+                        setFormData({ ...formData, phoneCountryCode: e.target.value })
+                      }
+                    >
+                      {countryCodes.map((cc) => (
+                        <option key={cc.code} value={cc.code}>
+                          {cc.label}
+                        </option>
+                      ))}
+                    </select>
+                    <Input
+                      id="phone"
+                      type="tel"
+                      placeholder="555-123-4567"
+                      value={formData.phone}
+                      onChange={(e) =>
+                        setFormData({ ...formData, phone: e.target.value })
+                      }
+                      className="flex-1"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Company Info */}
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="company">Company</Label>
                   <Input
@@ -180,18 +284,18 @@ export default function NewProspectPage() {
                     }
                   />
                 </div>
-              </div>
 
-              <div className="space-y-2 mt-4">
-                <Label htmlFor="industry">Industry</Label>
-                <Input
-                  id="industry"
-                  placeholder="e.g., Fintech, Healthcare, SaaS"
-                  value={formData.industry}
-                  onChange={(e) =>
-                    setFormData({ ...formData, industry: e.target.value })
-                  }
-                />
+                <div className="space-y-2">
+                  <Label htmlFor="industry">Industry</Label>
+                  <Input
+                    id="industry"
+                    placeholder="e.g., Fintech, Healthcare, SaaS"
+                    value={formData.industry}
+                    onChange={(e) =>
+                      setFormData({ ...formData, industry: e.target.value })
+                    }
+                  />
+                </div>
               </div>
 
               <div className="space-y-2 mt-4">
@@ -249,7 +353,7 @@ export default function NewProspectPage() {
               <Button
                 type="button"
                 onClick={(e) => handleSubmit(e, true)}
-                disabled={loading || !formData.name || !canEvaluate}
+                disabled={loading || !hasMinimumInfo || !canEvaluate}
                 className="gap-2"
               >
                 {evaluating ? (
@@ -273,7 +377,7 @@ export default function NewProspectPage() {
               <Button
                 type="submit"
                 variant="outline"
-                disabled={loading || !formData.name}
+                disabled={loading || !hasMinimumInfo}
               >
                 {loading && !evaluating && (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />

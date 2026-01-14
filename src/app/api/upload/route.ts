@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
 import { requireUser } from "@/lib/auth";
 import { createSource, updateSourceContent, setSourceError } from "@/lib/db/sources";
+import { processSourceEmbeddings } from "@/lib/rag";
 import pdf from "pdf-parse";
 
 export async function POST(req: NextRequest) {
@@ -40,8 +41,8 @@ export async function POST(req: NextRequest) {
       processingStatus: "processing",
     });
 
-    // Start async processing (text extraction)
-    processDocument(source.id, user.id, blob.url, fileType, file).catch(console.error);
+    // Start async processing (text extraction + embeddings)
+    processDocument(source.id, clientId, user.id, blob.url, fileType, file).catch(console.error);
 
     return NextResponse.json({
       source,
@@ -72,6 +73,7 @@ function getFileType(extension: string): string {
 
 async function processDocument(
   sourceId: string,
+  clientId: string,
   userId: string,
   blobUrl: string,
   fileType: string,
@@ -152,35 +154,20 @@ async function processDocument(
         }
     }
 
-    // Chunk content for RAG
-    const chunks = chunkContent(content);
-
     // Update source with extracted content
-    await updateSourceContent(sourceId, userId, content, chunks);
+    await updateSourceContent(sourceId, userId, content);
+
+    // Generate embeddings for RAG
+    if (content && !content.startsWith("[")) {
+      await processSourceEmbeddings(sourceId, clientId, userId, content, {
+        type: 'document',
+        fileType,
+        fileName: file.name,
+      });
+    }
   } catch (error) {
     console.error("Document processing error:", error);
     await setSourceError(sourceId, userId, String(error));
   }
 }
 
-function chunkContent(content: string, chunkSize = 1000, overlap = 200): string[] {
-  if (!content || content.length === 0) {
-    return [];
-  }
-
-  const chunks: string[] = [];
-  let start = 0;
-
-  while (start < content.length) {
-    const end = Math.min(start + chunkSize, content.length);
-    const chunk = content.slice(start, end).trim();
-    if (chunk.length > 0) {
-      chunks.push(chunk);
-    }
-    start = end - overlap;
-    if (start < 0) start = 0;
-    if (end >= content.length) break;
-  }
-
-  return chunks;
-}

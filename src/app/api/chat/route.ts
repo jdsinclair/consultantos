@@ -4,8 +4,8 @@ import { models, systemPrompts, buildClientContext } from "@/lib/ai";
 import { getClient } from "@/lib/db/clients";
 import { getSources } from "@/lib/db/sources";
 import { getSessions } from "@/lib/db/sessions";
-
-export const runtime = "edge";
+import { getPersona } from "@/lib/db/personas";
+import { searchRelevantChunks, buildContextFromChunks } from "@/lib/rag";
 
 export async function POST(req: Request) {
   try {
@@ -14,16 +14,27 @@ export async function POST(req: Request) {
       return new Response("Unauthorized", { status: 401 });
     }
 
-    const { messages, clientId, sessionId, persona = "main" } = await req.json();
+    const { messages, clientId, personaId } = await req.json();
 
-    // Select system prompt based on persona
-    const systemPrompt =
-      systemPrompts[persona as keyof typeof systemPrompts] || systemPrompts.main;
+    // Get system prompt - from database persona or fallback to default
+    let systemPrompt = systemPrompts.main;
+
+    if (personaId) {
+      try {
+        const persona = await getPersona(personaId, userId);
+        if (persona?.systemPrompt) {
+          systemPrompt = persona.systemPrompt;
+        }
+      } catch (error) {
+        console.error("Failed to fetch persona:", error);
+        // Fall back to default
+      }
+    }
 
     // Build full system message with client context
     let fullSystemPrompt = systemPrompt;
 
-    // If clientId provided, fetch real client data
+    // If clientId provided, fetch context using RAG
     if (clientId) {
       try {
         const [client, sources, sessions] = await Promise.all([
@@ -33,6 +44,7 @@ export async function POST(req: Request) {
         ]);
 
         if (client) {
+          // Build basic client context (without source content)
           const clientContext = {
             name: client.name,
             company: client.company || undefined,
@@ -40,7 +52,7 @@ export async function POST(req: Request) {
             sources: sources.map((s) => ({
               name: s.name,
               type: s.type,
-              content: s.content?.slice(0, 2000), // Limit content size
+              // Don't include full content - we'll use RAG for relevant chunks
             })),
             recentSessions: sessions.slice(0, 5).map((s) => ({
               title: s.title,
@@ -49,15 +61,41 @@ export async function POST(req: Request) {
             })),
           };
 
-          fullSystemPrompt +=
-            "\n\n---\n\n" + buildClientContext(clientContext);
+          fullSystemPrompt += "\n\n---\n\n" + buildClientContext(clientContext);
+
+          // Get the last user message for RAG search
+          const lastUserMessage = messages
+            .slice()
+            .reverse()
+            .find((m: { role: string }) => m.role === "user");
+
+          if (lastUserMessage?.content) {
+            try {
+              // Search for relevant chunks using vector similarity
+              const relevantChunks = await searchRelevantChunks(
+                lastUserMessage.content,
+                clientId,
+                userId,
+                8, // Get top 8 relevant chunks
+                0.5 // Lower threshold to get more results
+              );
+
+              if (relevantChunks.length > 0) {
+                const contextFromChunks = buildContextFromChunks(relevantChunks);
+                fullSystemPrompt += "\n\n" + contextFromChunks;
+              }
+            } catch (ragError) {
+              console.error("RAG search failed:", ragError);
+              // Fall back to basic context - don't fail the whole request
+            }
+          }
         }
       } catch (error) {
         console.error("Failed to fetch client context:", error);
       }
     }
 
-    const result = streamText({
+    const result = await streamText({
       model: models.default,
       system: fullSystemPrompt,
       messages,
