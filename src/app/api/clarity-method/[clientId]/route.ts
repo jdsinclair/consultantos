@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { clarityMethodCanvases, clients } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { DEFAULT_CANVAS } from "@/lib/clarity-method/types";
+import { pushCanvasToRAG } from "@/lib/clarity-method/rag-integration";
 
 // GET /api/clarity-method/[clientId] - Get or create canvas for client
 export async function GET(
@@ -116,6 +117,12 @@ export async function PATCH(
         )
       )
       .returning();
+
+    // Trigger RAG re-indexing in background (non-blocking)
+    // This ensures the canvas is searchable and available for AI context
+    pushCanvasToRAG(clientId, user.id).catch((err) => {
+      console.error("[ClarityMethod] Background RAG sync failed:", err);
+    });
 
     return NextResponse.json({ canvas: updated });
   } catch (error) {

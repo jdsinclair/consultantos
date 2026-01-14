@@ -6,7 +6,9 @@ import { getSources } from "@/lib/db/sources";
 import { getSessions } from "@/lib/db/sessions";
 import { getPersona } from "@/lib/db/personas";
 import { getClarityDocument } from "@/lib/db/clarity";
+import { getClarityMethodCanvas } from "@/lib/db/clarity-method";
 import { searchRelevantChunks, buildContextFromChunks } from "@/lib/rag";
+import { buildCanvasContext } from "@/lib/clarity-method/rag-integration";
 
 export async function POST(req: Request) {
   try {
@@ -38,11 +40,12 @@ export async function POST(req: Request) {
     // If clientId provided, fetch context using RAG
     if (clientId) {
       try {
-        const [client, sources, sessions, clarityDoc] = await Promise.all([
+        const [client, sources, sessions, clarityDoc, clarityCanvas] = await Promise.all([
           getClient(clientId, userId),
           getSources(clientId, userId),
           getSessions(userId, clientId),
           getClarityDocument(clientId, userId),
+          getClarityMethodCanvas(clientId, userId),
         ]);
 
         if (client) {
@@ -109,6 +112,14 @@ export async function POST(req: Request) {
             }
 
             fullSystemPrompt += clarityContext;
+          }
+
+          // Add Clarity Method Canvas context if it exists
+          if (clarityCanvas) {
+            const canvasContext = buildCanvasContext(clarityCanvas);
+            if (canvasContext) {
+              fullSystemPrompt += "\n\n" + canvasContext;
+            }
           }
 
           // Get the last user message for RAG search
