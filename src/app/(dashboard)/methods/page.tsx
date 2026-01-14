@@ -4,8 +4,22 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, BookOpen, ArrowRight, Loader2 } from "lucide-react";
+import { Plus, BookOpen, ArrowRight, Loader2, Target, Sparkles } from "lucide-react";
 import Link from "next/link";
+
+// Built-in featured methods (micro-apps)
+const FEATURED_METHODS = [
+  {
+    id: "clarity",
+    name: "Clarity Method™",
+    description: "Strategic Diagnosis + Execution Mapping for Founders",
+    href: "/methods/clarity",
+    icon: Target,
+    color: "from-red-500 to-orange-500",
+    badge: "Featured",
+    tagline: "Chaos → Clarity → Constraint → Execution",
+  },
+];
 
 interface Method {
   id: string;
@@ -66,6 +80,60 @@ export default function MethodsPage() {
             Create Method
           </Button>
         </Link>
+      </div>
+
+      {/* Featured Methods (Built-in Micro-Apps) */}
+      <div className="mb-8">
+        <div className="flex items-center gap-2 mb-4">
+          <Sparkles className="h-5 w-5 text-amber-500" />
+          <h2 className="text-lg font-semibold">Featured Methods</h2>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          {FEATURED_METHODS.map((method) => {
+            const Icon = method.icon;
+            return (
+              <Link key={method.id} href={method.href}>
+                <Card className="hover:border-primary/50 transition-all hover:shadow-lg cursor-pointer overflow-hidden">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start gap-4">
+                      <div className={`flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br ${method.color}`}>
+                        <Icon className="h-6 w-6 text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <CardTitle className="text-lg">{method.name}</CardTitle>
+                          <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/20">
+                            {method.badge}
+                          </Badge>
+                        </div>
+                        <CardDescription className="mt-1">{method.description}</CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <p className="text-sm text-muted-foreground mb-3">{method.tagline}</p>
+                    <div className="flex items-center justify-end">
+                      <Button variant="ghost" size="sm" className="gap-1">
+                        Open Method
+                        <ArrowRight className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Divider */}
+      <div className="relative my-8">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t border-border"></div>
+        </div>
+        <div className="relative flex justify-center text-xs uppercase">
+          <span className="bg-background px-2 text-muted-foreground">Your Custom Methods</span>
+        </div>
       </div>
 
       {/* Method Categories */}
