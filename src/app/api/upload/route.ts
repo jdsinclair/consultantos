@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
 import { requireUser } from "@/lib/auth";
-import { createSource, updateSourceContent, setSourceError, updateSourceSummary } from "@/lib/db/sources";
+import { createSource, updateSourceContent, setSourceError, updateSourceSummary, updateSourceName } from "@/lib/db/sources";
 import { processSourceEmbeddings } from "@/lib/rag";
 import { extractImageContent, formatImageContentForRAG } from "@/lib/ai/vision";
-import { generateSourceSummary } from "@/lib/ai/source-summary";
+import { generateSourceSummary, generateSourceName } from "@/lib/ai/source-summary";
 import { db } from "@/db";
 import { clients } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -36,12 +36,13 @@ export async function POST(req: NextRequest) {
     const isImage = ["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(extension);
     const sourceType = isImage ? "image" : "document";
 
-    // Create source record
+    // Create source record (store original name, will update with AI name after processing)
     const source = await createSource({
       clientId,
       userId: user.id,
       type: sourceType,
-      name: file.name,
+      name: file.name, // Temporary, will be replaced with AI-generated name
+      originalName: file.name, // Keep original filename
       blobUrl: blob.url,
       fileType,
       fileSize: file.size,
@@ -198,8 +199,26 @@ async function processDocument(
     // Update source with extracted content
     await updateSourceContent(sourceId, userId, content);
 
-    // Generate AI summary for the source
+    // Generate AI name and summary for the source
     if (content && !content.startsWith("[Error") && !content.startsWith("[Unsupported")) {
+      console.log(`Generating AI name for: ${file.name}`);
+
+      // Generate AI-friendly name
+      try {
+        const aiName = await generateSourceName(content, {
+          originalFileName: file.name,
+          fileType,
+          clientName,
+        });
+        if (aiName && aiName !== file.name) {
+          await updateSourceName(sourceId, userId, aiName);
+          console.log(`AI name generated: ${aiName}`);
+        }
+      } catch (error) {
+        console.error("Failed to generate AI name:", error);
+      }
+
+      // Generate AI summary
       console.log(`Generating AI summary for: ${file.name}`);
       const summary = await generateSourceSummary(content, {
         fileName: file.name,

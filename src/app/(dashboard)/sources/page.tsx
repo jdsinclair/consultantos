@@ -25,6 +25,7 @@ import { formatDistanceToNow } from "date-fns";
 interface Source {
   id: string;
   name: string;
+  originalName: string | null;
   type: string;
   url: string | null;
   blobUrl: string | null;
@@ -299,6 +300,11 @@ export default function SourcesPage() {
                         </Badge>
                       )}
                     </div>
+                    {source.originalName && source.originalName !== source.name && (
+                      <p className="text-xs text-muted-foreground/70 truncate">
+                        {source.originalName}
+                      </p>
+                    )}
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       {source.client && (
                         <>

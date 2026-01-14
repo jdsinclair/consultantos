@@ -5,6 +5,7 @@ import { getClient } from "@/lib/db/clients";
 import { getSources } from "@/lib/db/sources";
 import { getSessions } from "@/lib/db/sessions";
 import { getPersona } from "@/lib/db/personas";
+import { getClarityDocument } from "@/lib/db/clarity";
 import { searchRelevantChunks, buildContextFromChunks } from "@/lib/rag";
 
 export async function POST(req: Request) {
@@ -37,10 +38,11 @@ export async function POST(req: Request) {
     // If clientId provided, fetch context using RAG
     if (clientId) {
       try {
-        const [client, sources, sessions] = await Promise.all([
+        const [client, sources, sessions, clarityDoc] = await Promise.all([
           getClient(clientId, userId),
           getSources(clientId, userId),
           getSessions(userId, clientId),
+          getClarityDocument(clientId, userId),
         ]);
 
         if (client) {
@@ -62,6 +64,52 @@ export async function POST(req: Request) {
           };
 
           fullSystemPrompt += "\n\n---\n\n" + buildClientContext(clientContext);
+
+          // Add Clarity Document context if it exists
+          if (clarityDoc) {
+            let clarityContext = "\n\n## Clarity Document (Client's Business Definition)\n\n";
+
+            if (clarityDoc.positioningStatement) {
+              clarityContext += `**Positioning Statement:** ${clarityDoc.positioningStatement}\n\n`;
+            }
+            if (clarityDoc.niche) {
+              clarityContext += `**Niche (Who they serve):** ${clarityDoc.niche}\n`;
+            }
+            if (clarityDoc.desiredOutcome) {
+              clarityContext += `**Desired Outcome:** ${clarityDoc.desiredOutcome}\n`;
+            }
+            if (clarityDoc.offer) {
+              clarityContext += `**Offer:** ${clarityDoc.offer}\n`;
+            }
+            if (clarityDoc.whoWeAre) {
+              clarityContext += `\n**Who We Are:** ${clarityDoc.whoWeAre}\n`;
+            }
+            if (clarityDoc.whatWeDo) {
+              clarityContext += `**What We Do:** ${clarityDoc.whatWeDo}\n`;
+            }
+            if (clarityDoc.howWeDoIt) {
+              clarityContext += `**How We Do It:** ${clarityDoc.howWeDoIt}\n`;
+            }
+            if (clarityDoc.ourWedge) {
+              clarityContext += `**Our Wedge (Differentiator):** ${clarityDoc.ourWedge}\n`;
+            }
+            if (clarityDoc.whyPeopleLoveUs) {
+              clarityContext += `**Why People Love Us:** ${clarityDoc.whyPeopleLoveUs}\n`;
+            }
+            if (clarityDoc.howWeWillDie) {
+              clarityContext += `**How We Will Die (Risks):** ${clarityDoc.howWeWillDie}\n`;
+            }
+
+            // Add locked-in sections
+            if (clarityDoc.sections && Array.isArray(clarityDoc.sections) && clarityDoc.sections.length > 0) {
+              clarityContext += "\n**Locked-In Insights:**\n";
+              for (const section of clarityDoc.sections) {
+                clarityContext += `- **${section.title}:** ${section.content}\n`;
+              }
+            }
+
+            fullSystemPrompt += clarityContext;
+          }
 
           // Get the last user message for RAG search
           const lastUserMessage = messages
