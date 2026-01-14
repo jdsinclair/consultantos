@@ -3,10 +3,14 @@ import { requireUser } from "@/lib/auth";
 import { getNote, updateNote, deleteNote, togglePinNote } from "@/lib/db/notes";
 import { z } from "zod";
 
+const NOTE_TYPES = ["general", "future", "competitor", "partner", "idea", "reference"] as const;
+
 const updateNoteSchema = z.object({
   title: z.string().optional(),
   content: z.string().min(1).optional(),
   isPinned: z.boolean().optional(),
+  noteType: z.enum(NOTE_TYPES).optional(),
+  labels: z.array(z.string()).optional(),
 });
 
 export async function GET(

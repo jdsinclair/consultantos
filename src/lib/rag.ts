@@ -235,3 +235,72 @@ ${chunk.content}`;
 
 ${contextParts.join('\n\n---\n\n')}`;
 }
+
+/**
+ * Search for similar chunks - more flexible version for debug
+ * Can search across all clients or a specific client
+ */
+export async function searchSimilarChunks(
+  query: string,
+  userId: string,
+  options?: {
+    clientId?: string;
+    limit?: number;
+    minSimilarity?: number;
+  }
+): Promise<Array<{
+  content: string;
+  sourceId: string;
+  chunkIndex: number;
+  similarity: number;
+  source?: { name: string; type: string };
+}>> {
+  const limit = options?.limit || 10;
+  const minSimilarity = options?.minSimilarity || 0.5;
+
+  // Generate embedding for query
+  const queryEmbedding = await generateEmbedding(query);
+  const embeddingStr = `[${queryEmbedding.join(',')}]`;
+
+  // Build query with optional client filter
+  const clientCondition = options?.clientId
+    ? sql`AND sc.client_id = ${options.clientId}`
+    : sql``;
+
+  // Search using cosine similarity
+  const results = await db.execute(sql`
+    SELECT
+      sc.content,
+      sc.source_id,
+      sc.chunk_index,
+      s.name as source_name,
+      s.type as source_type,
+      1 - (sc.embedding <=> ${embeddingStr}::vector) as similarity
+    FROM source_chunks sc
+    JOIN sources s ON s.id = sc.source_id
+    WHERE sc.user_id = ${userId}
+      ${clientCondition}
+      AND sc.embedding IS NOT NULL
+      AND 1 - (sc.embedding <=> ${embeddingStr}::vector) >= ${minSimilarity}
+    ORDER BY sc.embedding <=> ${embeddingStr}::vector
+    LIMIT ${limit}
+  `);
+
+  return (results.rows as Array<{
+    content: string;
+    source_id: string;
+    chunk_index: number;
+    source_name: string;
+    source_type: string;
+    similarity: number;
+  }>).map(row => ({
+    content: row.content,
+    sourceId: row.source_id,
+    chunkIndex: row.chunk_index,
+    similarity: row.similarity,
+    source: {
+      name: row.source_name,
+      type: row.source_type,
+    },
+  }));
+}

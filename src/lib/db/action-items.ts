@@ -85,6 +85,26 @@ export async function deleteActionItem(itemId: string, userId: string) {
     .where(and(eq(actionItems.id, itemId), eq(actionItems.userId, userId)));
 }
 
+export async function getActionItem(itemId: string, userId: string) {
+  return db.query.actionItems.findFirst({
+    where: and(eq(actionItems.id, itemId), eq(actionItems.userId, userId)),
+    with: {
+      client: true,
+      session: true,
+    },
+  });
+}
+
+export async function getSubtasks(parentId: string, userId: string) {
+  return db.query.actionItems.findMany({
+    where: and(
+      eq(actionItems.parentId, parentId),
+      eq(actionItems.userId, userId)
+    ),
+    orderBy: [desc(actionItems.createdAt)],
+  });
+}
+
 // Create action items detected from AI during sessions
 export async function createDetectedActionItems(
   sessionId: string,

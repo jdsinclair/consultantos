@@ -76,3 +76,39 @@ export async function setSourceError(
     .returning();
   return source;
 }
+
+export async function updateSourceSummary(
+  sourceId: string,
+  userId: string,
+  aiSummary: {
+    whatItIs: string;
+    whyItMatters: string;
+    keyInsights: string[];
+    suggestedUses: string[];
+    generatedAt: string;
+    editedAt?: string;
+    isEdited?: boolean;
+  }
+) {
+  const [source] = await db
+    .update(sources)
+    .set({
+      aiSummary,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(sources.id, sourceId), eq(sources.userId, userId)))
+    .returning();
+  return source;
+}
+
+export async function getSourceWithChunks(sourceId: string, userId: string) {
+  const source = await db.query.sources.findFirst({
+    where: and(eq(sources.id, sourceId), eq(sources.userId, userId)),
+    with: {
+      chunks: {
+        orderBy: (chunks, { asc }) => [asc(chunks.chunkIndex)],
+      },
+    },
+  });
+  return source;
+}

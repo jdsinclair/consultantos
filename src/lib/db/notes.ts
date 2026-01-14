@@ -9,6 +9,8 @@ export type NewNote = {
   title?: string;
   content: string;
   isPinned?: boolean;
+  noteType?: string;
+  labels?: string[];
 };
 
 export async function getNotes(

@@ -1,17 +1,43 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
-import { updateActionItem, completeActionItem, deleteActionItem } from "@/lib/db/action-items";
+import { updateActionItem, completeActionItem, deleteActionItem, getActionItem, getSubtasks } from "@/lib/db/action-items";
 import { z } from "zod";
 
 const updateActionItemSchema = z.object({
   title: z.string().min(1).optional(),
   description: z.string().optional(),
+  notes: z.string().optional(),
   owner: z.string().optional(),
   ownerType: z.enum(["me", "client"]).optional(),
   dueDate: z.string().datetime().optional().nullable(),
   priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
   status: z.enum(["pending", "in_progress", "completed", "cancelled"]).optional(),
 });
+
+export async function GET(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const user = await requireUser();
+    const { searchParams } = new URL(req.url);
+    const includeSubtasks = searchParams.get("includeSubtasks") === "true";
+
+    const item = await getActionItem(params.id, user.id);
+    if (!item) {
+      return NextResponse.json({ error: "Action item not found" }, { status: 404 });
+    }
+
+    const subtasks = includeSubtasks ? await getSubtasks(params.id, user.id) : [];
+
+    return NextResponse.json({
+      ...item,
+      subtasks,
+    });
+  } catch (error) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+}
 
 export async function PATCH(
   req: NextRequest,

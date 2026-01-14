@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { formatDistanceToNow, isPast, isToday, isTomorrow, addDays } from "date-fns";
+import { TaskDetailDialog } from "@/components/task-detail-dialog";
 
 interface ActionItem {
   id: string;
@@ -51,6 +52,8 @@ export default function ActionItemsPage() {
   const [newItemTitle, setNewItemTitle] = useState("");
   const [newItemClientId, setNewItemClientId] = useState("");
   const [adding, setAdding] = useState(false);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -290,14 +293,21 @@ export default function ActionItemsPage() {
             return (
               <Card
                 key={item.id}
-                className={`hover:border-primary/30 transition-colors ${
+                className={`hover:border-primary/30 transition-colors cursor-pointer ${
                   item.status === "completed" ? "opacity-60" : ""
                 }`}
+                onClick={() => {
+                  setSelectedTaskId(item.id);
+                  setDialogOpen(true);
+                }}
               >
                 <CardContent className="p-4">
                   <div className="flex items-start gap-4">
                     <button
-                      onClick={() => handleToggle(item.id, item.status !== "completed")}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleToggle(item.id, item.status !== "completed");
+                      }}
                       className="mt-1"
                     >
                       {item.status === "completed" ? (
@@ -336,6 +346,7 @@ export default function ActionItemsPage() {
                           <Link
                             href={`/clients/${item.client.id}`}
                             className="flex items-center gap-1 text-muted-foreground hover:text-primary"
+                            onClick={(e) => e.stopPropagation()}
                           >
                             <Users className="h-3 w-3" />
                             {item.client.name}
@@ -413,6 +424,14 @@ export default function ActionItemsPage() {
           </Card>
         </div>
       )}
+
+      {/* Task Detail Dialog */}
+      <TaskDetailDialog
+        taskId={selectedTaskId}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        onUpdate={fetchData}
+      />
     </div>
   );
 }

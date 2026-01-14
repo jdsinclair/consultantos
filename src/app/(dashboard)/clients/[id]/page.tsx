@@ -33,6 +33,7 @@ import { FileUpload } from "@/components/file-upload";
 import { SourceAdder } from "@/components/source-adder";
 import { TodoQuickAdd } from "@/components/todo-quick-add";
 import { DealBadge } from "@/components/deal-badge";
+import { NoteDialog } from "@/components/note-dialog";
 import { cn } from "@/lib/utils";
 
 interface Client {
@@ -83,8 +84,19 @@ interface Note {
   title?: string;
   content: string;
   isPinned: boolean;
+  noteType?: string;
+  labels?: string[];
   createdAt: string;
 }
+
+const NOTE_TYPE_COLORS: Record<string, string> = {
+  general: "bg-gray-100 text-gray-700",
+  future: "bg-blue-100 text-blue-700",
+  competitor: "bg-red-100 text-red-700",
+  partner: "bg-green-100 text-green-700",
+  idea: "bg-purple-100 text-purple-700",
+  reference: "bg-amber-100 text-amber-700",
+};
 
 const priorityColors: Record<string, string> = {
   low: "bg-slate-100 text-slate-700",
@@ -517,7 +529,13 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                 <StickyNote className="h-5 w-5" />
                 Notes
               </CardTitle>
-              <Badge variant="secondary">{notes.length}</Badge>
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary">{notes.length}</Badge>
+                <NoteDialog
+                  clientId={params.id}
+                  onNoteCreated={() => fetchNotes()}
+                />
+              </div>
             </CardHeader>
             <CardContent>
               {notes.length > 0 ? (
@@ -527,12 +545,38 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                       key={note.id}
                       className="p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
                     >
-                      {note.title && (
-                        <p className="text-sm font-medium mb-1">{note.title}</p>
-                      )}
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {note.title && (
+                            <p className="text-sm font-medium">{note.title}</p>
+                          )}
+                          {note.noteType && note.noteType !== "general" && (
+                            <Badge
+                              variant="secondary"
+                              className={cn("text-xs", NOTE_TYPE_COLORS[note.noteType])}
+                            >
+                              {note.noteType}
+                            </Badge>
+                          )}
+                          {note.isPinned && (
+                            <span className="text-amber-500" title="Pinned">
+                              📌
+                            </span>
+                          )}
+                        </div>
+                      </div>
                       <p className="text-sm text-muted-foreground line-clamp-2">
                         {note.content}
                       </p>
+                      {note.labels && note.labels.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {note.labels.map((label) => (
+                            <Badge key={label} variant="outline" className="text-xs">
+                              {label}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
                       <p className="text-xs text-muted-foreground mt-2">
                         {formatDistanceToNow(new Date(note.createdAt), {
                           addSuffix: true,
@@ -542,9 +586,21 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  No notes yet
-                </p>
+                <div className="text-center py-4">
+                  <p className="text-sm text-muted-foreground mb-2">
+                    No notes yet
+                  </p>
+                  <NoteDialog
+                    clientId={params.id}
+                    onNoteCreated={() => fetchNotes()}
+                    trigger={
+                      <Button size="sm" variant="ghost" className="gap-1">
+                        <Plus className="h-3 w-3" />
+                        Add first note
+                      </Button>
+                    }
+                  />
+                </div>
               )}
             </CardContent>
           </Card>
