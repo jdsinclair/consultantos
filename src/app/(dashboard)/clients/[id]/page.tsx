@@ -70,7 +70,6 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   const [sessions, setSessions] = useState<Session[]>([]);
   const [actionItems, setActionItems] = useState<ActionItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showSourceAdder, setShowSourceAdder] = useState(false);
 
   const { messages, input, handleInputChange, handleSubmit, isLoading: chatLoading } = useChat({
     api: "/api/chat",
@@ -111,7 +110,6 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
     } catch (error) {
       console.error("Failed to refresh sources:", error);
     }
-    setShowSourceAdder(false);
   };
 
   const handleDeleteSource = async (sourceId: string) => {
@@ -225,10 +223,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <CardTitle className="text-lg">Sources ({sources.length})</CardTitle>
-              <Button size="sm" variant="outline" className="gap-1" onClick={() => setShowSourceAdder(true)}>
-                <Plus className="h-3 w-3" />
-                Add Source
-              </Button>
+              <SourceAdder clientId={params.id} onSourceAdded={handleSourceAdded} />
             </CardHeader>
             <CardContent>
               {sources.length > 0 ? (
@@ -445,14 +440,6 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
         </div>
       </div>
 
-      {/* Source Adder Modal */}
-      {showSourceAdder && (
-        <SourceAdder
-          clientId={params.id}
-          onClose={() => setShowSourceAdder(false)}
-          onSourceAdded={handleSourceAdded}
-        />
-      )}
     </div>
   );
 }

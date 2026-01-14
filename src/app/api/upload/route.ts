@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
 import { requireUser } from "@/lib/auth";
 import { createSource, updateSourceContent, setSourceError } from "@/lib/db/sources";
-// @ts-expect-error - pdf-parse types
 import pdf from "pdf-parse";
 
 export async function POST(req: NextRequest) {
