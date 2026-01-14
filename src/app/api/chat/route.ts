@@ -10,18 +10,53 @@ import { getClarityMethodCanvas } from "@/lib/db/clarity-method";
 import { searchRelevantChunks, buildContextFromChunks } from "@/lib/rag";
 import { buildCanvasContext } from "@/lib/clarity-method/rag-integration";
 
+// Check API key availability at startup
+const hasAnthropicKey = !!process.env.ANTHROPIC_API_KEY;
+
 export async function POST(req: Request) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return new Response("Unauthorized", { status: 401 });
+    // Pre-flight check: API key
+    if (!hasAnthropicKey) {
+      console.error("[Chat] ANTHROPIC_API_KEY is not configured");
+      return new Response(
+        JSON.stringify({
+          error: "AI service not configured",
+          details: "ANTHROPIC_API_KEY environment variable is missing"
+        }),
+        { status: 503, headers: { "Content-Type": "application/json" } }
+      );
     }
 
-    const { messages, clientId, personaId, context, canvas } = await req.json();
+    const { userId } = await auth();
+    if (!userId) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return new Response(
+        JSON.stringify({ error: "Invalid request body" }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    const { messages, clientId, personaId, context, canvas } = body;
+
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      return new Response(
+        JSON.stringify({ error: "Messages array is required" }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
 
     // Get system prompt - from database persona or special context
     let systemPrompt = systemPrompts.main;
-    
+
     // Special context-specific system prompts
     if (context === "clarity-method") {
       systemPrompt = `You are a strategic advisor helping build a Clarity Method™ canvas for a founder client.
@@ -259,15 +294,58 @@ Reference the canvas data when answering questions.`;
       }
     }
 
-    const result = await streamText({
-      model: models.default,
-      system: fullSystemPrompt,
-      messages,
-    });
+    try {
+      const result = await streamText({
+        model: models.default,
+        system: fullSystemPrompt,
+        messages,
+      });
 
-    return result.toDataStreamResponse();
+      return result.toDataStreamResponse();
+    } catch (streamError) {
+      console.error("[Chat] Stream error:", streamError);
+
+      // Check for specific API errors
+      const errorMessage = streamError instanceof Error ? streamError.message : "Unknown error";
+
+      if (errorMessage.includes("API key")) {
+        return new Response(
+          JSON.stringify({ error: "Invalid API key", details: errorMessage }),
+          { status: 401, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      if (errorMessage.includes("rate limit") || errorMessage.includes("429")) {
+        return new Response(
+          JSON.stringify({ error: "Rate limited", details: "Too many requests, please try again later" }),
+          { status: 429, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      if (errorMessage.includes("credit") || errorMessage.includes("billing")) {
+        return new Response(
+          JSON.stringify({ error: "Billing issue", details: "Check your AI provider account" }),
+          { status: 402, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          error: "AI request failed",
+          details: errorMessage,
+          type: streamError instanceof Error ? streamError.name : "Unknown"
+        }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
   } catch (error) {
-    console.error("Chat error:", error);
-    return new Response("Internal error", { status: 500 });
+    console.error("[Chat] Unexpected error:", error);
+    return new Response(
+      JSON.stringify({
+        error: "Internal server error",
+        details: error instanceof Error ? error.message : "Unknown error"
+      }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
   }
 }
