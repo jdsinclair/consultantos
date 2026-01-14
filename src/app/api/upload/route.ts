@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { put, del } from "@vercel/blob";
+import { put } from "@vercel/blob";
 import { requireUser } from "@/lib/auth";
 import { createSource, updateSourceContent, setSourceError } from "@/lib/db/sources";
+// @ts-expect-error - pdf-parse types
+import pdf from "pdf-parse";
 
 export async function POST(req: NextRequest) {
   try {
@@ -40,7 +42,7 @@ export async function POST(req: NextRequest) {
     });
 
     // Start async processing (text extraction)
-    processDocument(source.id, user.id, blob.url, fileType).catch(console.error);
+    processDocument(source.id, user.id, blob.url, fileType, file).catch(console.error);
 
     return NextResponse.json({
       source,
@@ -73,42 +75,82 @@ async function processDocument(
   sourceId: string,
   userId: string,
   blobUrl: string,
-  fileType: string
+  fileType: string,
+  file: File
 ) {
   try {
-    // Fetch the document
-    const response = await fetch(blobUrl);
-    const buffer = await response.arrayBuffer();
-
     let content = "";
 
     // Extract text based on file type
     switch (fileType) {
       case "pdf":
-        // In production, use pdf-parse
-        // For now, we'll mark it as needing processing
-        content = "[PDF content - text extraction pending]";
+        try {
+          const arrayBuffer = await file.arrayBuffer();
+          const buffer = Buffer.from(arrayBuffer);
+          const data = await pdf(buffer);
+          content = data.text || "";
+
+          // Clean up the text
+          content = content
+            .replace(/\r\n/g, "\n")
+            .replace(/\n{3,}/g, "\n\n")
+            .trim();
+        } catch (pdfError) {
+          console.error("PDF parsing error:", pdfError);
+          content = "[Error extracting PDF content]";
+        }
         break;
 
       case "txt":
       case "md":
+        content = await file.text();
+        break;
+
       case "csv":
+        content = await file.text();
+        // Convert CSV to more readable format
+        content = `[CSV Data]\n${content}`;
+        break;
+
       case "json":
-        content = new TextDecoder().decode(buffer);
+        const jsonText = await file.text();
+        try {
+          const parsed = JSON.parse(jsonText);
+          content = JSON.stringify(parsed, null, 2);
+        } catch {
+          content = jsonText;
+        }
         break;
 
       case "docx":
-        // Would use mammoth or similar
-        content = "[DOCX content - text extraction pending]";
-        break;
-
-      case "pptx":
-        // Would use pptx parser
-        content = "[PPTX content - text extraction pending]";
+        // For DOCX, we extract as much as we can from the raw XML
+        // A proper solution would use mammoth.js
+        try {
+          const arrayBuffer = await file.arrayBuffer();
+          const text = new TextDecoder().decode(arrayBuffer);
+          // Extract text between XML tags - basic extraction
+          const textContent = text.match(/<w:t[^>]*>([^<]*)<\/w:t>/g);
+          if (textContent) {
+            content = textContent
+              .map(t => t.replace(/<[^>]+>/g, ""))
+              .join(" ")
+              .replace(/\s+/g, " ")
+              .trim();
+          } else {
+            content = "[DOCX content - could not extract text]";
+          }
+        } catch {
+          content = "[DOCX content - extraction failed]";
+        }
         break;
 
       default:
-        content = "[Unsupported file type]";
+        // Try to read as text
+        try {
+          content = await file.text();
+        } catch {
+          content = "[Unsupported file type - could not extract content]";
+        }
     }
 
     // Chunk content for RAG
@@ -123,13 +165,22 @@ async function processDocument(
 }
 
 function chunkContent(content: string, chunkSize = 1000, overlap = 200): string[] {
+  if (!content || content.length === 0) {
+    return [];
+  }
+
   const chunks: string[] = [];
   let start = 0;
 
   while (start < content.length) {
     const end = Math.min(start + chunkSize, content.length);
-    chunks.push(content.slice(start, end));
+    const chunk = content.slice(start, end).trim();
+    if (chunk.length > 0) {
+      chunks.push(chunk);
+    }
     start = end - overlap;
+    if (start < 0) start = 0;
+    if (end >= content.length) break;
   }
 
   return chunks;
