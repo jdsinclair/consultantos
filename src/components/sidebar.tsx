@@ -14,10 +14,12 @@ import {
   LayoutDashboard,
   Mail,
   CheckCircle,
+  UserPlus,
 } from "lucide-react";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { name: "Prospects", href: "/prospects", icon: UserPlus },
   { name: "Clients", href: "/clients", icon: Users },
   { name: "Sessions", href: "/session", icon: Mic },
   { name: "Action Items", href: "/action-items", icon: CheckCircle },
