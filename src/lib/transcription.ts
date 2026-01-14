@@ -1,5 +1,6 @@
 // Real-time transcription using Deepgram
 // This is a client-side hook for capturing audio and sending to Deepgram
+// Supports both browser (limited) and Electron (full system audio) modes
 
 export interface TranscriptSegment {
   text: string;
@@ -25,6 +26,17 @@ export type TranscriptionStatus =
   | "stopped";
 
 export type AudioSource = "microphone" | "system" | "both";
+
+// Check if running in Electron
+export function isElectron(): boolean {
+  return typeof window !== "undefined" && !!window.electronAPI?.isElectron;
+}
+
+// Get available audio sources (only works in Electron)
+export async function getAudioSources(): Promise<Array<{ id: string; name: string; thumbnail: string }>> {
+  if (!isElectron()) return [];
+  return window.electronAPI!.getSystemAudioSources();
+}
 
 export class RealtimeTranscription {
   private socket: WebSocket | null = null;
@@ -55,10 +67,14 @@ export class RealtimeTranscription {
   /**
    * Start transcription with specified audio source
    * @param source - "microphone" for mic only, "system" for screen share audio, "both" for mixed
+   * @param electronSourceId - Optional: specific source ID when running in Electron
    */
-  async start(source: AudioSource = "microphone") {
+  async start(source: AudioSource = "microphone", electronSourceId?: string) {
     try {
       this.setStatus("requesting_permissions");
+
+      // Check if running in Electron for enhanced system audio capture
+      const inElectron = isElectron();
 
       if (source === "microphone" || source === "both") {
         // Get microphone access
@@ -73,31 +89,50 @@ export class RealtimeTranscription {
       }
 
       if (source === "system" || source === "both") {
-        // Get system audio via screen share
-        // This requires user to share a tab/window with audio
-        try {
-          this.systemStream = await navigator.mediaDevices.getDisplayMedia({
-            video: true, // Required, but we'll ignore it
-            audio: {
-              // @ts-expect-error - Chrome-specific audio constraints
-              suppressLocalAudioPlayback: false,
-            },
-          });
+        if (inElectron && electronSourceId) {
+          // Electron mode: Use desktopCapturer for true system audio
+          try {
+            const constraints = await window.electronAPI!.captureSystemAudio(electronSourceId);
+            // In Electron, getUserMedia can capture desktop audio with these constraints
+            this.systemStream = await navigator.mediaDevices.getUserMedia(constraints as MediaStreamConstraints);
 
-          // Stop the video track - we only want audio
-          this.systemStream.getVideoTracks().forEach(track => track.stop());
+            // We get both audio and video tracks, stop video
+            this.systemStream.getVideoTracks().forEach(track => track.stop());
 
-          // Check if we got audio
-          if (this.systemStream.getAudioTracks().length === 0) {
-            console.warn("No system audio captured - user may not have selected 'Share audio'");
-            if (source === "system") {
-              throw new Error("No system audio captured. Make sure to check 'Share audio' when sharing.");
+            if (this.systemStream.getAudioTracks().length === 0) {
+              throw new Error("No audio track captured from system");
             }
+            console.log("Electron: System audio captured successfully");
+          } catch (err) {
+            console.error("Electron system audio capture failed:", err);
+            if (source === "system") throw err;
           }
-        } catch (err) {
-          if (source === "system") throw err;
-          // For "both" mode, continue with just mic if system audio fails
-          console.warn("System audio capture failed, continuing with microphone only:", err);
+        } else {
+          // Browser mode: Use getDisplayMedia (requires user to share screen with audio)
+          try {
+            this.systemStream = await navigator.mediaDevices.getDisplayMedia({
+              video: true, // Required, but we'll ignore it
+              audio: {
+                // @ts-expect-error - Chrome-specific audio constraints
+                suppressLocalAudioPlayback: false,
+              },
+            });
+
+            // Stop the video track - we only want audio
+            this.systemStream.getVideoTracks().forEach(track => track.stop());
+
+            // Check if we got audio
+            if (this.systemStream.getAudioTracks().length === 0) {
+              console.warn("No system audio captured - user may not have selected 'Share audio'");
+              if (source === "system") {
+                throw new Error("No system audio captured. Make sure to check 'Share audio' when sharing.");
+              }
+            }
+          } catch (err) {
+            if (source === "system") throw err;
+            // For "both" mode, continue with just mic if system audio fails
+            console.warn("System audio capture failed, continuing with microphone only:", err);
+          }
         }
       }
 

@@ -32,6 +32,7 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { useChat } from "ai/react";
 import { AudioVisualizer, AudioLevel } from "@/components/audio-visualizer";
+import { SourcePicker, useIsElectron } from "@/components/source-picker";
 import {
   RealtimeTranscription,
   TranscriptSegment,
@@ -114,6 +115,11 @@ export default function LiveSessionPage({ params }: { params: { id: string } }) 
   const [liveTranscript, setLiveTranscript] = useState<TranscriptSegment[]>([]);
   const [interimTranscript, setInterimTranscript] = useState<string>("");
   const transcriptionRef = useRef<RealtimeTranscription | null>(null);
+
+  // Electron-specific state
+  const inElectron = useIsElectron();
+  const [showSourcePicker, setShowSourcePicker] = useState(false);
+  const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
 
   const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
     api: "/api/chat",
@@ -273,7 +279,23 @@ export default function LiveSessionPage({ params }: { params: { id: string } }) 
     }
   };
 
+  // Handle source selection from Electron picker
+  const handleSourceSelect = (sourceId: string) => {
+    setSelectedSourceId(sourceId);
+    startRecordingWithSource(sourceId);
+  };
+
   const startRecording = async () => {
+    // In Electron with system audio, show source picker first
+    if (inElectron && (audioSource === "both" || audioSource === "system")) {
+      setShowSourcePicker(true);
+      return;
+    }
+    // Otherwise start directly
+    startRecordingWithSource(null);
+  };
+
+  const startRecordingWithSource = async (sourceId: string | null) => {
     // Update session status first
     await fetch(`/api/sessions/${params.id}`, {
       method: "PATCH",
@@ -311,8 +333,8 @@ export default function LiveSessionPage({ params }: { params: { id: string } }) 
       },
     });
 
-    // Start with selected audio source
-    await transcriptionRef.current.start(audioSource);
+    // Start with selected audio source (pass sourceId for Electron)
+    await transcriptionRef.current.start(audioSource, sourceId || undefined);
   };
 
   const endSession = async () => {
@@ -670,17 +692,19 @@ export default function LiveSessionPage({ params }: { params: { id: string } }) 
                         variant={audioSource === "both" ? "default" : "outline"}
                         onClick={() => setAudioSource("both")}
                         className="h-7 text-xs"
-                        title="Capture mic + system audio (for Zoom calls)"
+                        title={inElectron ? "Capture mic + Zoom/Meet audio directly" : "Capture mic + system audio (for Zoom calls)"}
                       >
                         <Monitor className="h-3 w-3 mr-1" />
-                        Zoom
+                        {inElectron ? "Zoom/Meet" : "Zoom"}
                       </Button>
                     </div>
                   )}
                 </div>
                 {audioSource === "both" && !isRecording && (
                   <p className="text-xs text-muted-foreground mt-2">
-                    Zoom mode will ask you to share a tab/window. Check &quot;Share audio&quot; to capture the other person.
+                    {inElectron
+                      ? "You'll select which app to capture audio from (Zoom, Meet, etc.)"
+                      : "Zoom mode will ask you to share a tab/window. Check \"Share audio\" to capture the other person."}
                   </p>
                 )}
               </CardHeader>
@@ -736,9 +760,17 @@ export default function LiveSessionPage({ params }: { params: { id: string } }) 
                     <p>Transcript will appear here as you speak</p>
                     <p className="text-xs mt-2">
                       {audioSource === "both"
-                        ? "Zoom mode: Will capture you + the other person"
+                        ? inElectron
+                          ? "Desktop mode: Select Zoom/Meet to capture both sides"
+                          : "Zoom mode: Will capture you + the other person"
                         : "Mic mode: Will capture your voice only"}
                     </p>
+                    {inElectron && (
+                      <Badge variant="outline" className="mt-3 text-xs">
+                        <Monitor className="h-3 w-3 mr-1" />
+                        Desktop App
+                      </Badge>
+                    )}
                   </div>
                 )}
               </CardContent>
@@ -971,6 +1003,13 @@ export default function LiveSessionPage({ params }: { params: { id: string } }) 
           </div>
         </div>
       </div>
+
+      {/* Source Picker for Electron */}
+      <SourcePicker
+        open={showSourcePicker}
+        onClose={() => setShowSourcePicker(false)}
+        onSelect={handleSourceSelect}
+      />
     </div>
   );
 }
