@@ -176,6 +176,14 @@ export class RealtimeTranscription {
 
   private async connectWebSocket() {
     const apiKey = process.env.NEXT_PUBLIC_DEEPGRAM_API_KEY;
+
+    // Debug: log key info (not the full key for security)
+    console.log("Deepgram key check:", {
+      exists: !!apiKey,
+      length: apiKey?.length,
+      prefix: apiKey?.substring(0, 8) + "...",
+    });
+
     if (!apiKey) {
       throw new Error("Deepgram API key not configured. Add NEXT_PUBLIC_DEEPGRAM_API_KEY to your environment.");
     }
