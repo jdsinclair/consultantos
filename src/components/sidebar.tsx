@@ -97,5 +97,6 @@ export function Sidebar() {
           Settings
         </Link>
       </div>
+    </div>
   );
 }
