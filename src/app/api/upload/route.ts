@@ -5,6 +5,7 @@ import { createSource, updateSourceContent, setSourceError, updateSourceSummary,
 import { processSourceEmbeddings } from "@/lib/rag";
 import { extractImageContent, formatImageContentForRAG } from "@/lib/ai/vision";
 import { generateSourceSummary, generateSourceName } from "@/lib/ai/source-summary";
+import { generateClarityInsightsFromSource } from "@/lib/ai/clarity-insights";
 import { db } from "@/db";
 import { clients } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -235,6 +236,18 @@ async function processDocument(
         type: isImage ? "image" : "document",
         fileType,
         fileName: file.name,
+      });
+    }
+
+    // Generate clarity insights from the source content
+    if (content && !content.startsWith("[Error") && !content.startsWith("[Unsupported")) {
+      console.log(`Generating clarity insights for: ${file.name}`);
+      await generateClarityInsightsFromSource(content, {
+        sourceId,
+        clientId,
+        userId,
+        sourceName: file.name,
+        sourceType: isImage ? "image" : "document",
       });
     }
   } catch (error) {

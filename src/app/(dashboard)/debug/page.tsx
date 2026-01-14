@@ -52,6 +52,17 @@ interface RagSearchResult {
   chunkIndex: number;
 }
 
+interface AILogEntry {
+  id: string;
+  timestamp: string;
+  operation: string;
+  model: string;
+  status: "pending" | "success" | "error";
+  duration?: number;
+  error?: string;
+  metadata?: Record<string, unknown>;
+}
+
 export default function DebugPage() {
   const [sources, setSources] = useState<Source[]>([]);
   const [stats, setStats] = useState<ProcessingStats>({
@@ -74,9 +85,38 @@ export default function DebugPage() {
   const [ragClientId, setRagClientId] = useState("");
   const [clients, setClients] = useState<{ id: string; name: string }[]>([]);
 
+  // AI Logs section
+  const [aiLogs, setAiLogs] = useState<AILogEntry[]>([]);
+  const [aiLogsLoading, setAiLogsLoading] = useState(false);
+
   useEffect(() => {
     fetchData();
+    fetchAILogs();
   }, [filter]);
+
+  const fetchAILogs = async () => {
+    setAiLogsLoading(true);
+    try {
+      const res = await fetch("/api/debug/ai-logs?limit=50");
+      if (res.ok) {
+        const data = await res.json();
+        setAiLogs(data.logs || []);
+      }
+    } catch (error) {
+      console.error("Failed to fetch AI logs:", error);
+    } finally {
+      setAiLogsLoading(false);
+    }
+  };
+
+  const clearAILogs = async () => {
+    try {
+      await fetch("/api/debug/ai-logs", { method: "DELETE" });
+      setAiLogs([]);
+    } catch (error) {
+      console.error("Failed to clear AI logs:", error);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -415,6 +455,85 @@ export default function DebugPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* AI Call Logs */}
+      <Card className="mt-6">
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardTitle className="flex items-center gap-2">
+            <Cpu className="h-5 w-5" />
+            AI Call Logs
+          </CardTitle>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={fetchAILogs} disabled={aiLogsLoading}>
+              <RefreshCw className={`h-4 w-4 mr-1 ${aiLogsLoading ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+            <Button size="sm" variant="ghost" onClick={clearAILogs}>
+              Clear
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {aiLogsLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : aiLogs.length > 0 ? (
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {aiLogs.map((log) => (
+                <div
+                  key={log.id}
+                  className={`p-3 rounded-lg text-sm ${
+                    log.status === "error"
+                      ? "bg-red-50 border border-red-200"
+                      : log.status === "pending"
+                      ? "bg-blue-50 border border-blue-200"
+                      : "bg-green-50 border border-green-200"
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-2">
+                      {log.status === "pending" && (
+                        <Loader2 className="h-3 w-3 animate-spin text-blue-600" />
+                      )}
+                      {log.status === "success" && (
+                        <CheckCircle className="h-3 w-3 text-green-600" />
+                      )}
+                      {log.status === "error" && (
+                        <AlertCircle className="h-3 w-3 text-red-600" />
+                      )}
+                      <span className="font-medium">{log.operation}</span>
+                      <Badge variant="outline" className="text-xs">
+                        {log.model}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      {log.duration && <span>{log.duration}ms</span>}
+                      <span>{new Date(log.timestamp).toLocaleTimeString()}</span>
+                    </div>
+                  </div>
+                  {log.error && (
+                    <p className="text-xs text-red-700 mt-1 font-mono">{log.error}</p>
+                  )}
+                  {log.metadata && Object.keys(log.metadata).length > 0 && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {Object.entries(log.metadata)
+                        .map(([k, v]) => `${k}: ${String(v).slice(0, 50)}`)
+                        .join(" | ")}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <Cpu className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p>No AI calls logged yet</p>
+              <p className="text-xs">Logs appear when AI operations run (upload, reprocess, etc.)</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
