@@ -18,6 +18,7 @@ import {
   UserPlus,
   DollarSign,
   Sparkles,
+  Bug,
 } from "lucide-react";
 
 const navigation = [
@@ -31,6 +32,7 @@ const navigation = [
   { name: "Chat", href: "/chat", icon: MessageSquare },
   { name: "Emails", href: "/emails", icon: Mail },
   { name: "Sources", href: "/sources", icon: FileText },
+  { name: "Debug", href: "/debug", icon: Bug },
 ];
 
 export function Sidebar() {
