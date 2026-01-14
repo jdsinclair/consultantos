@@ -115,14 +115,16 @@ export const sources = pgTable('sources', {
   id: uuid('id').defaultRandom().primaryKey(),
   clientId: uuid('client_id').references(() => clients.id, { onDelete: 'cascade' }).notNull(),
   userId: text('user_id').references(() => users.id).notNull(),
-  type: text('type').notNull(), // 'document', 'website', 'repo', 'folder', 'recording', 'local_folder', 'email'
+  type: text('type').notNull(), // 'document', 'website', 'repo', 'folder', 'recording', 'local_folder', 'email', 'image'
   name: text('name').notNull(),
   url: text('url'), // for websites, repos
   localPath: text('local_path'), // for local folder sources
   blobUrl: text('blob_url'), // for uploaded files (Vercel Blob)
   content: text('content'), // extracted/scraped text content (can be large)
   contentChunks: jsonb('content_chunks'), // chunked content for RAG
-  fileType: text('file_type'), // pdf, docx, pptx, md, etc.
+  // AI-generated summary (editable)
+  aiSummary: jsonb('ai_summary').$type<SourceAISummary>(), // What it is, why it matters, key insights
+  fileType: text('file_type'), // pdf, docx, pptx, md, png, jpg, etc.
   fileSize: integer('file_size'), // in bytes
   metadata: jsonb('metadata'), // pages crawled, last sync, etc.
   processingStatus: text('processing_status').default('pending'), // pending, processing, completed, failed
@@ -255,8 +257,10 @@ export const actionItems = pgTable('action_items', {
   clientId: uuid('client_id').references(() => clients.id, { onDelete: 'cascade' }),
   noteId: uuid('note_id').references(() => notes.id, { onDelete: 'set null' }),
   emailId: uuid('email_id').references(() => inboundEmails.id, { onDelete: 'set null' }),
+  parentId: uuid('parent_id'), // For subtasks - references another action_item
   title: text('title').notNull(),
   description: text('description'),
+  notes: text('notes'), // Additional notes on the task
   owner: text('owner'), // 'me', 'client', or specific name
   ownerType: text('owner_type').default('me'), // 'me' or 'client'
   dueDate: timestamp('due_date'),
@@ -272,6 +276,7 @@ export const actionItems = pgTable('action_items', {
   userIdx: index('action_items_user_idx').on(table.userId),
   clientIdx: index('action_items_client_idx').on(table.clientId),
   statusIdx: index('action_items_status_idx').on(table.status),
+  parentIdx: index('action_items_parent_idx').on(table.parentId),
 }));
 
 // Messages - chat history with AI (persisted conversations)
@@ -310,9 +315,14 @@ export const notes = pgTable('notes', {
   userId: text('user_id').references(() => users.id).notNull(),
   clientId: uuid('client_id').references(() => clients.id, { onDelete: 'cascade' }).notNull(),
   sessionId: uuid('session_id').references(() => sessions.id, { onDelete: 'set null' }),
-  title: text('title'),
+  title: text('title'), // AI-generated if not provided
   content: text('content').notNull(),
+  // Note classification
+  noteType: text('note_type').default('general'), // general, future, competitor, partner, idea, reference
+  labels: jsonb('labels').$type<string[]>(), // Custom labels/tags
   isPinned: boolean('is_pinned').default(false),
+  // Processing
+  addedToSources: boolean('added_to_sources').default(false), // Has this been indexed for RAG?
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => ({
@@ -463,6 +473,17 @@ export interface SessionAttachment {
   description?: string;
   addedToSources?: boolean; // true if auto-added as a source
   sourceId?: string; // reference to the created source
+}
+
+// AI-generated summary for sources (editable by user)
+export interface SourceAISummary {
+  whatItIs: string; // Brief description of what this document/source is
+  whyItMatters: string; // Why this is relevant for this client
+  keyInsights: string[]; // Extracted key points
+  suggestedUses: string[]; // How this could be used in consulting
+  generatedAt: string; // ISO timestamp
+  editedAt?: string; // If user edited it
+  isEdited?: boolean;
 }
 
 // Prospect evaluation structure (from AI analysis)

@@ -16,6 +16,8 @@ import {
   ExternalLink,
   Trash2,
   RefreshCw,
+  Image as ImageIcon,
+  Eye,
 } from "lucide-react";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
@@ -111,6 +113,8 @@ export default function SourcesPage() {
         return <Globe className="h-4 w-4" />;
       case "repository":
         return <Github className="h-4 w-4" />;
+      case "image":
+        return <ImageIcon className="h-4 w-4" />;
       default:
         return <FileText className="h-4 w-4" />;
     }
@@ -218,6 +222,15 @@ export default function SourcesPage() {
             <Github className="h-3 w-3" />
             Repos
           </Button>
+          <Button
+            variant={typeFilter === "image" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setTypeFilter("image")}
+            className="gap-1"
+          >
+            <ImageIcon className="h-3 w-3" />
+            Images
+          </Button>
         </div>
 
         {/* Client Filter */}
@@ -274,7 +287,12 @@ export default function SourcesPage() {
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <p className="font-medium truncate">{source.name}</p>
+                      <Link
+                        href={`/sources/${source.id}`}
+                        className="font-medium truncate hover:text-primary hover:underline"
+                      >
+                        {source.name}
+                      </Link>
                       {source.fileType && (
                         <Badge variant="outline" className="text-xs uppercase">
                           {source.fileType}
@@ -307,6 +325,13 @@ export default function SourcesPage() {
 
                   <div className="flex items-center gap-2">
                     {getStatusBadge(source.processingStatus)}
+
+                    <Link href={`/sources/${source.id}`}>
+                      <Button variant="outline" size="sm" className="gap-1">
+                        <Eye className="h-3 w-3" />
+                        View
+                      </Button>
+                    </Link>
 
                     {source.url && (
                       <Button variant="ghost" size="icon" asChild>

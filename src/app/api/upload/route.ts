@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
 import { requireUser } from "@/lib/auth";
-import { createSource, updateSourceContent, setSourceError } from "@/lib/db/sources";
+import { createSource, updateSourceContent, setSourceError, updateSourceSummary } from "@/lib/db/sources";
 import { processSourceEmbeddings } from "@/lib/rag";
+import { extractImageContent, formatImageContentForRAG } from "@/lib/ai/vision";
+import { generateSourceSummary } from "@/lib/ai/source-summary";
+import { db } from "@/db";
+import { clients } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import pdf from "pdf-parse";
 
 export async function POST(req: NextRequest) {
@@ -25,15 +30,17 @@ export async function POST(req: NextRequest) {
       access: "public",
     });
 
-    // Determine file type
+    // Determine file type and source type
     const extension = file.name.split(".").pop()?.toLowerCase() || "";
     const fileType = getFileType(extension);
+    const isImage = ["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(extension);
+    const sourceType = isImage ? "image" : "document";
 
     // Create source record
     const source = await createSource({
       clientId,
       userId: user.id,
-      type: "document",
+      type: sourceType,
       name: file.name,
       blobUrl: blob.url,
       fileType,
@@ -41,8 +48,22 @@ export async function POST(req: NextRequest) {
       processingStatus: "processing",
     });
 
-    // Start async processing (text extraction + embeddings)
-    processDocument(source.id, clientId, user.id, blob.url, fileType, file).catch(console.error);
+    // Get client name for context
+    const client = await db.query.clients.findFirst({
+      where: eq(clients.id, clientId),
+    });
+
+    // Start async processing (text extraction + embeddings + AI summary)
+    processDocument(
+      source.id,
+      clientId,
+      user.id,
+      blob.url,
+      fileType,
+      file,
+      isImage,
+      client?.name
+    ).catch(console.error);
 
     return NextResponse.json({
       source,
@@ -67,11 +88,13 @@ function getFileType(extension: string): string {
     md: "md",
     csv: "csv",
     json: "json",
-    png: "image",
-    jpg: "image",
-    jpeg: "image",
-    gif: "image",
-    webp: "image",
+    // Image types
+    png: "png",
+    jpg: "jpg",
+    jpeg: "jpeg",
+    gif: "gif",
+    webp: "webp",
+    svg: "svg",
   };
   return typeMap[extension] || "unknown";
 }
@@ -82,96 +105,115 @@ async function processDocument(
   userId: string,
   blobUrl: string,
   fileType: string,
-  file: File
+  file: File,
+  isImage: boolean,
+  clientName?: string
 ) {
   try {
     let content = "";
 
-    // Extract text based on file type
-    switch (fileType) {
-      case "pdf":
-        try {
-          const arrayBuffer = await file.arrayBuffer();
-          const buffer = Buffer.from(arrayBuffer);
-          const data = await pdf(buffer);
-          content = data.text || "";
+    // Handle images with Vision AI
+    if (isImage) {
+      console.log(`Processing image with Vision AI: ${file.name}`);
+      const extraction = await extractImageContent(blobUrl, {
+        clientName,
+        fileName: file.name,
+      });
 
-          // Clean up the text
-          content = content
-            .replace(/\r\n/g, "\n")
-            .replace(/\n{3,}/g, "\n\n")
-            .trim();
-        } catch (pdfError) {
-          console.error("PDF parsing error:", pdfError);
-          content = "[Error extracting PDF content]";
-        }
-        break;
+      content = formatImageContentForRAG({
+        ...extraction,
+        fileName: file.name,
+      });
 
-      case "txt":
-      case "md":
-        content = await file.text();
-        break;
+      console.log(`Image content extracted: ${content.slice(0, 200)}...`);
+    } else {
+      // Extract text based on file type
+      switch (fileType) {
+        case "pdf":
+          try {
+            const arrayBuffer = await file.arrayBuffer();
+            const buffer = Buffer.from(arrayBuffer);
+            const data = await pdf(buffer);
+            content = data.text || "";
 
-      case "csv":
-        content = await file.text();
-        // Convert CSV to more readable format
-        content = `[CSV Data]\n${content}`;
-        break;
-
-      case "json":
-        const jsonText = await file.text();
-        try {
-          const parsed = JSON.parse(jsonText);
-          content = JSON.stringify(parsed, null, 2);
-        } catch {
-          content = jsonText;
-        }
-        break;
-
-      case "docx":
-        // For DOCX, we extract as much as we can from the raw XML
-        // A proper solution would use mammoth.js
-        try {
-          const arrayBuffer = await file.arrayBuffer();
-          const text = new TextDecoder().decode(arrayBuffer);
-          // Extract text between XML tags - basic extraction
-          const textContent = text.match(/<w:t[^>]*>([^<]*)<\/w:t>/g);
-          if (textContent) {
-            content = textContent
-              .map(t => t.replace(/<[^>]+>/g, ""))
-              .join(" ")
-              .replace(/\s+/g, " ")
+            // Clean up the text
+            content = content
+              .replace(/\r\n/g, "\n")
+              .replace(/\n{3,}/g, "\n\n")
               .trim();
-          } else {
-            content = "[DOCX content - could not extract text]";
+          } catch (pdfError) {
+            console.error("PDF parsing error:", pdfError);
+            content = "[Error extracting PDF content]";
           }
-        } catch {
-          content = "[DOCX content - extraction failed]";
-        }
-        break;
+          break;
 
-      case "image":
-        // Images are stored but no text extraction
-        // Could add OCR or vision AI in future
-        content = `[Image: ${file.name}]`;
-        break;
-
-      default:
-        // Try to read as text
-        try {
+        case "txt":
+        case "md":
           content = await file.text();
-        } catch {
-          content = "[Unsupported file type - could not extract content]";
-        }
+          break;
+
+        case "csv":
+          content = await file.text();
+          content = `[CSV Data]\n${content}`;
+          break;
+
+        case "json":
+          const jsonText = await file.text();
+          try {
+            const parsed = JSON.parse(jsonText);
+            content = JSON.stringify(parsed, null, 2);
+          } catch {
+            content = jsonText;
+          }
+          break;
+
+        case "docx":
+          try {
+            const arrayBuffer = await file.arrayBuffer();
+            const text = new TextDecoder().decode(arrayBuffer);
+            const textContent = text.match(/<w:t[^>]*>([^<]*)<\/w:t>/g);
+            if (textContent) {
+              content = textContent
+                .map(t => t.replace(/<[^>]+>/g, ""))
+                .join(" ")
+                .replace(/\s+/g, " ")
+                .trim();
+            } else {
+              content = "[DOCX content - could not extract text]";
+            }
+          } catch {
+            content = "[DOCX content - extraction failed]";
+          }
+          break;
+
+        default:
+          try {
+            content = await file.text();
+          } catch {
+            content = "[Unsupported file type - could not extract content]";
+          }
+      }
     }
 
     // Update source with extracted content
     await updateSourceContent(sourceId, userId, content);
 
+    // Generate AI summary for the source
+    if (content && !content.startsWith("[Error") && !content.startsWith("[Unsupported")) {
+      console.log(`Generating AI summary for: ${file.name}`);
+      const summary = await generateSourceSummary(content, {
+        fileName: file.name,
+        fileType,
+        clientName,
+        sourceType: isImage ? "image" : "document",
+      });
+      await updateSourceSummary(sourceId, userId, summary);
+    }
+
     // Generate embeddings for RAG
     if (content && !content.startsWith("[")) {
       await processSourceEmbeddings(sourceId, clientId, userId, content, {
-        type: 'document',
+        type: isImage ? "image" : "document",
         fileType,
         fileName: file.name,
       });
@@ -181,4 +223,3 @@ async function processDocument(
     await setSourceError(sourceId, userId, String(error));
   }
 }
-
