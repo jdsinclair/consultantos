@@ -256,27 +256,43 @@ function serializeSwimlanes(data: ClaritySwimlanes | null): string {
   const swimlaneKeys = Object.keys(SWIMLANE_LABELS) as Array<keyof typeof SWIMLANE_LABELS>;
   const parts: string[] = [];
 
+  // Helper to get items from both new and legacy format
+  const getItems = (tf: any): string[] => {
+    if (!tf) return [];
+    if (Array.isArray(tf)) return tf;
+    return tf.items || [];
+  };
+  
+  const getObjective = (tf: any): string => {
+    if (!tf || Array.isArray(tf)) return '';
+    return tf.objective || '';
+  };
+
   for (const key of swimlaneKeys) {
     const lane = data[key];
     if (!lane) continue;
 
-    const hasContent =
-      (lane.short?.length > 0) ||
-      (lane.mid?.length > 0) ||
-      (lane.long?.length > 0);
+    const shortItems = getItems(lane.short);
+    const midItems = getItems(lane.mid);
+    const longItems = getItems(lane.long);
+
+    const hasContent = shortItems.length > 0 || midItems.length > 0 || longItems.length > 0;
 
     if (hasContent) {
       const label = SWIMLANE_LABELS[key];
       const timeframes: string[] = [];
 
-      if (lane.short?.length > 0) {
-        timeframes.push(`  Short-term (0-90 days): ${lane.short.join("; ")}`);
+      if (shortItems.length > 0) {
+        const obj = getObjective(lane.short);
+        timeframes.push(`  Short-term (0-90 days)${obj ? ` [${obj}]` : ''}: ${shortItems.join("; ")}`);
       }
-      if (lane.mid?.length > 0) {
-        timeframes.push(`  Mid-term (3-12 months): ${lane.mid.join("; ")}`);
+      if (midItems.length > 0) {
+        const obj = getObjective(lane.mid);
+        timeframes.push(`  Mid-term (3-12 months)${obj ? ` [${obj}]` : ''}: ${midItems.join("; ")}`);
       }
-      if (lane.long?.length > 0) {
-        timeframes.push(`  Long-term (12-24 months): ${lane.long.join("; ")}`);
+      if (longItems.length > 0) {
+        const obj = getObjective(lane.long);
+        timeframes.push(`  Long-term (12-24 months)${obj ? ` [${obj}]` : ''}: ${longItems.join("; ")}`);
       }
 
       parts.push(`${label}:\n${timeframes.join("\n")}`);

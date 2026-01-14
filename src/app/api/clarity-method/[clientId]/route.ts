@@ -127,6 +127,12 @@ export async function PATCH(
     return NextResponse.json({ canvas: updated });
   } catch (error) {
     console.error("Clarity Method PATCH error:", error);
-    return NextResponse.json({ error: "Failed to update canvas" }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    return NextResponse.json({ 
+      error: "Failed to update canvas", 
+      details: errorMessage,
+      stack: process.env.NODE_ENV === 'development' ? errorStack : undefined 
+    }, { status: 500 });
   }
 }

@@ -33,6 +33,11 @@ import {
   X,
   Sparkles,
   Send,
+  ExternalLink,
+  Copy,
+  Check,
+  Plus,
+  HelpCircle,
 } from "lucide-react";
 import Link from "next/link";
 import {
@@ -45,9 +50,13 @@ import {
   CORE_ENGINE_CONFIG,
   SWIMLANE_LABELS,
   SWIMLANE_QUESTION,
+  SWIMLANE_GUIDANCE,
+  SWIMLANE_TIMEFRAME_LABELS,
+  EMPTY_SWIMLANE,
   DEFAULT_CANVAS,
   ClarityBox,
 } from "@/lib/clarity-method/types";
+import { useChat } from "ai/react";
 
 type ViewMode = "founder" | "coach";
 type ActiveSection = 
@@ -76,9 +85,53 @@ export default function ClarityMethodPage({ params }: { params: { clientId: stri
   const [viewMode, setViewMode] = useState<ViewMode>("coach");
   const [activeSection, setActiveSection] = useState<ActiveSection>("truth");
   const [showAIChat, setShowAIChat] = useState(false);
-  const [aiMessage, setAiMessage] = useState("");
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["truth"]));
   const [hasChanges, setHasChanges] = useState(false);
+  const [copiedText, setCopiedText] = useState<string | null>(null);
+  const [showGuidance, setShowGuidance] = useState<string | null>(null);
+  const [newSwimlaneLabel, setNewSwimlaneLabel] = useState("");
+  const [showAddSwimlane, setShowAddSwimlane] = useState(false);
+
+  // AI Chat integration
+  const { messages, input, handleInputChange, handleSubmit, isLoading: aiLoading, setMessages } = useChat({
+    api: "/api/chat",
+    body: {
+      clientId: params.clientId,
+      context: "clarity-method",
+      canvas: canvas,
+    },
+    initialMessages: [
+      {
+        id: "system",
+        role: "assistant",
+        content: `I'm your AI Strategy Assistant for the Clarity Method. I can help you:
+
+• Pressure-test strategic positioning
+• Identify the real constraint
+• Challenge generic or vague answers
+• Suggest execution priorities based on the canvas
+
+Ask me anything about ${client?.name}'s strategy.`,
+      },
+    ],
+  });
+
+  // Open founder view in new window (no navigation popup)
+  const openFounderWindow = () => {
+    const url = `/clarity/${params.clientId}`; // Uses (share) route group - no nav
+    window.open(url, 'FounderView', 'width=1200,height=800,scrollbars=yes,resizable=yes');
+  };
+
+  // Copy text to clipboard
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedText(text);
+      setTimeout(() => setCopiedText(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
 
   useEffect(() => {
     fetchCanvas();
@@ -160,6 +213,20 @@ export default function ClarityMethodPage({ params }: { params: { clientId: stri
     });
   };
 
+  const unlockStrategicTruth = (key: keyof ClarityStrategicTruth) => {
+    if (!canvas?.strategicTruth) return;
+    updateCanvas({
+      strategicTruth: {
+        ...canvas.strategicTruth,
+        [key]: {
+          ...canvas.strategicTruth[key],
+          status: 'draft',
+          lockedAt: undefined,
+        },
+      },
+    });
+  };
+
   const updateCoreEngine = (key: keyof ClarityCoreEngine, value: string) => {
     if (!canvas?.coreEngine) return;
     if (key === 'primaryConstraint') {
@@ -174,6 +241,73 @@ export default function ClarityMethodPage({ params }: { params: { clientId: stri
         },
       });
     }
+  };
+
+  const addCustomSwimlane = () => {
+    if (!newSwimlaneLabel.trim() || !canvas?.swimlanes) return;
+    const id = `custom_${Date.now()}`;
+    updateCanvas({
+      swimlanes: {
+        ...canvas.swimlanes,
+        [id]: {
+          label: newSwimlaneLabel.trim(),
+          short: { objective: '', items: [] },
+          mid: { objective: '', items: [] },
+          long: { objective: '', items: [] },
+        },
+      } as any,
+    });
+    setNewSwimlaneLabel("");
+    setShowAddSwimlane(false);
+  };
+
+  const removeCustomSwimlane = (key: string) => {
+    if (!canvas?.swimlanes) return;
+    const { [key]: removed, ...rest } = canvas.swimlanes as any;
+    updateCanvas({ swimlanes: rest as ClaritySwimlanes });
+  };
+
+  // Helper to get swimlane items (handles both new and legacy format)
+  const getSwimlaneItems = (lane: any, timeframe: 'short' | 'mid' | 'long'): string[] => {
+    if (!lane?.[timeframe]) return [];
+    if (Array.isArray(lane[timeframe])) return lane[timeframe];
+    return lane[timeframe]?.items || [];
+  };
+
+  const getSwimlaneObjective = (lane: any, timeframe: 'short' | 'mid' | 'long'): string => {
+    if (!lane?.[timeframe]) return '';
+    if (Array.isArray(lane[timeframe])) return '';
+    return lane[timeframe]?.objective || '';
+  };
+
+  const updateSwimlaneItems = (key: string, timeframe: 'short' | 'mid' | 'long', items: string[]) => {
+    if (!canvas?.swimlanes) return;
+    const lane = (canvas.swimlanes as any)[key];
+    const currentObjective = getSwimlaneObjective(lane, timeframe);
+    updateCanvas({
+      swimlanes: {
+        ...canvas.swimlanes,
+        [key]: {
+          ...lane,
+          [timeframe]: { objective: currentObjective, items },
+        },
+      } as any,
+    });
+  };
+
+  const updateSwimlaneObjective = (key: string, timeframe: 'short' | 'mid' | 'long', objective: string) => {
+    if (!canvas?.swimlanes) return;
+    const lane = (canvas.swimlanes as any)[key];
+    const currentItems = getSwimlaneItems(lane, timeframe);
+    updateCanvas({
+      swimlanes: {
+        ...canvas.swimlanes,
+        [key]: {
+          ...lane,
+          [timeframe]: { objective, items: currentItems },
+        },
+      } as any,
+    });
   };
 
   if (loading) {
@@ -222,16 +356,28 @@ export default function ClarityMethodPage({ params }: { params: { clientId: stri
               </div>
             </div>
             <div className="flex items-center gap-3">
+              {/* Founder Popup - for screen sharing */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={openFounderWindow}
+                className="gap-2"
+                title="Open founder view in new window (for screen sharing)"
+              >
+                <ExternalLink className="h-4 w-4" />
+                Share View
+              </Button>
+
               {/* View Mode Toggle */}
-              <div className="flex items-center gap-2 text-sm">
-                <span className={viewMode === "founder" ? "text-foreground" : "text-muted-foreground"}>
+              <div className="flex items-center gap-2 text-sm border rounded-lg px-3 py-1.5 bg-muted/30">
+                <span className={viewMode === "founder" ? "text-foreground font-medium" : "text-muted-foreground"}>
                   Founder
                 </span>
                 <Switch
                   checked={viewMode === "coach"}
                   onCheckedChange={(checked) => setViewMode(checked ? "coach" : "founder")}
                 />
-                <span className={viewMode === "coach" ? "text-foreground" : "text-muted-foreground"}>
+                <span className={viewMode === "coach" ? "text-foreground font-medium" : "text-muted-foreground"}>
                   Coach
                 </span>
               </div>
@@ -321,8 +467,9 @@ export default function ClarityMethodPage({ params }: { params: { clientId: stri
                             variant="ghost"
                             size="icon"
                             className="h-6 w-6"
-                            onClick={() => !isLocked && lockStrategicTruth(key)}
-                            disabled={isLocked || !box?.value}
+                            onClick={() => isLocked ? unlockStrategicTruth(key) : lockStrategicTruth(key)}
+                            disabled={!isLocked && !box?.value}
+                            title={isLocked ? "Click to unlock and edit" : "Lock this answer"}
                           >
                             {isLocked ? (
                               <Lock className="h-3 w-3 text-green-500" />
@@ -339,13 +486,82 @@ export default function ClarityMethodPage({ params }: { params: { clientId: stri
                           disabled={isLocked}
                         />
                         {viewMode === "coach" && !isLocked && (
-                          <div className="mt-2 space-y-1">
-                            <p className="text-xs text-red-400">
-                              ❌ {config.badAnswers[0]}
-                            </p>
-                            <p className="text-xs text-green-400">
-                              ✓ {config.goodExamples[0].slice(0, 80)}...
-                            </p>
+                          <div className="mt-3 space-y-2 text-xs">
+                            {/* How to Think About This */}
+                            {'howToThink' in config && (
+                              <div className="p-2 rounded bg-blue-500/10 border border-blue-500/20">
+                                <p className="font-medium text-blue-400 mb-1">💭 How to think about this:</p>
+                                <p className="text-blue-400/80">{(config as any).howToThink}</p>
+                              </div>
+                            )}
+                            {/* Script to Use */}
+                            {'script' in config && (
+                              <div className="p-2 rounded bg-purple-500/10 border border-purple-500/20">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex-1">
+                                    <p className="font-medium text-purple-400 mb-1">🎯 Script to use:</p>
+                                    <p className="text-purple-400/80 italic">&ldquo;{(config as any).script}&rdquo;</p>
+                                  </div>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 flex-shrink-0"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      copyToClipboard((config as any).script);
+                                    }}
+                                    title="Copy script"
+                                  >
+                                    {copiedText === (config as any).script ? (
+                                      <Check className="h-3 w-3 text-purple-500" />
+                                    ) : (
+                                      <Copy className="h-3 w-3 text-muted-foreground" />
+                                    )}
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+                            {/* Red Flags */}
+                            {'redFlags' in config && (
+                              <div className="p-2 rounded bg-amber-500/10 border border-amber-500/20">
+                                <p className="font-medium text-amber-400 mb-1">🚩 Red flags to watch for:</p>
+                                {((config as any).redFlags as string[]).map((flag, i) => (
+                                  <p key={i} className="text-amber-400/80">• {flag}</p>
+                                ))}
+                              </div>
+                            )}
+                            {/* Bad Answers */}
+                            <div className="p-2 rounded bg-red-500/10 border border-red-500/20">
+                              <p className="font-medium text-red-400 mb-1">❌ Bad answers:</p>
+                              {config.badAnswers.map((bad, i) => (
+                                <p key={i} className="text-red-400/80">• {bad}</p>
+                              ))}
+                            </div>
+                            {/* Good Example */}
+                            <div className="p-2 rounded bg-green-500/10 border border-green-500/20">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1">
+                                  <p className="font-medium text-green-400 mb-1">✓ Good example:</p>
+                                  <p className="text-green-400/80">{config.goodExamples[0]}</p>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 flex-shrink-0"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    copyToClipboard(config.goodExamples[0]);
+                                  }}
+                                  title="Copy example"
+                                >
+                                  {copiedText === config.goodExamples[0] ? (
+                                    <Check className="h-3 w-3 text-green-500" />
+                                  ) : (
+                                    <Copy className="h-3 w-3 text-muted-foreground" />
+                                  )}
+                                </Button>
+                              </div>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -452,24 +668,72 @@ export default function ClarityMethodPage({ params }: { params: { clientId: stri
             </CardHeader>
             {expandedSections.has("engine") && (
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   {(Object.keys(CORE_ENGINE_CONFIG) as (keyof typeof CORE_ENGINE_CONFIG)[]).map((key) => {
                     const config = CORE_ENGINE_CONFIG[key];
                     const answer = canvas.coreEngine?.[key];
                     const value = typeof answer === 'string' ? answer : answer?.answer || '';
                     const warning = typeof answer === 'object' ? answer?.warning : undefined;
+                    const isShowingEngineGuidance = showGuidance === `engine_${key}`;
 
                     return (
-                      <div key={key} className="space-y-2">
-                        <div className="flex items-center justify-between">
+                      <div key={key} className="space-y-2 p-3 rounded-lg border bg-card">
+                        <div className="flex items-center justify-between gap-2">
                           <label className="text-sm font-medium">{config.question}</label>
-                          {viewMode === "coach" && (
+                          <div className="flex items-center gap-2">
+                            {viewMode === "coach" && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-5 w-5"
+                                onClick={() => setShowGuidance(isShowingEngineGuidance ? null : `engine_${key}`)}
+                              >
+                                <HelpCircle className="h-3 w-3" />
+                              </Button>
+                            )}
                             <span className="text-xs text-amber-500 flex items-center gap-1">
                               <AlertTriangle className="h-3 w-3" />
                               {config.warning}
                             </span>
-                          )}
+                          </div>
                         </div>
+                        {viewMode === "coach" && isShowingEngineGuidance && (
+                          <div className="space-y-2 text-xs">
+                            {'howToThink' in config && (
+                              <div className="p-2 rounded bg-blue-500/10 border border-blue-500/20">
+                                <p className="font-medium text-blue-400 mb-1">💭 How to think:</p>
+                                <p className="text-blue-400/80">{(config as any).howToThink}</p>
+                              </div>
+                            )}
+                            {'script' in config && (
+                              <div className="p-2 rounded bg-purple-500/10 border border-purple-500/20">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex-1">
+                                    <p className="font-medium text-purple-400 mb-1">🎯 Ask this:</p>
+                                    <p className="text-purple-400/80 italic">&ldquo;{(config as any).script}&rdquo;</p>
+                                  </div>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 flex-shrink-0"
+                                    onClick={() => copyToClipboard((config as any).script)}
+                                  >
+                                    {copiedText === (config as any).script ? (
+                                      <Check className="h-3 w-3 text-purple-500" />
+                                    ) : (
+                                      <Copy className="h-3 w-3 text-muted-foreground" />
+                                    )}
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+                            {'warningThreshold' in config && (
+                              <div className="p-2 rounded bg-amber-500/10 border border-amber-500/20">
+                                <p className="font-medium text-amber-400">⚠️ {(config as any).warningThreshold}</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
                         <Textarea
                           value={value}
                           onChange={(e) => updateCoreEngine(key, e.target.value)}
@@ -514,64 +778,189 @@ export default function ClarityMethodPage({ params }: { params: { clientId: stri
                   </div>
                   <div>
                     <CardTitle className="text-lg">Execution Swimlanes</CardTitle>
-                    <CardDescription>Time-phased execution: Short / Mid / Long</CardDescription>
+                    <CardDescription>Time-phased execution with objectives: Short / Mid / Long</CardDescription>
                   </div>
                 </div>
-                {expandedSections.has("swimlanes") ? (
-                  <ChevronDown className="h-5 w-5 text-muted-foreground" />
-                ) : (
-                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                )}
+                <div className="flex items-center gap-2">
+                  {expandedSections.has("swimlanes") && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowAddSwimlane(true);
+                      }}
+                      className="gap-1"
+                    >
+                      <Plus className="h-3 w-3" />
+                      Add Swimlane
+                    </Button>
+                  )}
+                  {expandedSections.has("swimlanes") ? (
+                    <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                  )}
+                </div>
               </div>
             </CardHeader>
             {expandedSections.has("swimlanes") && (
               <CardContent>
                 {viewMode === "coach" && (
                   <div className="mb-4 p-3 bg-muted/50 rounded-lg text-sm">
-                    <strong>Question per cell:</strong> "{SWIMLANE_QUESTION}"
+                    <strong>Per swimlane:</strong> Set an <span className="text-primary font-semibold">objective</span> for each timeframe, then max 3 action items.
                     <br />
-                    <span className="text-muted-foreground">Max 3 bullets per cell.</span>
+                    <span className="text-muted-foreground">Click the <HelpCircle className="h-3 w-3 inline" /> icon for guidance on each area.</span>
                   </div>
                 )}
+
+                {/* Add Swimlane Modal */}
+                {showAddSwimlane && (
+                  <div className="mb-4 p-4 bg-muted/50 rounded-lg border">
+                    <h4 className="font-medium mb-2">Add Custom Swimlane</h4>
+                    <div className="flex gap-2">
+                      <Input
+                        value={newSwimlaneLabel}
+                        onChange={(e) => setNewSwimlaneLabel(e.target.value)}
+                        placeholder="e.g., Content Strategy"
+                        className="flex-1"
+                        onKeyDown={(e) => e.key === 'Enter' && addCustomSwimlane()}
+                      />
+                      <Button onClick={addCustomSwimlane} disabled={!newSwimlaneLabel.trim()}>Add</Button>
+                      <Button variant="ghost" onClick={() => setShowAddSwimlane(false)}>Cancel</Button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b">
-                        <th className="text-left p-2 font-medium">Area</th>
-                        <th className="text-left p-2 font-medium">Short (0-90d)</th>
-                        <th className="text-left p-2 font-medium">Mid (3-12mo)</th>
-                        <th className="text-left p-2 font-medium">Long (12-24mo)</th>
+                        <th className="text-left p-2 font-medium w-48">Area</th>
+                        <th className="text-left p-2 font-medium">
+                          <div>{SWIMLANE_TIMEFRAME_LABELS.short}</div>
+                        </th>
+                        <th className="text-left p-2 font-medium">
+                          <div>{SWIMLANE_TIMEFRAME_LABELS.mid}</div>
+                        </th>
+                        <th className="text-left p-2 font-medium">
+                          <div>{SWIMLANE_TIMEFRAME_LABELS.long}</div>
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
-                      {(Object.keys(SWIMLANE_LABELS) as (keyof typeof SWIMLANE_LABELS)[]).slice(0, 8).map((key) => (
-                        <tr key={key} className="border-b">
-                          <td className="p-2 font-medium text-muted-foreground whitespace-nowrap">
-                            {SWIMLANE_LABELS[key]}
-                          </td>
-                          {(['short', 'mid', 'long'] as const).map((timeframe) => (
-                            <td key={timeframe} className="p-2">
-                              <Textarea
-                                value={canvas.swimlanes?.[key]?.[timeframe]?.join('\n') || ''}
-                                onChange={(e) => {
-                                  const lines = e.target.value.split('\n').filter(l => l.trim()).slice(0, 3);
-                                  updateCanvas({
-                                    swimlanes: {
-                                      ...canvas.swimlanes!,
-                                      [key]: {
-                                        ...canvas.swimlanes?.[key],
-                                        [timeframe]: lines,
-                                      },
-                                    },
-                                  });
-                                }}
-                                placeholder="• Bullet 1&#10;• Bullet 2&#10;• Bullet 3"
-                                className="min-h-[80px] text-xs"
-                              />
+                      {(Object.keys(SWIMLANE_LABELS) as (keyof typeof SWIMLANE_LABELS)[]).map((key) => {
+                        const guidance = SWIMLANE_GUIDANCE[key];
+                        const isShowingGuidance = showGuidance === key;
+
+                        return (
+                          <tr key={key} className="border-b group">
+                            <td className="p-2 font-medium text-muted-foreground whitespace-nowrap align-top">
+                              <div className="flex items-center gap-1">
+                                {SWIMLANE_LABELS[key]}
+                                {viewMode === "coach" && guidance && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-5 w-5 opacity-50 hover:opacity-100"
+                                    onClick={() => setShowGuidance(isShowingGuidance ? null : key)}
+                                  >
+                                    <HelpCircle className="h-3 w-3" />
+                                  </Button>
+                                )}
+                              </div>
+                              {isShowingGuidance && guidance && (
+                                <div className="mt-2 p-2 bg-primary/5 rounded text-xs space-y-2 max-w-xs">
+                                  <p className="font-medium text-primary">{guidance.why}</p>
+                                  <div>
+                                    <p className="font-medium text-muted-foreground">Questions:</p>
+                                    {guidance.questions.map((q, i) => (
+                                      <p key={i} className="text-muted-foreground">• {q}</p>
+                                    ))}
+                                  </div>
+                                  <div>
+                                    <p className="font-medium text-green-500">Example actions:</p>
+                                    {guidance.examples.map((ex, i) => (
+                                      <div key={i} className="flex items-center gap-1 text-green-500/80">
+                                        <span>• {ex}</span>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-4 w-4"
+                                          onClick={() => copyToClipboard(ex)}
+                                        >
+                                          {copiedText === ex ? <Check className="h-2 w-2" /> : <Copy className="h-2 w-2" />}
+                                        </Button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
                             </td>
-                          ))}
-                        </tr>
-                      ))}
+                            {(['short', 'mid', 'long'] as const).map((timeframe) => (
+                              <td key={timeframe} className="p-2 align-top">
+                                <Input
+                                  value={getSwimlaneObjective((canvas.swimlanes as any)?.[key], timeframe)}
+                                  onChange={(e) => updateSwimlaneObjective(key, timeframe, e.target.value)}
+                                  placeholder="Objective..."
+                                  className="mb-2 text-xs font-medium border-primary/30 focus:border-primary"
+                                />
+                                <Textarea
+                                  value={getSwimlaneItems((canvas.swimlanes as any)?.[key], timeframe).join('\n')}
+                                  onChange={(e) => {
+                                    const lines = e.target.value.split('\n').filter(l => l.trim()).slice(0, 5);
+                                    updateSwimlaneItems(key, timeframe, lines);
+                                  }}
+                                  placeholder="• Action 1&#10;• Action 2&#10;• Action 3"
+                                  className="min-h-[60px] text-xs"
+                                />
+                              </td>
+                            ))}
+                          </tr>
+                        );
+                      })}
+                      {/* Custom Swimlanes */}
+                      {Object.entries(canvas.swimlanes || {})
+                        .filter(([k]) => k.startsWith('custom_'))
+                        .map(([key, lane]) => {
+                          const customLane = lane as any;
+                          return (
+                            <tr key={key} className="border-b bg-muted/20">
+                              <td className="p-2 font-medium text-muted-foreground whitespace-nowrap align-top">
+                                <div className="flex items-center gap-1">
+                                  {customLane.label || key.replace('custom_', '')}
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-5 w-5 text-red-500 opacity-50 hover:opacity-100"
+                                    onClick={() => removeCustomSwimlane(key)}
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </td>
+                              {(['short', 'mid', 'long'] as const).map((timeframe) => (
+                                <td key={timeframe} className="p-2 align-top">
+                                  <Input
+                                    value={getSwimlaneObjective(customLane, timeframe)}
+                                    onChange={(e) => updateSwimlaneObjective(key, timeframe, e.target.value)}
+                                    placeholder="Objective..."
+                                    className="mb-2 text-xs font-medium border-primary/30"
+                                  />
+                                  <Textarea
+                                    value={getSwimlaneItems(customLane, timeframe).join('\n')}
+                                    onChange={(e) => {
+                                      const lines = e.target.value.split('\n').filter(l => l.trim()).slice(0, 5);
+                                      updateSwimlaneItems(key, timeframe, lines);
+                                    }}
+                                    placeholder="• Action 1&#10;• Action 2&#10;• Action 3"
+                                    className="min-h-[60px] text-xs"
+                                  />
+                                </td>
+                              ))}
+                            </tr>
+                          );
+                        })}
                     </tbody>
                   </table>
                 </div>
@@ -708,37 +1097,58 @@ export default function ClarityMethodPage({ params }: { params: { clientId: stri
           </div>
           <div className="flex-1 p-4 overflow-y-auto">
             <div className="space-y-4">
-              <div className="bg-muted/50 p-3 rounded-lg text-sm">
-                <p>I can help you:</p>
-                <ul className="mt-2 space-y-1 text-muted-foreground">
-                  <li>• Pressure-test your strategic truth</li>
-                  <li>• Identify the real constraint</li>
-                  <li>• Challenge generic answers</li>
-                  <li>• Suggest execution priorities</li>
-                </ul>
-              </div>
-              {viewMode === "coach" && (
-                <div className="bg-primary/5 p-3 rounded-lg text-sm border border-primary/20">
-                  <p className="font-medium text-primary">Coach Mode Active</p>
-                  <p className="text-muted-foreground mt-1">
-                    You're seeing guidance prompts, bad answer examples, and warning signals.
-                  </p>
+              {messages.map((message) => (
+                <div
+                  key={message.id}
+                  className={`p-3 rounded-lg text-sm ${
+                    message.role === 'user'
+                      ? 'bg-primary text-primary-foreground ml-8'
+                      : 'bg-muted/50 mr-8'
+                  }`}
+                >
+                  <p className="whitespace-pre-wrap">{message.content}</p>
+                </div>
+              ))}
+              {aiLoading && (
+                <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Thinking...
                 </div>
               )}
             </div>
           </div>
-          <div className="p-4 border-t">
-            <div className="flex gap-2">
+          <div className="p-4 border-t space-y-2">
+            {/* Quick prompts */}
+            <div className="flex flex-wrap gap-1">
+              {[
+                "Is our positioning too generic?",
+                "What's the real constraint here?",
+                "Challenge our 'why we win'",
+                "Prioritize the swimlanes",
+              ].map((prompt) => (
+                <button
+                  key={prompt}
+                  onClick={() => {
+                    handleInputChange({ target: { value: prompt } } as any);
+                    setTimeout(() => handleSubmit({ preventDefault: () => {} } as any), 100);
+                  }}
+                  className="text-xs px-2 py-1 rounded-full bg-muted hover:bg-muted/80 text-muted-foreground"
+                >
+                  {prompt}
+                </button>
+              ))}
+            </div>
+            <form onSubmit={handleSubmit} className="flex gap-2">
               <Input
-                value={aiMessage}
-                onChange={(e) => setAiMessage(e.target.value)}
+                value={input}
+                onChange={handleInputChange}
                 placeholder="Ask about the strategy..."
                 className="flex-1"
               />
-              <Button size="icon">
+              <Button type="submit" size="icon" disabled={aiLoading || !input.trim()}>
                 <Send className="h-4 w-4" />
               </Button>
-            </div>
+            </form>
           </div>
         </div>
       )}

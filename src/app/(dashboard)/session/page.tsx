@@ -109,33 +109,35 @@ export default function SessionsPage() {
   };
 
   return (
-    <div className="p-8">
-      <div className="mb-8 flex items-center justify-between">
+    <div className="p-4 sm:p-6 lg:p-8">
+      <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Sessions</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl sm:text-3xl font-bold">Sessions</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">
             Your consulting calls and meetings
           </p>
         </div>
-        <div className="flex gap-2">
-          <Link href="/session/historic">
-            <Button variant="outline" className="gap-2">
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <Link href="/session/historic" className="w-full sm:w-auto">
+            <Button variant="outline" className="gap-2 w-full sm:w-auto">
               <History className="h-4 w-4" />
-              Add Historic
+              <span className="hidden sm:inline">Add Historic</span>
+              <span className="sm:hidden">Historic</span>
             </Button>
           </Link>
-          <Link href="/session/new">
-            <Button className="gap-2">
+          <Link href="/session/new" className="w-full sm:w-auto">
+            <Button className="gap-2 w-full sm:w-auto">
               <Mic className="h-4 w-4" />
-              Start New Session
+              <span className="hidden sm:inline">Start New Session</span>
+              <span className="sm:hidden">New Session</span>
             </Button>
           </Link>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="mb-6 flex gap-4 flex-wrap">
-        <div className="relative flex-1 max-w-md">
+      <div className="mb-6 flex flex-col sm:flex-row gap-3 sm:gap-4">
+        <div className="relative flex-1 sm:max-w-md">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search sessions..."
@@ -145,11 +147,12 @@ export default function SessionsPage() {
           />
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 overflow-x-auto pb-1 -mb-1">
           <Button
             variant={statusFilter === null ? "default" : "outline"}
             size="sm"
             onClick={() => setStatusFilter(null)}
+            className="flex-shrink-0"
           >
             All
           </Button>
@@ -157,6 +160,7 @@ export default function SessionsPage() {
             variant={statusFilter === "scheduled" ? "default" : "outline"}
             size="sm"
             onClick={() => setStatusFilter("scheduled")}
+            className="flex-shrink-0"
           >
             Scheduled
           </Button>
@@ -164,49 +168,52 @@ export default function SessionsPage() {
             variant={statusFilter === "completed" ? "default" : "outline"}
             size="sm"
             onClick={() => setStatusFilter("completed")}
+            className="flex-shrink-0"
           >
             Completed
           </Button>
-        </div>
 
-        <div className="relative">
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-2"
-            onClick={() => setShowClientDropdown(!showClientDropdown)}
-          >
-            <Users className="h-4 w-4" />
-            {clientFilter
-              ? clients.find((c) => c.id === clientFilter)?.name
-              : "All Clients"}
-            <ChevronDown className="h-3 w-3" />
-          </Button>
-          {showClientDropdown && (
-            <div className="absolute top-full mt-1 w-48 bg-popover border rounded-md shadow-lg z-10">
-              <div
-                className="px-3 py-2 hover:bg-accent cursor-pointer text-sm"
-                onClick={() => {
-                  setClientFilter(null);
-                  setShowClientDropdown(false);
-                }}
-              >
-                All Clients
-              </div>
-              {clients.map((client) => (
+          <div className="relative flex-shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={() => setShowClientDropdown(!showClientDropdown)}
+            >
+              <Users className="h-4 w-4 hidden sm:block" />
+              <span className="max-w-[100px] sm:max-w-none truncate">
+                {clientFilter
+                  ? clients.find((c) => c.id === clientFilter)?.name
+                  : "All Clients"}
+              </span>
+              <ChevronDown className="h-3 w-3" />
+            </Button>
+            {showClientDropdown && (
+              <div className="absolute top-full right-0 sm:left-0 sm:right-auto mt-1 w-48 bg-popover border rounded-md shadow-lg z-10 max-h-60 overflow-auto">
                 <div
-                  key={client.id}
-                  className="px-3 py-2 hover:bg-accent cursor-pointer text-sm"
+                  className="px-3 py-2 hover:bg-muted cursor-pointer text-sm"
                   onClick={() => {
-                    setClientFilter(client.id);
+                    setClientFilter(null);
                     setShowClientDropdown(false);
                   }}
                 >
-                  {client.name}
+                  All Clients
                 </div>
-              ))}
-            </div>
-          )}
+                {clients.map((client) => (
+                  <div
+                    key={client.id}
+                    className="px-3 py-2 hover:bg-muted cursor-pointer text-sm truncate"
+                    onClick={() => {
+                      setClientFilter(client.id);
+                      setShowClientDropdown(false);
+                    }}
+                  >
+                    {client.name}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -223,74 +230,76 @@ export default function SessionsPage() {
               className="hover:border-primary/30 transition-colors"
             >
               <CardContent className="p-4">
-                <div className="flex items-center gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-                    {session.status === "live" ? (
-                      <Mic className="h-6 w-6 text-red-500 animate-pulse" />
-                    ) : (
-                      <FileText className="h-6 w-6 text-primary" />
-                    )}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Link
-                        href={`/session/${session.id}`}
-                        className="font-medium hover:text-primary truncate"
-                      >
-                        {session.title}
-                      </Link>
-                      {getStatusBadge(session.status)}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+                  <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+                    <div className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-lg bg-primary/10 flex-shrink-0">
+                      {session.status === "live" ? (
+                        <Mic className="h-5 w-5 sm:h-6 sm:w-6 text-red-500 animate-pulse" />
+                      ) : (
+                        <FileText className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+                      )}
                     </div>
-                    <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                      {session.client && (
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <Link
-                          href={`/clients/${session.client.id}`}
-                          className="hover:text-primary flex items-center gap-1"
+                          href={`/session/${session.id}`}
+                          className="font-medium hover:text-primary truncate"
                         >
-                          <Users className="h-3 w-3" />
-                          {session.client.name}
+                          {session.title}
                         </Link>
-                      )}
-                      <span className="flex items-center gap-1">
-                        <Calendar className="h-3 w-3" />
-                        {session.startedAt
-                          ? format(new Date(session.startedAt), "MMM d, yyyy")
-                          : session.scheduledAt
-                          ? format(new Date(session.scheduledAt), "MMM d, yyyy")
-                          : formatDistanceToNow(new Date(session.createdAt), {
-                              addSuffix: true,
-                            })}
-                      </span>
-                      {session.duration && (
+                        {getStatusBadge(session.status)}
+                      </div>
+                      <div className="flex items-center gap-2 sm:gap-3 text-xs sm:text-sm text-muted-foreground flex-wrap">
+                        {session.client && (
+                          <Link
+                            href={`/clients/${session.client.id}`}
+                            className="hover:text-primary flex items-center gap-1"
+                          >
+                            <Users className="h-3 w-3" />
+                            <span className="truncate max-w-[100px] sm:max-w-none">{session.client.name}</span>
+                          </Link>
+                        )}
                         <span className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {formatDuration(session.duration)}
+                          <Calendar className="h-3 w-3" />
+                          {session.startedAt
+                            ? format(new Date(session.startedAt), "MMM d, yyyy")
+                            : session.scheduledAt
+                            ? format(new Date(session.scheduledAt), "MMM d, yyyy")
+                            : formatDistanceToNow(new Date(session.createdAt), {
+                                addSuffix: true,
+                              })}
                         </span>
-                      )}
+                        {session.duration && (
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {formatDuration(session.duration)}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 sm:flex-shrink-0">
                     {session.status === "scheduled" && (
-                      <Link href={`/session/${session.id}`}>
-                        <Button size="sm" className="gap-1">
+                      <Link href={`/session/${session.id}`} className="flex-1 sm:flex-none">
+                        <Button size="sm" className="gap-1 w-full sm:w-auto">
                           <Play className="h-4 w-4" />
                           Start
                         </Button>
                       </Link>
                     )}
                     {session.status === "live" && (
-                      <Link href={`/session/${session.id}`}>
-                        <Button size="sm" variant="destructive" className="gap-1">
+                      <Link href={`/session/${session.id}`} className="flex-1 sm:flex-none">
+                        <Button size="sm" variant="destructive" className="gap-1 w-full sm:w-auto">
                           <Mic className="h-4 w-4" />
                           Join
                         </Button>
                       </Link>
                     )}
                     {session.status === "completed" && (
-                      <Link href={`/session/${session.id}`}>
-                        <Button size="sm" variant="outline">
+                      <Link href={`/session/${session.id}`} className="flex-1 sm:flex-none">
+                        <Button size="sm" variant="outline" className="w-full sm:w-auto">
                           View Details
                         </Button>
                       </Link>
@@ -329,7 +338,7 @@ export default function SessionsPage() {
 
       {/* Stats */}
       {filteredSessions.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mt-6 sm:mt-8">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm text-muted-foreground">
