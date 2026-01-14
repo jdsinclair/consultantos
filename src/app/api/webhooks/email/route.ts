@@ -177,11 +177,11 @@ export async function POST(req: NextRequest) {
     }
 
     // Extract TODOs from email in background
-    if (text) {
+    if (emailData.text) {
       extractTodosFromEmail({
-        from: fromEmail || from,
-        subject: subject || "",
-        body: text,
+        from: emailData.fromEmail || emailData.from,
+        subject: emailData.subject || "",
+        body: emailData.text,
       })
         .then(async (todos) => {
           if (todos.length > 0) {
