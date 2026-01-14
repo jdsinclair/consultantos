@@ -7,8 +7,23 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, User, Mail, Phone } from "lucide-react";
 import Link from "next/link";
+
+const countryCodes = [
+  { code: "+1", label: "US/CA (+1)" },
+  { code: "+44", label: "UK (+44)" },
+  { code: "+61", label: "AU (+61)" },
+  { code: "+49", label: "DE (+49)" },
+  { code: "+33", label: "FR (+33)" },
+  { code: "+91", label: "IN (+91)" },
+  { code: "+86", label: "CN (+86)" },
+  { code: "+81", label: "JP (+81)" },
+  { code: "+82", label: "KR (+82)" },
+  { code: "+65", label: "SG (+65)" },
+  { code: "+972", label: "IL (+972)" },
+  { code: "+971", label: "UAE (+971)" },
+];
 
 const industries = [
   "Software / SaaS",
@@ -38,7 +53,11 @@ export default function NewClientPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    name: "",
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    phoneCountryCode: "+1",
     company: "",
     industry: "",
     website: "",
@@ -51,10 +70,28 @@ export default function NewClientPage() {
     setLoading(true);
 
     try {
+      // Compute display name from first/last name or company
+      const displayName = formData.firstName
+        ? `${formData.firstName} ${formData.lastName}`.trim()
+        : formData.company || "Unnamed Client";
+
       const res = await fetch("/api/clients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          name: displayName,
+          email: formData.email,
+          phone: formData.phone,
+          phoneCountryCode: formData.phoneCountryCode,
+          company: formData.company,
+          industry: formData.industry,
+          website: formData.website,
+          description: formData.description,
+          color: formData.color,
+          status: "active",
+        }),
       });
 
       if (!res.ok) throw new Error("Failed to create client");
@@ -83,18 +120,86 @@ export default function NewClientPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Name */}
-            <div className="space-y-2">
-              <Label htmlFor="name">Client Name *</Label>
-              <Input
-                id="name"
-                placeholder="e.g., Pathogen Detection Project"
-                value={formData.name}
-                onChange={(e) =>
-                  setFormData({ ...formData, name: e.target.value })
-                }
-                required
-              />
+            {/* Contact Info */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <User className="h-4 w-4" />
+                Contact Information
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="firstName">First Name *</Label>
+                  <Input
+                    id="firstName"
+                    placeholder="John"
+                    value={formData.firstName}
+                    onChange={(e) =>
+                      setFormData({ ...formData, firstName: e.target.value })
+                    }
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="lastName">Last Name</Label>
+                  <Input
+                    id="lastName"
+                    placeholder="Smith"
+                    value={formData.lastName}
+                    onChange={(e) =>
+                      setFormData({ ...formData, lastName: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="email" className="flex items-center gap-2">
+                  <Mail className="h-3 w-3" />
+                  Email
+                </Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="john@company.com"
+                  value={formData.email}
+                  onChange={(e) =>
+                    setFormData({ ...formData, email: e.target.value })
+                  }
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="phone" className="flex items-center gap-2">
+                  <Phone className="h-3 w-3" />
+                  Phone
+                </Label>
+                <div className="flex gap-2">
+                  <select
+                    className="flex h-10 w-28 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={formData.phoneCountryCode}
+                    onChange={(e) =>
+                      setFormData({ ...formData, phoneCountryCode: e.target.value })
+                    }
+                  >
+                    {countryCodes.map((cc) => (
+                      <option key={cc.code} value={cc.code}>
+                        {cc.label}
+                      </option>
+                    ))}
+                  </select>
+                  <Input
+                    id="phone"
+                    type="tel"
+                    placeholder="555-123-4567"
+                    value={formData.phone}
+                    onChange={(e) =>
+                      setFormData({ ...formData, phone: e.target.value })
+                    }
+                    className="flex-1"
+                  />
+                </div>
+              </div>
             </div>
 
             {/* Company */}
@@ -183,7 +288,7 @@ export default function NewClientPage() {
 
             {/* Submit */}
             <div className="flex gap-4">
-              <Button type="submit" disabled={loading || !formData.name}>
+              <Button type="submit" disabled={loading || !formData.firstName}>
                 {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Create Client
               </Button>
