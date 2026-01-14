@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
+import { DealValueBadge, DealStatusBadge } from "@/components/deal-badge";
 
 interface Prospect {
   id: string;
@@ -26,6 +27,8 @@ interface Prospect {
   website: string | null;
   industry: string | null;
   status: string;
+  dealValue: number | null;
+  dealStatus: string | null;
   evaluation: {
     summary: string;
     fitScore: number;
@@ -120,17 +123,23 @@ export default function ProspectsPage() {
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
                   <div>
-                    <CardTitle className="text-lg">{prospect.name}</CardTitle>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      {prospect.name}
+                      <DealValueBadge value={prospect.dealValue} />
+                    </CardTitle>
                     {prospect.company && (
                       <CardDescription>{prospect.company}</CardDescription>
                     )}
                   </div>
-                  {prospect.evaluation && (
-                    <div className={`flex items-center gap-1 font-bold ${getFitScoreColor(prospect.evaluation.fitScore)}`}>
-                      <Star className="h-4 w-4 fill-current" />
-                      {prospect.evaluation.fitScore}/10
-                    </div>
-                  )}
+                  <div className="flex flex-col items-end gap-1">
+                    {prospect.evaluation && (
+                      <div className={`flex items-center gap-1 font-bold ${getFitScoreColor(prospect.evaluation.fitScore)}`}>
+                        <Star className="h-4 w-4 fill-current" />
+                        {prospect.evaluation.fitScore}/10
+                      </div>
+                    )}
+                    <DealStatusBadge dealStatus={prospect.dealStatus} status={prospect.status} />
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Plus, Search, Building2, Calendar, FileText, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
+import { DealValueBadge, DealStatusBadge } from "@/components/deal-badge";
 
 interface Client {
   id: string;
@@ -16,6 +17,8 @@ interface Client {
   industry: string | null;
   status: string;
   description: string | null;
+  dealValue: number | null;
+  dealStatus: string | null;
   createdAt: string;
   updatedAt: string;
   _count?: {
@@ -122,14 +125,20 @@ export default function ClientsPage() {
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div>
-                      <CardTitle className="text-lg">{client.name}</CardTitle>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        {client.name}
+                        <DealValueBadge value={client.dealValue} />
+                      </CardTitle>
                       {client.company && (
                         <p className="text-sm text-muted-foreground">{client.company}</p>
                       )}
                     </div>
-                    <Badge variant={client.status === "active" ? "default" : "secondary"}>
-                      {client.status}
-                    </Badge>
+                    <div className="flex flex-col items-end gap-1">
+                      <Badge variant={client.status === "active" ? "default" : "secondary"}>
+                        {client.status}
+                      </Badge>
+                      <DealStatusBadge dealStatus={client.dealStatus} status={client.status} />
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
