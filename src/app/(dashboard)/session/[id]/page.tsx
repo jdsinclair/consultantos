@@ -18,7 +18,16 @@ import {
   Square,
   Loader2,
   Plus,
+  History,
+  FileText,
+  Image as ImageIcon,
+  Video,
+  ExternalLink,
+  Calendar,
+  ArrowLeft,
 } from "lucide-react";
+import Link from "next/link";
+import { format } from "date-fns";
 import { useChat } from "ai/react";
 
 interface GameplanItem {
@@ -28,14 +37,31 @@ interface GameplanItem {
   order: number;
 }
 
+interface SessionAttachment {
+  id: string;
+  filename: string;
+  contentType: string;
+  size: number;
+  blobUrl: string;
+  type: 'whiteboard' | 'document' | 'image' | 'recording' | 'other';
+  description?: string;
+}
+
 interface Session {
   id: string;
   title: string;
   status: string;
+  isHistoric: boolean;
   gameplan: GameplanItem[] | null;
   transcript: string | null;
   transcriptChunks: { text: string; timestamp: string }[] | null;
+  notes: string | null;
+  summary: string | null;
+  recordingUrl: string | null;
+  attachments: SessionAttachment[] | null;
   startedAt: string | null;
+  sessionDate: string | null;
+  duration: number | null;
   client: {
     id: string;
     name: string;
@@ -45,6 +71,12 @@ interface Session {
     id: string;
     name: string;
   } | null;
+  actionItems?: Array<{
+    id: string;
+    title: string;
+    status: string;
+    ownerType: string;
+  }>;
 }
 
 interface Suggestion {
@@ -239,6 +271,27 @@ export default function LiveSessionPage({ params }: { params: { id: string } }) 
     setIsRecording(false);
   };
 
+  const formatDuration = (seconds: number | null) => {
+    if (!seconds) return null;
+    const mins = Math.floor(seconds / 60);
+    if (mins < 60) return `${mins} min`;
+    const hours = Math.floor(mins / 60);
+    const remainingMins = mins % 60;
+    return `${hours}h ${remainingMins}m`;
+  };
+
+  const getAttachmentIcon = (type: string) => {
+    switch (type) {
+      case 'whiteboard':
+      case 'image':
+        return <ImageIcon className="h-5 w-5" />;
+      case 'recording':
+        return <Video className="h-5 w-5" />;
+      default:
+        return <FileText className="h-5 w-5" />;
+    }
+  };
+
   if (!session) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -247,6 +300,234 @@ export default function LiveSessionPage({ params }: { params: { id: string } }) 
     );
   }
 
+  // Historic Session View
+  if (session.isHistoric || session.status === "completed") {
+    return (
+      <div className="p-8 max-w-5xl mx-auto">
+        <Link
+          href="/session"
+          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Sessions
+        </Link>
+
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="flex items-center gap-3 mb-2">
+                {session.isHistoric && (
+                  <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <History className="h-5 w-5 text-primary" />
+                  </div>
+                )}
+                <div>
+                  <h1 className="text-2xl font-bold">{session.title}</h1>
+                  <div className="flex items-center gap-4 text-muted-foreground">
+                    <Link href={`/clients/${session.client.id}`} className="hover:text-primary">
+                      {session.client.name}
+                      {session.client.company && ` (${session.client.company})`}
+                    </Link>
+                    {(session.sessionDate || session.startedAt) && (
+                      <span className="flex items-center gap-1">
+                        <Calendar className="h-4 w-4" />
+                        {format(new Date(session.sessionDate || session.startedAt!), "MMM d, yyyy")}
+                      </span>
+                    )}
+                    {session.duration && (
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-4 w-4" />
+                        {formatDuration(session.duration)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <Badge variant={session.isHistoric ? "secondary" : "default"}>
+              {session.isHistoric ? "Historic" : "Completed"}
+            </Badge>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-6">
+          {/* Main Content */}
+          <div className="col-span-2 space-y-6">
+            {/* Summary */}
+            {session.summary && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Summary</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm whitespace-pre-wrap">{session.summary}</p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Notes */}
+            {session.notes && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Session Notes</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm whitespace-pre-wrap">{session.notes}</p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Transcript */}
+            {session.transcript && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <MessageSquare className="h-5 w-5" />
+                    Transcript
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-sm whitespace-pre-wrap max-h-96 overflow-auto bg-muted/30 p-4 rounded-lg font-mono">
+                    {session.transcript}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Attachments */}
+            {session.attachments && session.attachments.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Session Materials</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-4">
+                    {session.attachments.map((att) => (
+                      <a
+                        key={att.id}
+                        href={att.blobUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-3 p-3 border rounded-lg hover:bg-accent transition-colors group"
+                      >
+                        {att.type === 'whiteboard' || att.type === 'image' ? (
+                          <div className="w-16 h-16 rounded bg-muted overflow-hidden flex-shrink-0">
+                            <img
+                              src={att.blobUrl}
+                              alt={att.filename}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-12 h-12 rounded bg-muted flex items-center justify-center flex-shrink-0">
+                            {getAttachmentIcon(att.type)}
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{att.filename}</p>
+                          <p className="text-xs text-muted-foreground capitalize">{att.type}</p>
+                          {att.description && (
+                            <p className="text-xs text-muted-foreground truncate">{att.description}</p>
+                          )}
+                        </div>
+                        <ExternalLink className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </a>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+
+          {/* Sidebar */}
+          <div className="space-y-6">
+            {/* Recording */}
+            {session.recordingUrl && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Video className="h-5 w-5" />
+                    Recording
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <a
+                    href={session.recordingUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-sm text-primary hover:underline"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    Open Recording
+                  </a>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Action Items */}
+            {session.actionItems && session.actionItems.length > 0 && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <CheckCircle className="h-5 w-5 text-green-500" />
+                    Action Items ({session.actionItems.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {session.actionItems.map((item) => (
+                      <div key={item.id} className="flex items-start gap-2">
+                        <div className={`mt-1 h-2 w-2 rounded-full flex-shrink-0 ${
+                          item.status === 'completed' ? 'bg-green-500' : 'bg-muted'
+                        }`} />
+                        <div>
+                          <p className={`text-sm ${item.status === 'completed' ? 'line-through text-muted-foreground' : ''}`}>
+                            {item.title}
+                          </p>
+                          <p className="text-xs text-muted-foreground capitalize">{item.ownerType}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Gameplan */}
+            {session.gameplan && session.gameplan.length > 0 && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Target className="h-5 w-5" />
+                    Gameplan
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {session.gameplan.map((item) => (
+                      <div key={item.id} className="flex items-start gap-2">
+                        <div className={`mt-1 h-4 w-4 rounded border flex items-center justify-center flex-shrink-0 ${
+                          item.done ? 'bg-primary border-primary' : 'border-muted-foreground'
+                        }`}>
+                          {item.done && <CheckCircle className="h-3 w-3 text-primary-foreground" />}
+                        </div>
+                        <p className={`text-sm ${item.done ? 'line-through text-muted-foreground' : ''}`}>
+                          {item.text}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Live Session View
   return (
     <div className="flex h-[calc(100vh-3.5rem)]">
       {/* Main Content */}

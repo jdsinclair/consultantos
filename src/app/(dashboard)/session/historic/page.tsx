@@ -79,7 +79,7 @@ export default function AddHistoricSessionPage() {
     if (!files) return;
 
     const newAttachments: AttachmentFile[] = [];
-    for (const file of files) {
+    for (const file of Array.from(files)) {
       const type = guessFileType(file);
       const attachment: AttachmentFile = {
         id: `${Date.now()}-${newAttachments.length}`,

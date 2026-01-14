@@ -16,6 +16,7 @@ import {
   Loader2,
   Play,
   FileText,
+  History,
 } from "lucide-react";
 import Link from "next/link";
 import { formatDistanceToNow, format } from "date-fns";
@@ -116,12 +117,20 @@ export default function SessionsPage() {
             Your consulting calls and meetings
           </p>
         </div>
-        <Link href="/session/new">
-          <Button className="gap-2">
-            <Mic className="h-4 w-4" />
-            Start New Session
-          </Button>
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/session/historic">
+            <Button variant="outline" className="gap-2">
+              <History className="h-4 w-4" />
+              Add Historic
+            </Button>
+          </Link>
+          <Link href="/session/new">
+            <Button className="gap-2">
+              <Mic className="h-4 w-4" />
+              Start New Session
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Filters */}
