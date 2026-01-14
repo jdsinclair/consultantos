@@ -7,23 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { PhoneInput } from "@/components/ui/phone-input";
 import { ArrowLeft, Loader2, User, Mail, Phone } from "lucide-react";
 import Link from "next/link";
-
-const countryCodes = [
-  { code: "+1", label: "US/CA (+1)" },
-  { code: "+44", label: "UK (+44)" },
-  { code: "+61", label: "AU (+61)" },
-  { code: "+49", label: "DE (+49)" },
-  { code: "+33", label: "FR (+33)" },
-  { code: "+91", label: "IN (+91)" },
-  { code: "+86", label: "CN (+86)" },
-  { code: "+81", label: "JP (+81)" },
-  { code: "+82", label: "KR (+82)" },
-  { code: "+65", label: "SG (+65)" },
-  { code: "+972", label: "IL (+972)" },
-  { code: "+971", label: "UAE (+971)" },
-];
 
 const industries = [
   "Software / SaaS",
@@ -56,8 +42,8 @@ export default function NewClientPage() {
     firstName: "",
     lastName: "",
     email: "",
-    phone: "",
-    phoneCountryCode: "+1",
+    phone: "", // Stored in E.164 format
+    phoneCountryCode: "US",
     company: "",
     industry: "",
     website: "",
@@ -174,31 +160,20 @@ export default function NewClientPage() {
                   <Phone className="h-3 w-3" />
                   Phone
                 </Label>
-                <div className="flex gap-2">
-                  <select
-                    className="flex h-10 w-28 rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    value={formData.phoneCountryCode}
-                    onChange={(e) =>
-                      setFormData({ ...formData, phoneCountryCode: e.target.value })
-                    }
-                  >
-                    {countryCodes.map((cc) => (
-                      <option key={cc.code} value={cc.code}>
-                        {cc.label}
-                      </option>
-                    ))}
-                  </select>
-                  <Input
-                    id="phone"
-                    type="tel"
-                    placeholder="555-123-4567"
-                    value={formData.phone}
-                    onChange={(e) =>
-                      setFormData({ ...formData, phone: e.target.value })
-                    }
-                    className="flex-1"
-                  />
-                </div>
+                <PhoneInput
+                  value={formData.phone}
+                  defaultCountry="US"
+                  onChange={(e164, _formatted, country) =>
+                    setFormData({ 
+                      ...formData, 
+                      phone: e164,
+                      phoneCountryCode: country,
+                    })
+                  }
+                />
+                <p className="text-xs text-muted-foreground">
+                  Paste any phone number format - we'll auto-detect the country
+                </p>
               </div>
             </div>
 
