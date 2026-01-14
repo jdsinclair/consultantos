@@ -101,8 +101,16 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
     fetchData();
   }, [params.id]);
 
-  const handleSourceAdded = (source: Source) => {
-    setSources((prev) => [source, ...prev]);
+  const handleSourceAdded = async () => {
+    // Refetch sources after a new one is added
+    try {
+      const res = await fetch(`/api/clients/${params.id}/sources`);
+      if (res.ok) {
+        setSources(await res.json());
+      }
+    } catch (error) {
+      console.error("Failed to refresh sources:", error);
+    }
     setShowSourceAdder(false);
   };
 
