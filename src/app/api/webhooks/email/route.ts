@@ -3,6 +3,8 @@ import { put } from "@vercel/blob";
 import { db } from "@/db";
 import { users, inboundEmails, clients } from "@/db/schema";
 import { eq, ilike } from "drizzle-orm";
+import { extractTodosFromEmail } from "@/lib/ai/extract-todos";
+import { createActionItem } from "@/lib/db/action-items";
 
 // Webhook endpoint for receiving emails
 // Supports both Resend and Cloudflare Email Worker formats
@@ -172,6 +174,45 @@ export async function POST(req: NextRequest) {
           .set({ clientId: matchingClient.id })
           .where(eq(inboundEmails.id, email.id));
       }
+    }
+
+    // Extract TODOs from email in background
+    if (text) {
+      extractTodosFromEmail({
+        from: fromEmail || from,
+        subject: subject || "",
+        body: text,
+      })
+        .then(async (todos) => {
+          if (todos.length > 0) {
+            // Get the matched client ID
+            const matchedEmail = await db.query.inboundEmails.findFirst({
+              where: eq(inboundEmails.id, email.id),
+            });
+
+            await Promise.all(
+              todos.map((todo) =>
+                createActionItem({
+                  userId: user.id,
+                  clientId: matchedEmail?.clientId || undefined,
+                  emailId: email.id,
+                  title: todo.title,
+                  description: todo.description,
+                  owner: todo.owner,
+                  ownerType: todo.ownerType,
+                  priority: todo.priority,
+                  dueDate: todo.dueDate ? new Date(todo.dueDate) : undefined,
+                  source: "email",
+                  sourceContext: todo.sourceContext,
+                })
+              )
+            );
+            console.log(`Extracted ${todos.length} action items from email ${email.id}`);
+          }
+        })
+        .catch((err) => {
+          console.error("Failed to extract action items from email:", err);
+        });
     }
 
     return NextResponse.json({ success: true, emailId: email.id });

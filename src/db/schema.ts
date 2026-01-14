@@ -244,7 +244,9 @@ export const actionItems = pgTable('action_items', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: text('user_id').references(() => users.id).notNull(),
   sessionId: uuid('session_id').references(() => sessions.id, { onDelete: 'set null' }),
-  clientId: uuid('client_id').references(() => clients.id, { onDelete: 'cascade' }).notNull(),
+  clientId: uuid('client_id').references(() => clients.id, { onDelete: 'cascade' }),
+  noteId: uuid('note_id').references(() => notes.id, { onDelete: 'set null' }),
+  emailId: uuid('email_id').references(() => inboundEmails.id, { onDelete: 'set null' }),
   title: text('title').notNull(),
   description: text('description'),
   owner: text('owner'), // 'me', 'client', or specific name
@@ -252,7 +254,8 @@ export const actionItems = pgTable('action_items', {
   dueDate: timestamp('due_date'),
   priority: text('priority').default('medium'), // low, medium, high, urgent
   status: text('status').default('pending'), // pending, in_progress, completed, cancelled
-  source: text('source').default('manual'), // 'detected' (AI) or 'manual'
+  source: text('source').default('manual'), // manual, detected, note, transcript, email
+  sourceContext: text('source_context'), // excerpt or context from source
   transcriptTimestamp: text('transcript_timestamp'), // when in the call it was mentioned
   completedAt: timestamp('completed_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
