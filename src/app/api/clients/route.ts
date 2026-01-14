@@ -5,6 +5,11 @@ import { z } from "zod";
 
 const createClientSchema = z.object({
   name: z.string().min(1),
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  email: z.string().email().optional().or(z.literal("")),
+  phone: z.string().optional(),
+  phoneCountryCode: z.string().optional().default("+1"),
   company: z.string().optional(),
   industry: z.string().optional(),
   website: z.string().url().optional().or(z.literal("")),
@@ -38,6 +43,7 @@ export async function POST(req: NextRequest) {
       ...data,
       userId: user.id,
       website: data.website || undefined,
+      email: data.email || undefined,
     });
 
     return NextResponse.json(client, { status: 201 });
