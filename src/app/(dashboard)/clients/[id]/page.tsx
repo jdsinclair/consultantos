@@ -15,17 +15,24 @@ import {
   Send,
   Calendar,
   CheckCircle,
+  Circle,
   MessageSquare,
   Loader2,
   ExternalLink,
   Trash2,
   ArrowLeft,
   Edit2,
+  Sparkles,
+  Mail,
+  StickyNote,
+  AlertCircle,
 } from "lucide-react";
 import Link from "next/link";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, isPast } from "date-fns";
 import { FileUpload } from "@/components/file-upload";
 import { SourceAdder } from "@/components/source-adder";
+import { TodoQuickAdd } from "@/components/todo-quick-add";
+import { cn } from "@/lib/utils";
 
 interface Client {
   id: string;
@@ -59,37 +66,85 @@ interface Session {
 interface ActionItem {
   id: string;
   title: string;
+  description?: string;
   status: string;
   priority: string;
+  ownerType: string;
+  source: string;
+  sourceContext?: string;
   dueDate: string | null;
 }
+
+interface Note {
+  id: string;
+  title?: string;
+  content: string;
+  isPinned: boolean;
+  createdAt: string;
+}
+
+const priorityColors: Record<string, string> = {
+  low: "bg-slate-100 text-slate-700",
+  medium: "bg-blue-100 text-blue-700",
+  high: "bg-orange-100 text-orange-700",
+  urgent: "bg-red-100 text-red-700",
+};
+
+const sourceIcons: Record<string, React.ReactNode> = {
+  detected: <Sparkles className="h-3 w-3" />,
+  note: <StickyNote className="h-3 w-3" />,
+  transcript: <Mic className="h-3 w-3" />,
+  email: <Mail className="h-3 w-3" />,
+};
 
 export default function ClientDetailPage({ params }: { params: { id: string } }) {
   const [client, setClient] = useState<Client | null>(null);
   const [sources, setSources] = useState<Source[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [actionItems, setActionItems] = useState<ActionItem[]>([]);
+  const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showAddTodo, setShowAddTodo] = useState(false);
 
   const { messages, input, handleInputChange, handleSubmit, isLoading: chatLoading } = useChat({
     api: "/api/chat",
     body: { clientId: params.id },
   });
 
+  const fetchActionItems = async () => {
+    try {
+      const res = await fetch(`/api/action-items?clientId=${params.id}&status=pending`);
+      if (res.ok) setActionItems(await res.json());
+    } catch (error) {
+      console.error("Failed to fetch action items:", error);
+    }
+  };
+
+  const fetchNotes = async () => {
+    try {
+      const res = await fetch(`/api/notes?clientId=${params.id}&limit=5`);
+      if (res.ok) setNotes(await res.json());
+    } catch (error) {
+      console.error("Failed to fetch notes:", error);
+    }
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [clientRes, sourcesRes, sessionsRes, actionsRes] = await Promise.all([
+        const [clientRes, sourcesRes, sessionsRes, actionsRes, notesRes] = await Promise.all([
           fetch(`/api/clients/${params.id}`),
           fetch(`/api/clients/${params.id}/sources`),
           fetch(`/api/sessions?clientId=${params.id}`),
           fetch(`/api/action-items?clientId=${params.id}&status=pending`),
+          fetch(`/api/notes?clientId=${params.id}&limit=5`),
         ]);
 
         if (clientRes.ok) setClient(await clientRes.json());
         if (sourcesRes.ok) setSources(await sourcesRes.json());
         if (sessionsRes.ok) setSessions(await sessionsRes.json());
         if (actionsRes.ok) setActionItems(await actionsRes.json());
+        if (notesRes.ok) setNotes(await notesRes.json());
       } catch (error) {
         console.error("Failed to fetch client data:", error);
       } finally {
@@ -334,42 +389,148 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                 <CheckCircle className="h-5 w-5" />
                 Action Items
               </CardTitle>
-              <Badge variant="secondary">{actionItems.length} pending</Badge>
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary">{actionItems.length} pending</Badge>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1"
+                  onClick={() => setShowAddTodo(!showAddTodo)}
+                >
+                  <Plus className="h-3 w-3" />
+                  Add
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
+              {showAddTodo && (
+                <div className="mb-4 pb-4 border-b">
+                  <TodoQuickAdd
+                    clientId={params.id}
+                    onAdd={() => {
+                      fetchActionItems();
+                      setShowAddTodo(false);
+                    }}
+                  />
+                </div>
+              )}
               {actionItems.length > 0 ? (
                 <div className="space-y-3">
-                  {actionItems.map((item) => (
-                    <div key={item.id} className="flex items-start gap-3">
-                      <input
-                        type="checkbox"
-                        className="mt-1 h-4 w-4 rounded cursor-pointer"
-                        onChange={(e) => handleToggleAction(item.id, e.target.checked)}
-                      />
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">{item.title}</p>
-                        {item.dueDate && (
-                          <p className="text-xs text-muted-foreground">
-                            Due: {formatDistanceToNow(new Date(item.dueDate), { addSuffix: true })}
-                          </p>
-                        )}
+                  {actionItems.map((item) => {
+                    const isOverdue = item.dueDate && isPast(new Date(item.dueDate));
+                    return (
+                      <div
+                        key={item.id}
+                        className="flex items-start gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors"
+                      >
+                        <button
+                          onClick={() => handleToggleAction(item.id, true)}
+                          className="mt-0.5 text-muted-foreground hover:text-primary transition-colors"
+                        >
+                          <Circle className="h-5 w-5" />
+                        </button>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm font-medium">{item.title}</p>
+                            <Badge
+                              variant="secondary"
+                              className={cn("text-xs", priorityColors[item.priority])}
+                            >
+                              {item.priority}
+                            </Badge>
+                            {item.source !== "manual" && sourceIcons[item.source] && (
+                              <span className="text-muted-foreground" title={`AI ${item.source}`}>
+                                {sourceIcons[item.source]}
+                              </span>
+                            )}
+                            {item.ownerType === "client" && (
+                              <Badge variant="outline" className="text-xs">
+                                Client
+                              </Badge>
+                            )}
+                          </div>
+                          {item.dueDate && (
+                            <p
+                              className={cn(
+                                "text-xs mt-1",
+                                isOverdue ? "text-red-600" : "text-muted-foreground"
+                              )}
+                            >
+                              {isOverdue && <AlertCircle className="h-3 w-3 inline mr-1" />}
+                              Due {formatDistanceToNow(new Date(item.dueDate), { addSuffix: true })}
+                            </p>
+                          )}
+                        </div>
                       </div>
-                      {item.priority === "high" && (
-                        <Badge variant="destructive" className="text-xs">High</Badge>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-4">
+                  <p className="text-sm text-muted-foreground">No pending action items</p>
+                  {!showAddTodo && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="mt-2"
+                      onClick={() => setShowAddTodo(true)}
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      Add first task
+                    </Button>
+                  )}
+                </div>
+              )}
+              <Link
+                href={`/todos?clientId=${params.id}`}
+                className="block text-center mt-4 text-xs text-muted-foreground hover:text-foreground"
+              >
+                View all action items →
+              </Link>
+            </CardContent>
+          </Card>
+
+          {/* Notes */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <StickyNote className="h-5 w-5" />
+                Notes
+              </CardTitle>
+              <Badge variant="secondary">{notes.length}</Badge>
+            </CardHeader>
+            <CardContent>
+              {notes.length > 0 ? (
+                <div className="space-y-3">
+                  {notes.slice(0, 3).map((note) => (
+                    <div
+                      key={note.id}
+                      className="p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
+                    >
+                      {note.title && (
+                        <p className="text-sm font-medium mb-1">{note.title}</p>
                       )}
+                      <p className="text-sm text-muted-foreground line-clamp-2">
+                        {note.content}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        {formatDistanceToNow(new Date(note.createdAt), {
+                          addSuffix: true,
+                        })}
+                      </p>
                     </div>
                   ))}
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground text-center py-4">
-                  No pending action items
+                  No notes yet
                 </p>
               )}
             </CardContent>
           </Card>
 
           {/* Quick Chat */}
-          <Card>
+          <Card className="lg:col-span-2">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center gap-2">
                 <MessageSquare className="h-5 w-5" />

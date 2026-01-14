@@ -8,6 +8,8 @@ import {
   updateGameplan,
   appendTranscript,
 } from "@/lib/db/sessions";
+import { createDetectedActionItems } from "@/lib/db/action-items";
+import { extractTodosFromTranscript } from "@/lib/ai/extract-todos";
 import { z } from "zod";
 
 const updateSessionSchema = z.object({
@@ -79,6 +81,33 @@ export async function PUT(
 
     if (body.action === "end") {
       const session = await endSession(params.id, user.id);
+
+      // Extract action items from transcript in background (don't block response)
+      if (session?.transcript && session.clientId) {
+        extractTodosFromTranscript(session.transcript)
+          .then(async (todos) => {
+            if (todos.length > 0) {
+              await createDetectedActionItems(
+                params.id,
+                session.clientId!,
+                user.id,
+                todos.map((todo) => ({
+                  title: todo.title,
+                  owner: todo.owner || (todo.ownerType === "me" ? "me" : "client"),
+                  ownerType: todo.ownerType,
+                  timestamp: todo.timestamp,
+                }))
+              );
+              console.log(
+                `Extracted ${todos.length} action items from session ${params.id}`
+              );
+            }
+          })
+          .catch((err) => {
+            console.error("Failed to extract action items:", err);
+          });
+      }
+
       return NextResponse.json(session);
     }
 
