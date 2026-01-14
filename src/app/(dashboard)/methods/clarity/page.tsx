@@ -42,7 +42,10 @@ export default function ClarityMethodLandingPage() {
       const res = await fetch("/api/clients");
       if (res.ok) {
         const data = await res.json();
-        setClients(data.filter((c: Client) => c.status === "active"));
+        // Show all clients except lost/cancelled
+        setClients(data.filter((c: Client) => 
+          !['prospect_lost', 'client_cancelled'].includes(c.status)
+        ));
       }
     } catch (error) {
       console.error("Failed to fetch clients:", error);
