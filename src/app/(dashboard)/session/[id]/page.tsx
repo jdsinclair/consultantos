@@ -27,8 +27,10 @@ import {
   ExternalLink,
   Calendar,
   ArrowLeft,
+  Trash2,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { useChat } from "ai/react";
 import { cn } from "@/lib/utils";
@@ -96,6 +98,7 @@ interface Suggestion {
 type MobileTab = "transcript" | "suggestions" | "actions" | "gameplan";
 
 export default function LiveSessionPage({ params }: { params: { id: string } }) {
+  const router = useRouter();
   const [session, setSession] = useState<Session | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -105,6 +108,7 @@ export default function LiveSessionPage({ params }: { params: { id: string } }) 
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [newCommitment, setNewCommitment] = useState("");
   const lastTranscriptLength = useRef(0);
+  const [deleting, setDeleting] = useState(false);
 
   // Mobile state
   const [mobileTab, setMobileTab] = useState<MobileTab>("transcript");
@@ -310,6 +314,23 @@ export default function LiveSessionPage({ params }: { params: { id: string } }) 
     }
   };
 
+  const handleDelete = async () => {
+    if (!confirm("Are you sure you want to delete this session? This cannot be undone.")) {
+      return;
+    }
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/sessions/${params.id}`, { method: "DELETE" });
+      if (res.ok) {
+        router.push("/session");
+      }
+    } catch (error) {
+      console.error("Failed to delete session:", error);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   if (!session) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -363,9 +384,24 @@ export default function LiveSessionPage({ params }: { params: { id: string } }) 
                 </div>
               </div>
             </div>
-            <Badge variant={session.isHistoric ? "secondary" : "default"}>
-              {session.isHistoric ? "Historic" : "Completed"}
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant={session.isHistoric ? "secondary" : "default"}>
+                {session.isHistoric ? "Historic" : "Completed"}
+              </Badge>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                onClick={handleDelete}
+                disabled={deleting}
+              >
+                {deleting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
           </div>
         </div>
 
