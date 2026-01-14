@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { requireUser } from "@/lib/auth";
 import { getActionItems, createActionItem, getOverdueActionItems } from "@/lib/db/action-items";
 import { z } from "zod";
@@ -15,6 +16,30 @@ const createActionItemSchema = z.object({
 });
 
 export async function GET(req: NextRequest) {
+  // Debug: Check auth and cookies
+  const authObj = await auth();
+  const cookies = req.cookies.getAll();
+  const sessionCookie = cookies.find(c => c.name === '__session');
+  
+  console.log('[action-items] Auth debug:', {
+    userId: authObj.userId,
+    sessionId: authObj.sessionId,
+    hasCookies: cookies.length,
+    hasSessionCookie: !!sessionCookie,
+    cookieNames: cookies.map(c => c.name),
+  });
+
+  if (!authObj.userId) {
+    return NextResponse.json({ 
+      error: "Unauthorized",
+      debug: {
+        hasCookies: cookies.length,
+        hasSessionCookie: !!sessionCookie,
+        cookieNames: cookies.map(c => c.name),
+      }
+    }, { status: 401 });
+  }
+
   try {
     const user = await requireUser();
     const { searchParams } = new URL(req.url);
