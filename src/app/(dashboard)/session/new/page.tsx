@@ -103,16 +103,27 @@ export default function NewSessionPage() {
     setLoading(true);
 
     try {
+      // Build payload - only include methodId if it's set
+      const payload: Record<string, unknown> = {
+        clientId: formData.clientId,
+        title: formData.title,
+        gameplan: gameplan.filter((g) => g.text.trim()),
+      };
+      if (formData.methodId) {
+        payload.methodId = formData.methodId;
+      }
+
       const res = await fetch("/api/sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...formData,
-          gameplan: gameplan.filter((g) => g.text),
-        }),
+        body: JSON.stringify(payload),
       });
 
-      if (!res.ok) throw new Error("Failed to create session");
+      if (!res.ok) {
+        const errorData = await res.json();
+        console.error("Session creation error:", errorData);
+        throw new Error(errorData.error || "Failed to create session");
+      }
 
       const session = await res.json();
 

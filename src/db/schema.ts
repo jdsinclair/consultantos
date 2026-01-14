@@ -387,6 +387,45 @@ export const inboundEmailsRelations = relations(inboundEmails, ({ one }) => ({
   client: one(clients, { fields: [inboundEmails.clientId], references: [clients.id] }),
 }));
 
+export const actionItemsRelations = relations(actionItems, ({ one }) => ({
+  user: one(users, { fields: [actionItems.userId], references: [users.id] }),
+  client: one(clients, { fields: [actionItems.clientId], references: [clients.id] }),
+  session: one(sessions, { fields: [actionItems.sessionId], references: [sessions.id] }),
+  note: one(notes, { fields: [actionItems.noteId], references: [notes.id] }),
+  email: one(inboundEmails, { fields: [actionItems.emailId], references: [inboundEmails.id] }),
+}));
+
+export const notesRelations = relations(notes, ({ one, many }) => ({
+  user: one(users, { fields: [notes.userId], references: [users.id] }),
+  client: one(clients, { fields: [notes.clientId], references: [clients.id] }),
+  session: one(sessions, { fields: [notes.sessionId], references: [sessions.id] }),
+  actionItems: many(actionItems),
+}));
+
+export const contactsRelations = relations(contacts, ({ one }) => ({
+  user: one(users, { fields: [contacts.userId], references: [users.id] }),
+  client: one(clients, { fields: [contacts.clientId], references: [clients.id] }),
+}));
+
+export const methodsRelations = relations(methods, ({ one }) => ({
+  user: one(users, { fields: [methods.userId], references: [users.id] }),
+}));
+
+export const personasRelations = relations(personas, ({ one }) => ({
+  user: one(users, { fields: [personas.userId], references: [users.id] }),
+}));
+
+export const suggestionsRelations = relations(suggestions, ({ one }) => ({
+  session: one(sessions, { fields: [suggestions.sessionId], references: [sessions.id] }),
+}));
+
+export const messagesRelations = relations(messages, ({ one }) => ({
+  user: one(users, { fields: [messages.userId], references: [users.id] }),
+  session: one(sessions, { fields: [messages.sessionId], references: [sessions.id] }),
+  client: one(clients, { fields: [messages.clientId], references: [clients.id] }),
+  persona: one(personas, { fields: [messages.personaId], references: [personas.id] }),
+}));
+
 // Types
 export interface MethodStep {
   id: string;

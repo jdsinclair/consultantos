@@ -54,6 +54,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(items);
   } catch (error) {
+    console.error("Failed to get action items:", error);
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 }

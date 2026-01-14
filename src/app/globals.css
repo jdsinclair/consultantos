@@ -4,44 +4,111 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
+    /* Corporate Color Palette - Light Mode (Default) */
+
+    /* Backgrounds */
+    --background: 0 0% 100%;           /* Pure white */
+    --foreground: 220 60% 12%;         /* Dark navy text */
+
+    /* Cards & Surfaces */
+    --card: 0 0% 100%;                 /* White cards */
+    --card-foreground: 220 60% 12%;    /* Navy text */
+
+    /* Primary - Dark Navy (Corporate Authority) */
+    --primary: 220 60% 12%;            /* Dark navy */
+    --primary-foreground: 0 0% 100%;   /* White text */
+
+    /* Secondary - Subtle Gray */
+    --secondary: 220 20% 96%;          /* Off-white/pale gray */
+    --secondary-foreground: 220 60% 12%;
+
+    /* Muted - For subtle backgrounds & hovers */
+    --muted: 220 14% 94%;              /* Subtle warm gray */
+    --muted-foreground: 220 15% 45%;   /* Medium gray text */
+
+    /* Accent - Electric Blue (Intentional Color Whisp) */
+    --accent: 210 100% 50%;            /* Electric blue */
+    --accent-foreground: 0 0% 100%;    /* White */
+
+    /* Destructive - Coral Red */
+    --destructive: 0 72% 51%;          /* Vibrant red */
+    --destructive-foreground: 0 0% 100%;
+
+    /* Success - Emerald Green */
+    --success: 152 69% 40%;
+    --success-foreground: 0 0% 100%;
+
+    /* Warning - Corporate Gold */
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    /* Borders & Inputs */
+    --border: 220 13% 86%;             /* Subtle gray border */
+    --input: 220 13% 86%;              /* Input border */
+    --ring: 220 60% 12%;               /* Focus ring - navy to match primary */
+
+    /* Design System */
     --radius: 0.5rem;
+
+    /* Navy Scale for gradients/variations */
+    --navy-900: 220 60% 12%;
+    --navy-800: 220 55% 18%;
+    --navy-700: 220 50% 25%;
+    --navy-600: 220 45% 35%;
+    --navy-100: 220 30% 96%;
+
+    /* Popover - matches card */
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 60% 12%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 48%;
+    /* Corporate Color Palette - Dark Mode */
+
+    /* Backgrounds */
+    --background: 220 60% 12%;         /* Dark navy */
+    --foreground: 220 20% 96%;         /* Off-white text */
+
+    /* Cards & Surfaces */
+    --card: 220 55% 16%;               /* Slightly lighter navy */
+    --card-foreground: 220 20% 96%;
+
+    /* Primary - White/Light (inverted for dark mode) */
+    --primary: 0 0% 100%;              /* White */
+    --primary-foreground: 220 60% 12%; /* Navy text */
+
+    /* Secondary */
+    --secondary: 220 50% 22%;          /* Medium navy */
+    --secondary-foreground: 220 20% 96%;
+
+    /* Muted */
+    --muted: 220 50% 20%;
+    --muted-foreground: 220 20% 65%;
+
+    /* Accent - Electric Blue (maintained) */
+    --accent: 210 100% 55%;
+    --accent-foreground: 0 0% 100%;
+
+    /* Destructive */
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Success */
+    --success: 152 65% 45%;
+    --success-foreground: 0 0% 100%;
+
+    /* Warning */
+    --warning: 38 92% 50%;
+    --warning-foreground: 220 60% 12%;
+
+    /* Borders & Inputs */
+    --border: 220 50% 25%;
+    --input: 220 50% 25%;
+    --ring: 210 100% 55%;
+
+    /* Popover */
+    --popover: 220 55% 16%;
+    --popover-foreground: 220 20% 96%;
   }
 }
 
@@ -50,7 +117,18 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Smooth transitions for theme changes */
+  html {
+    @apply scroll-smooth;
+  }
+
+  /* Selection color */
+  ::selection {
+    @apply bg-primary/20 text-foreground;
   }
 }
 
@@ -62,4 +140,132 @@
 
 .animate-pulse-live {
   animation: pulse-live 2s ease-in-out infinite;
+}
+
+/* Fade in animation */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.15s ease-out;
+}
+
+/* Corporate focus styles */
+@layer utilities {
+  .focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+  }
+}
+
+/* Smooth shadow transitions */
+@layer utilities {
+  .shadow-corporate {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
+  }
+  .shadow-corporate-md {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05), 0 2px 4px rgba(0, 0, 0, 0.03);
+  }
+  .shadow-corporate-lg {
+    box-shadow: 0 10px 15px rgba(0, 0, 0, 0.08), 0 4px 6px rgba(0, 0, 0, 0.04);
+  }
+}
+
+/* Gradient utilities for personality */
+@layer utilities {
+  .gradient-primary {
+    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--navy-800)) 100%);
+  }
+  .gradient-accent {
+    background: linear-gradient(135deg, hsl(var(--accent)) 0%, hsl(210 100% 60%) 100%);
+  }
+  .gradient-subtle {
+    background: linear-gradient(180deg, hsl(var(--background)) 0%, hsl(var(--muted)) 100%);
+  }
+  .gradient-glow-primary {
+    box-shadow: 0 0 40px -10px hsl(var(--primary) / 0.3);
+  }
+  .gradient-glow-accent {
+    box-shadow: 0 0 40px -10px hsl(var(--accent) / 0.4);
+  }
+  .gradient-glow-warning {
+    box-shadow: 0 0 40px -10px hsl(var(--warning) / 0.4);
+  }
+}
+
+/* Text gradient for headlines */
+@layer utilities {
+  .text-gradient-primary {
+    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--navy-600)) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .text-gradient-accent {
+    background: linear-gradient(135deg, hsl(var(--accent)) 0%, hsl(210 100% 60%) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+}
+
+/* Decorative elements */
+@layer utilities {
+  .decoration-dot {
+    @apply relative;
+  }
+  .decoration-dot::before {
+    content: "";
+    @apply absolute -left-3 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-primary;
+  }
+}
+
+/* Card hover glow effect */
+@layer utilities {
+  .hover-glow {
+    @apply transition-all duration-300;
+  }
+  .hover-glow:hover {
+    box-shadow: 0 0 0 1px hsl(var(--primary) / 0.1), 0 8px 20px -4px hsl(var(--primary) / 0.1);
+  }
+}
+
+/* Accent borders for personality */
+@layer utilities {
+  .border-accent-gradient {
+    border-image: linear-gradient(135deg, hsl(var(--accent)), hsl(var(--primary))) 1;
+  }
+}
+
+/* Status indicator dots */
+@layer components {
+  .status-dot {
+    @apply w-2 h-2 rounded-full;
+  }
+  .status-dot-success {
+    @apply bg-success;
+  }
+  .status-dot-warning {
+    @apply bg-warning;
+  }
+  .status-dot-destructive {
+    @apply bg-destructive;
+  }
+  .status-dot-accent {
+    @apply bg-accent;
+  }
+}
+
+/* Backdrop blur variations */
+@layer utilities {
+  .backdrop-blur-corporate {
+    backdrop-filter: blur(12px) saturate(180%);
+  }
 }

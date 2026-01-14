@@ -6,38 +6,93 @@ import { eq, ilike } from "drizzle-orm";
 import { extractTodosFromEmail } from "@/lib/ai/extract-todos";
 import { createActionItem } from "@/lib/db/action-items";
 
-// Webhook endpoint for receiving emails from Cloudflare Email Worker
+// Webhook endpoint for receiving emails
+// Supports both Resend and Cloudflare Email Worker formats
 export async function POST(req: NextRequest) {
   try {
-    // Validate webhook secret
-    const secret = req.headers.get("x-webhook-secret");
-    if (!process.env.EMAIL_WEBHOOK_SECRET || secret !== process.env.EMAIL_WEBHOOK_SECRET) {
-      console.error("Invalid webhook secret");
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    // Check for webhook secret (required for CF Worker, optional for Resend with signature)
+    const cfSecret = req.headers.get("x-webhook-secret");
+    const resendSignature = req.headers.get("svix-signature");
+    
+    // Validate authentication
+    if (process.env.EMAIL_WEBHOOK_SECRET && cfSecret) {
+      // Cloudflare Worker format
+      if (cfSecret !== process.env.EMAIL_WEBHOOK_SECRET) {
+        console.error("Invalid webhook secret");
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+    } else if (!resendSignature && !cfSecret) {
+      // No auth provided - reject unless in development
+      if (process.env.NODE_ENV === "production") {
+        console.error("No authentication provided");
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
     }
 
-    // Parse JSON payload from CF Worker
     const payload = await req.json();
-    const {
-      to,
-      from,
-      fromName,
-      fromEmail,
-      subject,
-      text,
-      html,
-      messageId,
-      inReplyTo,
-      attachments = [],
-    } = payload;
+    
+    // Normalize payload from different providers
+    let emailData: {
+      to: string;
+      from: string;
+      fromName?: string;
+      fromEmail: string;
+      subject?: string;
+      text?: string;
+      html?: string;
+      messageId?: string;
+      attachments: Array<{
+        filename: string;
+        contentType: string;
+        size?: number;
+        content?: string; // base64
+        url?: string; // for Resend
+      }>;
+    };
 
-    // Find user by ingest email address
+    // Detect format and normalize
+    if (payload.type === "email.received" || payload.data?.to) {
+      // Resend format
+      const data = payload.data || payload;
+      emailData = {
+        to: Array.isArray(data.to) ? data.to[0] : data.to,
+        from: data.from,
+        fromName: data.from?.split("<")[0]?.trim() || undefined,
+        fromEmail: data.from?.match(/<(.+)>/)?.[1] || data.from,
+        subject: data.subject,
+        text: data.text,
+        html: data.html,
+        messageId: data.message_id,
+        attachments: (data.attachments || []).map((att: any) => ({
+          filename: att.filename,
+          contentType: att.content_type || att.contentType,
+          size: att.size,
+          content: att.content,
+          url: att.url,
+        })),
+      };
+    } else {
+      // Cloudflare Worker format (or generic)
+      emailData = {
+        to: payload.to,
+        from: payload.from,
+        fromName: payload.fromName,
+        fromEmail: payload.fromEmail || payload.from,
+        subject: payload.subject,
+        text: payload.text,
+        html: payload.html,
+        messageId: payload.messageId,
+        attachments: payload.attachments || [],
+      };
+    }
+
+    // Find user by ingest email address (case-insensitive)
     const user = await db.query.users.findFirst({
-      where: eq(users.ingestEmail, to.toLowerCase()),
+      where: ilike(users.ingestEmail, emailData.to),
     });
 
     if (!user) {
-      console.error(`No user found for ingest email: ${to}`);
+      console.error(`No user found for ingest email: ${emailData.to}`);
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
@@ -50,13 +105,20 @@ export async function POST(req: NextRequest) {
       blobUrl?: string;
     }> = [];
 
-    for (const att of attachments) {
+    for (const att of emailData.attachments) {
       try {
+        let buffer: Buffer | null = null;
+        
         if (att.content) {
-          // Decode base64 content
-          const buffer = Buffer.from(att.content, "base64");
+          // Base64 encoded content (CF Worker format)
+          buffer = Buffer.from(att.content, "base64");
+        } else if (att.url) {
+          // URL to fetch (Resend format)
+          const response = await fetch(att.url);
+          buffer = Buffer.from(await response.arrayBuffer());
+        }
 
-          // Upload to Vercel Blob
+        if (buffer) {
           const blob = await put(
             `emails/${user.id}/${Date.now()}-${att.filename}`,
             buffer,
@@ -67,18 +129,17 @@ export async function POST(req: NextRequest) {
             id: `att-${Date.now()}-${processedAttachments.length}`,
             filename: att.filename,
             contentType: att.contentType,
-            size: att.size,
+            size: att.size || buffer.length,
             blobUrl: blob.url,
           });
         }
       } catch (attachError) {
         console.error(`Failed to process attachment ${att.filename}:`, attachError);
-        // Still record the attachment metadata even if upload fails
         processedAttachments.push({
           id: `att-${Date.now()}-${processedAttachments.length}`,
           filename: att.filename,
           contentType: att.contentType,
-          size: att.size,
+          size: att.size || 0,
         });
       }
     }
@@ -88,24 +149,21 @@ export async function POST(req: NextRequest) {
       .insert(inboundEmails)
       .values({
         userId: user.id,
-        fromEmail: fromEmail || from,
-        fromName: fromName,
-        toEmail: to,
-        subject,
-        bodyText: text,
-        bodyHtml: html,
+        fromEmail: emailData.fromEmail,
+        fromName: emailData.fromName,
+        toEmail: emailData.to,
+        subject: emailData.subject,
+        bodyText: emailData.text,
+        bodyHtml: emailData.html,
         attachments: processedAttachments,
-        messageId,
-        inReplyTo,
-        rawHeaders: payload.headers,
+        messageId: emailData.messageId,
         status: "inbox",
       })
       .returning();
 
     // Try to auto-match to a client based on sender email domain
-    const senderDomain = (fromEmail || from).split("@")[1]?.toLowerCase();
+    const senderDomain = emailData.fromEmail.split("@")[1]?.toLowerCase();
     if (senderDomain) {
-      // Look for clients with matching website domain
       const matchingClient = await db.query.clients.findFirst({
         where: ilike(clients.website, `%${senderDomain}%`),
       });
@@ -119,11 +177,11 @@ export async function POST(req: NextRequest) {
     }
 
     // Extract TODOs from email in background
-    if (text) {
+    if (emailData.text) {
       extractTodosFromEmail({
-        from: fromEmail || from,
-        subject: subject || "",
-        body: text,
+        from: emailData.fromEmail || emailData.from,
+        subject: emailData.subject || "",
+        body: emailData.text,
       })
         .then(async (todos) => {
           if (todos.length > 0) {
