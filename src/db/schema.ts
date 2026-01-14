@@ -394,6 +394,30 @@ export const notesRelations = relations(notes, ({ one, many }) => ({
   actionItems: many(actionItems),
 }));
 
+export const contactsRelations = relations(contacts, ({ one }) => ({
+  user: one(users, { fields: [contacts.userId], references: [users.id] }),
+  client: one(clients, { fields: [contacts.clientId], references: [clients.id] }),
+}));
+
+export const methodsRelations = relations(methods, ({ one }) => ({
+  user: one(users, { fields: [methods.userId], references: [users.id] }),
+}));
+
+export const personasRelations = relations(personas, ({ one }) => ({
+  user: one(users, { fields: [personas.userId], references: [users.id] }),
+}));
+
+export const suggestionsRelations = relations(suggestions, ({ one }) => ({
+  session: one(sessions, { fields: [suggestions.sessionId], references: [sessions.id] }),
+}));
+
+export const messagesRelations = relations(messages, ({ one }) => ({
+  user: one(users, { fields: [messages.userId], references: [users.id] }),
+  session: one(sessions, { fields: [messages.sessionId], references: [sessions.id] }),
+  client: one(clients, { fields: [messages.clientId], references: [clients.id] }),
+  persona: one(personas, { fields: [messages.personaId], references: [personas.id] }),
+}));
+
 // Types
 export interface MethodStep {
   id: string;
