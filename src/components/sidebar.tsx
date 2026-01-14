@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { Logo } from "@/components/ui/logo";
 import {
   Users,
   FileText,
@@ -10,11 +11,11 @@ import {
   BookOpen,
   MessageSquare,
   Settings,
-  Sparkles,
   LayoutDashboard,
   Mail,
   CheckCircle,
   UserPlus,
+  Sparkles,
 } from "lucide-react";
 
 const navigation = [
@@ -36,15 +37,12 @@ export function Sidebar() {
   return (
     <div className="flex h-full w-64 flex-col border-r border-border bg-card">
       {/* Logo */}
-      <div className="flex h-16 items-center gap-2 border-b border-border px-6">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-          <Sparkles className="h-5 w-5 text-primary-foreground" />
-        </div>
-        <span className="text-lg font-semibold">ConsultantOS</span>
+      <div className="flex h-16 items-center border-b border-border px-5">
+        <Logo size="default" />
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 space-y-1 p-4">
+      <nav className="flex-1 space-y-1 p-3">
         {navigation.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
           return (
@@ -52,13 +50,13 @@ export function Sidebar() {
               key={item.name}
               href={item.href}
               className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150",
                 isActive
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  ? "bg-primary text-primary-foreground shadow-corporate"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )}
             >
-              <item.icon className="h-5 w-5" />
+              <item.icon className="h-5 w-5 flex-shrink-0" />
               {item.name}
             </Link>
           );
@@ -66,17 +64,17 @@ export function Sidebar() {
       </nav>
 
       {/* Settings */}
-      <div className="border-t border-border p-4">
+      <div className="border-t border-border p-3">
         <Link
           href="/settings"
           className={cn(
-            "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+            "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150",
             pathname === "/settings"
-              ? "bg-primary text-primary-foreground"
-              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              ? "bg-primary text-primary-foreground shadow-corporate"
+              : "text-muted-foreground hover:bg-muted hover:text-foreground"
           )}
         >
-          <Settings className="h-5 w-5" />
+          <Settings className="h-5 w-5 flex-shrink-0" />
           Settings
         </Link>
       </div>
