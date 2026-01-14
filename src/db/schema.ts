@@ -205,10 +205,15 @@ export interface ClarityStrategy {
   topRisks: string[];
 }
 
+export interface ClaritySwimlaneTimeframe {
+  objective: string;
+  items: string[];
+}
+
 export interface ClaritySwimlane {
-  short: string[]; // 0-90 days - max 3 bullets
-  mid: string[];   // 3-12 months - max 3 bullets
-  long: string[];  // 12-24 months - max 3 bullets
+  short: ClaritySwimlaneTimeframe | string[]; // Support both new and legacy formats
+  mid: ClaritySwimlaneTimeframe | string[];
+  long: ClaritySwimlaneTimeframe | string[];
 }
 
 export interface ClaritySwimlanes {
@@ -227,6 +232,8 @@ export interface ClaritySwimlanes {
   ecosystemPartners: ClaritySwimlane;
   legalIP: ClaritySwimlane;
   technology: ClaritySwimlane;
+  // Custom swimlanes with dynamic keys
+  [key: `custom_${string}`]: ClaritySwimlane & { label: string };
 }
 
 export interface ClarityCanvasVersion {
