@@ -17,10 +17,40 @@ export async function POST(req: Request) {
       return new Response("Unauthorized", { status: 401 });
     }
 
-    const { messages, clientId, personaId } = await req.json();
+    const { messages, clientId, personaId, context, canvas } = await req.json();
 
-    // Get system prompt - from database persona or fallback to default
+    // Get system prompt - from database persona or special context
     let systemPrompt = systemPrompts.main;
+    
+    // Special context-specific system prompts
+    if (context === "clarity-method") {
+      systemPrompt = `You are a strategic advisor helping build a Clarity Method™ canvas for a founder client.
+
+The Clarity Method™ helps founders move from chaos → clarity → constraint → execution through:
+1. Strategic Truth Header (6 defining questions)
+2. North Star Constraints (guardrails that prevent drift)
+3. The Core Engine (identify THE constraint)
+4. Value Expansion Model (systematize growth)
+5. Service/Product Filter (kill complexity)
+6. Kill List (what to STOP doing)
+7. Paranoia Map (anticipate threats)
+8. Execution Swimlanes (staged action plan)
+
+Your role:
+- CHALLENGE generic or vague answers. Push for specificity.
+- IDENTIFY the REAL constraint (usually not what founders first say).
+- PRESSURE-TEST positioning against market reality.
+- SUGGEST execution priorities based on the current canvas state.
+- ASK probing questions that reveal blind spots.
+
+Be direct. Push back. A good strategy coach is not a yes-man.
+Reference the canvas data when answering questions.`;
+
+      // Add canvas context if provided
+      if (canvas) {
+        systemPrompt += `\n\n## Current Canvas State:\n${JSON.stringify(canvas, null, 2)}`;
+      }
+    }
 
     if (personaId) {
       try {

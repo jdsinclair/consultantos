@@ -116,9 +116,9 @@ Ask me anything about ${client?.name}'s strategy.`,
     ],
   });
 
-  // Open founder view in new window
+  // Open founder view in new window (no navigation popup)
   const openFounderWindow = () => {
-    const url = `/methods/clarity/${params.clientId}/founder`;
+    const url = `/clarity/${params.clientId}`; // Uses (share) route group - no nav
     window.open(url, 'FounderView', 'width=1200,height=800,scrollbars=yes,resizable=yes');
   };
 
@@ -208,6 +208,20 @@ Ask me anything about ${client?.name}'s strategy.`,
           ...canvas.strategicTruth[key],
           status: 'locked',
           lockedAt: new Date().toISOString(),
+        },
+      },
+    });
+  };
+
+  const unlockStrategicTruth = (key: keyof ClarityStrategicTruth) => {
+    if (!canvas?.strategicTruth) return;
+    updateCanvas({
+      strategicTruth: {
+        ...canvas.strategicTruth,
+        [key]: {
+          ...canvas.strategicTruth[key],
+          status: 'draft',
+          lockedAt: undefined,
         },
       },
     });
@@ -453,8 +467,9 @@ Ask me anything about ${client?.name}'s strategy.`,
                             variant="ghost"
                             size="icon"
                             className="h-6 w-6"
-                            onClick={() => !isLocked && lockStrategicTruth(key)}
-                            disabled={isLocked || !box?.value}
+                            onClick={() => isLocked ? unlockStrategicTruth(key) : lockStrategicTruth(key)}
+                            disabled={!isLocked && !box?.value}
+                            title={isLocked ? "Click to unlock and edit" : "Lock this answer"}
                           >
                             {isLocked ? (
                               <Lock className="h-3 w-3 text-green-500" />
@@ -472,12 +487,57 @@ Ask me anything about ${client?.name}'s strategy.`,
                         />
                         {viewMode === "coach" && !isLocked && (
                           <div className="mt-3 space-y-2 text-xs">
+                            {/* How to Think About This */}
+                            {'howToThink' in config && (
+                              <div className="p-2 rounded bg-blue-500/10 border border-blue-500/20">
+                                <p className="font-medium text-blue-400 mb-1">💭 How to think about this:</p>
+                                <p className="text-blue-400/80">{(config as any).howToThink}</p>
+                              </div>
+                            )}
+                            {/* Script to Use */}
+                            {'script' in config && (
+                              <div className="p-2 rounded bg-purple-500/10 border border-purple-500/20">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex-1">
+                                    <p className="font-medium text-purple-400 mb-1">🎯 Script to use:</p>
+                                    <p className="text-purple-400/80 italic">&ldquo;{(config as any).script}&rdquo;</p>
+                                  </div>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 flex-shrink-0"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      copyToClipboard((config as any).script);
+                                    }}
+                                    title="Copy script"
+                                  >
+                                    {copiedText === (config as any).script ? (
+                                      <Check className="h-3 w-3 text-purple-500" />
+                                    ) : (
+                                      <Copy className="h-3 w-3 text-muted-foreground" />
+                                    )}
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+                            {/* Red Flags */}
+                            {'redFlags' in config && (
+                              <div className="p-2 rounded bg-amber-500/10 border border-amber-500/20">
+                                <p className="font-medium text-amber-400 mb-1">🚩 Red flags to watch for:</p>
+                                {((config as any).redFlags as string[]).map((flag, i) => (
+                                  <p key={i} className="text-amber-400/80">• {flag}</p>
+                                ))}
+                              </div>
+                            )}
+                            {/* Bad Answers */}
                             <div className="p-2 rounded bg-red-500/10 border border-red-500/20">
                               <p className="font-medium text-red-400 mb-1">❌ Bad answers:</p>
                               {config.badAnswers.map((bad, i) => (
                                 <p key={i} className="text-red-400/80">• {bad}</p>
                               ))}
                             </div>
+                            {/* Good Example */}
                             <div className="p-2 rounded bg-green-500/10 border border-green-500/20">
                               <div className="flex items-start justify-between gap-2">
                                 <div className="flex-1">
@@ -608,24 +668,72 @@ Ask me anything about ${client?.name}'s strategy.`,
             </CardHeader>
             {expandedSections.has("engine") && (
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   {(Object.keys(CORE_ENGINE_CONFIG) as (keyof typeof CORE_ENGINE_CONFIG)[]).map((key) => {
                     const config = CORE_ENGINE_CONFIG[key];
                     const answer = canvas.coreEngine?.[key];
                     const value = typeof answer === 'string' ? answer : answer?.answer || '';
                     const warning = typeof answer === 'object' ? answer?.warning : undefined;
+                    const isShowingEngineGuidance = showGuidance === `engine_${key}`;
 
                     return (
-                      <div key={key} className="space-y-2">
-                        <div className="flex items-center justify-between">
+                      <div key={key} className="space-y-2 p-3 rounded-lg border bg-card">
+                        <div className="flex items-center justify-between gap-2">
                           <label className="text-sm font-medium">{config.question}</label>
-                          {viewMode === "coach" && (
+                          <div className="flex items-center gap-2">
+                            {viewMode === "coach" && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-5 w-5"
+                                onClick={() => setShowGuidance(isShowingEngineGuidance ? null : `engine_${key}`)}
+                              >
+                                <HelpCircle className="h-3 w-3" />
+                              </Button>
+                            )}
                             <span className="text-xs text-amber-500 flex items-center gap-1">
                               <AlertTriangle className="h-3 w-3" />
                               {config.warning}
                             </span>
-                          )}
+                          </div>
                         </div>
+                        {viewMode === "coach" && isShowingEngineGuidance && (
+                          <div className="space-y-2 text-xs">
+                            {'howToThink' in config && (
+                              <div className="p-2 rounded bg-blue-500/10 border border-blue-500/20">
+                                <p className="font-medium text-blue-400 mb-1">💭 How to think:</p>
+                                <p className="text-blue-400/80">{(config as any).howToThink}</p>
+                              </div>
+                            )}
+                            {'script' in config && (
+                              <div className="p-2 rounded bg-purple-500/10 border border-purple-500/20">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex-1">
+                                    <p className="font-medium text-purple-400 mb-1">🎯 Ask this:</p>
+                                    <p className="text-purple-400/80 italic">&ldquo;{(config as any).script}&rdquo;</p>
+                                  </div>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 flex-shrink-0"
+                                    onClick={() => copyToClipboard((config as any).script)}
+                                  >
+                                    {copiedText === (config as any).script ? (
+                                      <Check className="h-3 w-3 text-purple-500" />
+                                    ) : (
+                                      <Copy className="h-3 w-3 text-muted-foreground" />
+                                    )}
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+                            {'warningThreshold' in config && (
+                              <div className="p-2 rounded bg-amber-500/10 border border-amber-500/20">
+                                <p className="font-medium text-amber-400">⚠️ {(config as any).warningThreshold}</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
                         <Textarea
                           value={value}
                           onChange={(e) => updateCoreEngine(key, e.target.value)}
