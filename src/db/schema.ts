@@ -49,7 +49,7 @@ export const sources = pgTable('sources', {
   id: uuid('id').defaultRandom().primaryKey(),
   clientId: uuid('client_id').references(() => clients.id, { onDelete: 'cascade' }).notNull(),
   userId: text('user_id').references(() => users.id).notNull(),
-  type: text('type').notNull(), // 'document', 'website', 'repo', 'folder', 'recording', 'local_folder'
+  type: text('type').notNull(), // 'document', 'website', 'repo', 'folder', 'recording', 'local_folder', 'email'
   name: text('name').notNull(),
   url: text('url'), // for websites, repos
   localPath: text('local_path'), // for local folder sources
@@ -67,6 +67,30 @@ export const sources = pgTable('sources', {
 }, (table) => ({
   clientIdx: index('sources_client_idx').on(table.clientId),
   userIdx: index('sources_user_idx').on(table.userId),
+}));
+
+// Inbound Emails - emails forwarded into the system
+export const inboundEmails = pgTable('inbound_emails', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: text('user_id').references(() => users.id).notNull(),
+  clientId: uuid('client_id').references(() => clients.id, { onDelete: 'set null' }), // can be assigned later
+  fromEmail: text('from_email').notNull(),
+  fromName: text('from_name'),
+  toEmail: text('to_email').notNull(),
+  subject: text('subject'),
+  bodyText: text('body_text'),
+  bodyHtml: text('body_html'),
+  attachments: jsonb('attachments').$type<EmailAttachment[]>(), // array of attachment metadata
+  rawHeaders: jsonb('raw_headers'),
+  messageId: text('message_id'), // email message ID for threading
+  inReplyTo: text('in_reply_to'), // for threading
+  status: text('status').default('inbox'), // inbox, processed, archived
+  processedAt: timestamp('processed_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  userIdx: index('inbound_emails_user_idx').on(table.userId),
+  clientIdx: index('inbound_emails_client_idx').on(table.clientId),
+  statusIdx: index('inbound_emails_status_idx').on(table.status),
 }));
 
 // Methods - consulting frameworks/playbooks (user's own or templates)
@@ -218,6 +242,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   methods: many(methods),
   personas: many(personas),
   sessions: many(sessions),
+  inboundEmails: many(inboundEmails),
 }));
 
 export const clientsRelations = relations(clients, ({ one, many }) => ({
@@ -227,6 +252,7 @@ export const clientsRelations = relations(clients, ({ one, many }) => ({
   actionItems: many(actionItems),
   notes: many(notes),
   contacts: many(contacts),
+  inboundEmails: many(inboundEmails),
 }));
 
 export const sessionsRelations = relations(sessions, ({ one, many }) => ({
@@ -236,6 +262,11 @@ export const sessionsRelations = relations(sessions, ({ one, many }) => ({
   actionItems: many(actionItems),
   suggestions: many(suggestions),
   messages: many(messages),
+}));
+
+export const inboundEmailsRelations = relations(inboundEmails, ({ one }) => ({
+  user: one(users, { fields: [inboundEmails.userId], references: [users.id] }),
+  client: one(clients, { fields: [inboundEmails.clientId], references: [clients.id] }),
 }));
 
 // Types
@@ -255,6 +286,14 @@ export interface GameplanItem {
   text: string;
   done: boolean;
   order: number;
+}
+
+export interface EmailAttachment {
+  id: string;
+  filename: string;
+  contentType: string;
+  size: number;
+  blobUrl?: string; // stored in Vercel Blob
 }
 
 // Export types for TypeScript
@@ -277,3 +316,5 @@ export type NewMessage = typeof messages.$inferInsert;
 export type Suggestion = typeof suggestions.$inferSelect;
 export type Note = typeof notes.$inferSelect;
 export type Contact = typeof contacts.$inferSelect;
+export type InboundEmail = typeof inboundEmails.$inferSelect;
+export type NewInboundEmail = typeof inboundEmails.$inferInsert;

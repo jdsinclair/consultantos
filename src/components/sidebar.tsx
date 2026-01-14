@@ -12,6 +12,7 @@ import {
   Settings,
   Sparkles,
   LayoutDashboard,
+  Mail,
 } from "lucide-react";
 
 const navigation = [
@@ -21,6 +22,7 @@ const navigation = [
   { name: "Methods", href: "/methods", icon: BookOpen },
   { name: "Personas", href: "/personas", icon: Sparkles },
   { name: "Chat", href: "/chat", icon: MessageSquare },
+  { name: "Emails", href: "/emails", icon: Mail },
   { name: "Sources", href: "/sources", icon: FileText },
 ];
 
