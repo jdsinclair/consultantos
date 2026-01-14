@@ -16,7 +16,6 @@ import {
   Calendar,
   CheckCircle,
   MessageSquare,
-  Upload,
   Loader2,
   ExternalLink,
   Trash2,
@@ -72,7 +71,6 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   const [actionItems, setActionItems] = useState<ActionItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showSourceAdder, setShowSourceAdder] = useState(false);
-  const [uploading, setUploading] = useState(false);
 
   const { messages, input, handleInputChange, handleSubmit, isLoading: chatLoading } = useChat({
     api: "/api/chat",
@@ -102,31 +100,6 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
 
     fetchData();
   }, [params.id]);
-
-  const handleFileUpload = async (files: File[]) => {
-    setUploading(true);
-    try {
-      for (const file of files) {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("clientId", params.id);
-
-        const res = await fetch("/api/upload", {
-          method: "POST",
-          body: formData,
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          setSources((prev) => [data.source, ...prev]);
-        }
-      }
-    } catch (error) {
-      console.error("Upload failed:", error);
-    } finally {
-      setUploading(false);
-    }
-  };
 
   const handleSourceAdded = (source: Source) => {
     setSources((prev) => [source, ...prev]);
@@ -291,15 +264,9 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
               ) : null}
 
               <FileUpload
-                onUpload={handleFileUpload}
-                uploading={uploading}
-                accept={{
-                  "application/pdf": [".pdf"],
-                  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
-                  "application/vnd.openxmlformats-officedocument.presentationml.presentation": [".pptx"],
-                  "text/plain": [".txt", ".md"],
-                  "text/csv": [".csv"],
-                  "application/json": [".json"],
+                clientId={params.id}
+                onUploadComplete={(source) => {
+                  setSources((prev) => [source as Source, ...prev]);
                 }}
               />
             </CardContent>
