@@ -7,6 +7,7 @@ import {
   endSession,
   updateGameplan,
   appendTranscript,
+  deleteSession,
 } from "@/lib/db/sessions";
 import { createDetectedActionItems } from "@/lib/db/action-items";
 import { extractTodosFromTranscript } from "@/lib/ai/extract-todos";
@@ -124,5 +125,23 @@ export async function PUT(
     return NextResponse.json({ error: "Invalid action" }, { status: 400 });
   } catch (error) {
     return NextResponse.json({ error: "Failed to update session" }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const user = await requireUser();
+    const deleted = await deleteSession(params.id, user.id);
+
+    if (!deleted) {
+      return NextResponse.json({ error: "Session not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return NextResponse.json({ error: "Failed to delete session" }, { status: 500 });
   }
 }

@@ -117,7 +117,7 @@ export default function NewProspectPage() {
   const hasMinimumInfo = formData.firstName || formData.company || formData.website;
 
   return (
-    <div className="p-8 max-w-2xl mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-2xl mx-auto">
       <Link
         href="/prospects"
         className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6"
@@ -183,7 +183,7 @@ export default function NewProspectPage() {
                   Contact Information
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="firstName">First Name</Label>
                     <Input
@@ -247,7 +247,7 @@ export default function NewProspectPage() {
               </div>
 
               {/* Company Info */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="company">Company</Label>
                   <Input
@@ -289,7 +289,7 @@ export default function NewProspectPage() {
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 mt-4">
+              <div className="grid gap-4 sm:grid-cols-2 mt-4">
                 <div className="space-y-2">
                   <Label htmlFor="sourceType">How did they find you?</Label>
                   <select
@@ -324,12 +324,12 @@ export default function NewProspectPage() {
             </div>
 
             {/* Submit Buttons */}
-            <div className="flex gap-3 pt-4 border-t">
+            <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t">
               <Button
                 type="button"
                 onClick={(e) => handleSubmit(e, true)}
                 disabled={loading || !hasMinimumInfo || !canEvaluate}
-                className="gap-2"
+                className="gap-2 w-full sm:w-auto"
               >
                 {evaluating ? (
                   <>
@@ -353,6 +353,7 @@ export default function NewProspectPage() {
                 type="submit"
                 variant="outline"
                 disabled={loading || !hasMinimumInfo}
+                className="w-full sm:w-auto"
               >
                 {loading && !evaluating && (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -364,6 +365,7 @@ export default function NewProspectPage() {
                 type="button"
                 variant="ghost"
                 onClick={() => router.back()}
+                className="w-full sm:w-auto"
               >
                 Cancel
               </Button>

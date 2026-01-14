@@ -77,13 +77,26 @@ export interface ClarityStrategy {
   topRisks: string[];
 }
 
+export interface ClaritySwimlaneTimeframe {
+  objective: string;
+  items: string[];
+}
+
 export interface ClaritySwimlane {
+  short: ClaritySwimlaneTimeframe | string[]; // Support both new and legacy formats
+  mid: ClaritySwimlaneTimeframe | string[];
+  long: ClaritySwimlaneTimeframe | string[];
+}
+
+// Legacy format support (array only)
+export interface ClaritySwimlaneSimple {
   short: string[];
   mid: string[];
   long: string[];
 }
 
 export interface ClaritySwimlanes {
+  // Core predefined swimlanes
   web: ClaritySwimlane;
   brandPositioning: ClaritySwimlane;
   gtm: ClaritySwimlane;
@@ -99,6 +112,8 @@ export interface ClaritySwimlanes {
   ecosystemPartners: ClaritySwimlane;
   legalIP: ClaritySwimlane;
   technology: ClaritySwimlane;
+  // Custom swimlanes (key is custom_${id})
+  [key: `custom_${string}`]: ClaritySwimlane & { label: string };
 }
 
 export interface ClarityCanvasVersion {
@@ -238,7 +253,98 @@ export const SWIMLANE_LABELS: Record<keyof ClaritySwimlanes, string> = {
 
 export const SWIMLANE_QUESTION = "What must change here to break the constraint and support the wedge?";
 
-export const EMPTY_SWIMLANE: ClaritySwimlane = { short: [], mid: [], long: [] };
+export const SWIMLANE_TIMEFRAME_LABELS = {
+  short: "0-90 Days",
+  mid: "3-12 Months",
+  long: "12-24 Months",
+};
+
+export const EMPTY_SWIMLANE_TIMEFRAME: ClaritySwimlaneTimeframe = { objective: '', items: [] };
+
+export const EMPTY_SWIMLANE: ClaritySwimlane = {
+  short: { objective: '', items: [] },
+  mid: { objective: '', items: [] },
+  long: { objective: '', items: [] },
+};
+
+// Guidance for each swimlane - what to think about, questions to ask
+export const SWIMLANE_GUIDANCE: Record<string, { why: string; questions: string[]; examples: string[] }> = {
+  web: {
+    why: "Your website is your 24/7 salesperson. It either pre-qualifies or confuses.",
+    questions: ["Does it sell or just describe?", "Is it built for YOUR ideal client?", "What's the conversion path?"],
+    examples: ["Rebuild homepage with case study focus", "Add pricing calculator", "Kill the blog nobody reads"],
+  },
+  brandPositioning: {
+    why: "If you can't articulate why you're different, neither can your clients.",
+    questions: ["What's the ONE thing you're known for?", "Who's your anti-client?", "What category do you own?"],
+    examples: ["Position as 'speed-to-market specialists'", "Stop saying 'full-service'", "Create signature framework"],
+  },
+  gtm: {
+    why: "Inbound is a slow game. You need a system that doesn't depend on luck.",
+    questions: ["Where do ideal clients hang out?", "What's your outbound motion?", "How do you create urgency?"],
+    examples: ["LinkedIn POV content 3x/week", "Partner channel with complementary firms", "Case study launch campaign"],
+  },
+  sales: {
+    why: "If founder is only closer, you have a job not a business.",
+    questions: ["Who else can close?", "What's the discovery process?", "Where do deals die?"],
+    examples: ["Create sales playbook", "Train senior to run discovery", "Build proposal templates"],
+  },
+  pricingPackaging: {
+    why: "Hourly = labor trap. Packages = leverage. Which one are you?",
+    questions: ["What's your anchor offer?", "Where's the margin?", "How do you scope?"],
+    examples: ["Kill hourly, move to project pricing", "Create 3-tier package structure", "Add retainer upsell"],
+  },
+  offersAssets: {
+    why: "You need things you can sell repeatedly without reinventing.",
+    questions: ["What's your productized offer?", "What IP do you own?", "What can be templated?"],
+    examples: ["Launch audit productized service", "Build diagnostic framework", "Create client portal"],
+  },
+  deliveryProduction: {
+    why: "If quality depends on you being in every project, you're the bottleneck.",
+    questions: ["What's the workflow?", "Where are the handoffs?", "What tools are missing?"],
+    examples: ["Document delivery playbook", "Hire production manager", "Implement project management tool"],
+  },
+  teamOrg: {
+    why: "Structure determines speed. Wrong seats = wrong outcomes.",
+    questions: ["Who does what?", "What's missing?", "Who needs to go?"],
+    examples: ["Hire ops person", "Promote senior to lead", "Create clear role ownership"],
+  },
+  opsSystems: {
+    why: "Chaos kills margin. Systems create predictability.",
+    questions: ["What's manual that shouldn't be?", "Where's the reporting gap?", "What's on fire weekly?"],
+    examples: ["Automate invoicing", "Weekly metrics dashboard", "Client onboarding checklist"],
+  },
+  financeMargin: {
+    why: "Revenue is vanity, profit is sanity, cash is reality.",
+    questions: ["What's gross margin?", "Where's cash tied up?", "What's burning money?"],
+    examples: ["Switch to 50% upfront", "Cut underperforming service line", "Review contractor rates"],
+  },
+  founderRole: {
+    why: "Your role has to change for the business to change.",
+    questions: ["What should you STOP doing?", "What only YOU can do?", "Who replaces you in what?"],
+    examples: ["Stop delivery, focus on sales", "Hire EA", "Delegate QC to senior"],
+  },
+  riskDefensibility: {
+    why: "If you're replaceable, you're vulnerable. Build moats.",
+    questions: ["What's defensible?", "What's the AI risk?", "How deep are relationships?"],
+    examples: ["Lock in multi-year contracts", "Build proprietary tool", "Document unique methodology"],
+  },
+  ecosystemPartners: {
+    why: "Other people's audiences are the fastest path to growth.",
+    questions: ["Who sends you clients?", "Who should?", "What's the referral system?"],
+    examples: ["Formalize partner program", "Create co-marketing with complementary firm", "Build affiliate structure"],
+  },
+  legalIP: {
+    why: "Protect what you've built. Don't leave value on the table.",
+    questions: ["What's trademarked?", "Are contracts tight?", "Who owns what?"],
+    examples: ["Trademark methodology", "Update client contracts", "Create NDA templates"],
+  },
+  technology: {
+    why: "Tech should multiply your team, not distract them.",
+    questions: ["What's the stack?", "What's underutilized?", "What's overkill?"],
+    examples: ["Consolidate tools", "Implement AI for X", "Build client dashboard"],
+  },
+};
 
 export const DEFAULT_CANVAS: Omit<ClarityCanvas, 'id' | 'clientId' | 'userId' | 'createdAt' | 'updatedAt'> = {
   strategicTruth: {
@@ -292,21 +398,21 @@ export const DEFAULT_CANVAS: Omit<ClarityCanvas, 'id' | 'clientId' | 'userId' | 
     topRisks: [],
   },
   swimlanes: {
-    web: EMPTY_SWIMLANE,
-    brandPositioning: EMPTY_SWIMLANE,
-    gtm: EMPTY_SWIMLANE,
-    sales: EMPTY_SWIMLANE,
-    pricingPackaging: EMPTY_SWIMLANE,
-    offersAssets: EMPTY_SWIMLANE,
-    deliveryProduction: EMPTY_SWIMLANE,
-    teamOrg: EMPTY_SWIMLANE,
-    opsSystems: EMPTY_SWIMLANE,
-    financeMargin: EMPTY_SWIMLANE,
-    founderRole: EMPTY_SWIMLANE,
-    riskDefensibility: EMPTY_SWIMLANE,
-    ecosystemPartners: EMPTY_SWIMLANE,
-    legalIP: EMPTY_SWIMLANE,
-    technology: EMPTY_SWIMLANE,
+    web: { ...EMPTY_SWIMLANE },
+    brandPositioning: { ...EMPTY_SWIMLANE },
+    gtm: { ...EMPTY_SWIMLANE },
+    sales: { ...EMPTY_SWIMLANE },
+    pricingPackaging: { ...EMPTY_SWIMLANE },
+    offersAssets: { ...EMPTY_SWIMLANE },
+    deliveryProduction: { ...EMPTY_SWIMLANE },
+    teamOrg: { ...EMPTY_SWIMLANE },
+    opsSystems: { ...EMPTY_SWIMLANE },
+    financeMargin: { ...EMPTY_SWIMLANE },
+    founderRole: { ...EMPTY_SWIMLANE },
+    riskDefensibility: { ...EMPTY_SWIMLANE },
+    ecosystemPartners: { ...EMPTY_SWIMLANE },
+    legalIP: { ...EMPTY_SWIMLANE },
+    technology: { ...EMPTY_SWIMLANE },
   },
   phase: 'diagnostic',
   lockedSections: [],

@@ -125,3 +125,11 @@ export async function getLiveSession(userId: string) {
     },
   });
 }
+
+export async function deleteSession(sessionId: string, userId: string) {
+  const [deleted] = await db
+    .delete(sessions)
+    .where(and(eq(sessions.id, sessionId), eq(sessions.userId, userId)))
+    .returning();
+  return deleted;
+}

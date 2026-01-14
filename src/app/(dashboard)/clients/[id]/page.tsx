@@ -307,19 +307,19 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   }
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)]">
+    <div className="flex h-[calc(100dvh-3.5rem)]">
       {/* Main Content */}
-      <div className="flex-1 overflow-auto p-8">
+      <div className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-6 sm:mb-8">
           <Link href="/clients" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 mb-4">
             <ArrowLeft className="h-4 w-4" />
             Back to Clients
           </Link>
-          <div className="flex items-start justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
             <div>
-              <div className="flex items-center gap-3 mb-2">
-                <h1 className="text-3xl font-bold">{client.name}</h1>
+              <div className="flex items-center gap-2 sm:gap-3 mb-2 flex-wrap">
+                <h1 className="text-2xl sm:text-3xl font-bold">{client.name}</h1>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -351,7 +351,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                 />
               </div>
               {(client.company || client.industry) && (
-                <p className="text-muted-foreground">
+                <p className="text-sm sm:text-base text-muted-foreground">
                   {client.company}{client.company && client.industry && " · "}{client.industry}
                 </p>
               )}
@@ -359,24 +359,26 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                 <p className="mt-2 text-sm max-w-2xl">{client.description}</p>
               )}
             </div>
-            <div className="flex gap-3">
-              <Link href={`/clients/${client.id}/clarity`}>
-                <Button variant="outline" className="gap-2">
+            <div className="flex gap-2 sm:gap-3 flex-shrink-0">
+              <Link href={`/clients/${client.id}/clarity`} className="flex-1 sm:flex-none">
+                <Button variant="outline" className="gap-2 w-full sm:w-auto" size="sm">
                   <FileText className="h-4 w-4" />
-                  Clarity Doc
+                  <span className="hidden sm:inline">Clarity Doc</span>
+                  <span className="sm:hidden">Clarity</span>
                 </Button>
               </Link>
-              <Link href={`/session/new?client=${client.id}`}>
-                <Button className="gap-2">
+              <Link href={`/session/new?client=${client.id}`} className="flex-1 sm:flex-none">
+                <Button className="gap-2 w-full sm:w-auto" size="sm">
                   <Mic className="h-4 w-4" />
-                  Start Session
+                  <span className="hidden sm:inline">Start Session</span>
+                  <span className="sm:hidden">Session</span>
                 </Button>
               </Link>
             </div>
           </div>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
           {/* Sources */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-3">

@@ -139,6 +139,165 @@ export const clarityInsights = pgTable('clarity_insights', {
   statusIdx: index('clarity_insights_status_idx').on(table.status),
 }));
 
+// Clarity Method Types
+export interface ClarityStrategicTruth {
+  whoWeAre: { value: string; status: 'draft' | 'locked'; lockedAt?: string };
+  whatWeDo: { value: string; status: 'draft' | 'locked'; lockedAt?: string };
+  whyWeWin: { value: string; status: 'draft' | 'locked'; lockedAt?: string };
+  whatWeAreNot: { value: string; status: 'draft' | 'locked'; lockedAt?: string };
+  howWeDie: { value: string; status: 'draft' | 'locked'; lockedAt?: string };
+  theWedge: { value: string; status: 'draft' | 'locked'; lockedAt?: string };
+}
+
+export interface ClarityNorthStar {
+  revenueTarget: string;
+  marginFloor: string;
+  founderRole: string; // what they stop doing
+  complexityCeiling: string;
+}
+
+export interface ClarityCoreEngine {
+  demand: { answer: string; warning?: string };
+  salesScoping: { answer: string; warning?: string };
+  delivery: { answer: string; warning?: string };
+  qualityControl: { answer: string; warning?: string };
+  cashFlow: { answer: string; warning?: string };
+  marginByOffer: { answer: string; warning?: string };
+  teamLoad: { answer: string; warning?: string };
+  primaryConstraint: string; // the ONE constraint
+}
+
+export interface ClarityValueExpansion {
+  left: { items: ClarityExpansionItem[] };
+  core: { items: ClarityExpansionItem[] };
+  right: { items: ClarityExpansionItem[] };
+  vertical: { items: ClarityExpansionItem[] };
+}
+
+export interface ClarityExpansionItem {
+  id: string;
+  name: string;
+  isAttachable: boolean;
+  isRepeatable: boolean;
+  improvesMargin: boolean;
+  status: 'active' | 'parked'; // parked if fails 2 of 3
+}
+
+export interface ClarityServiceProduct {
+  customService: string[];
+  productizedService: string[];
+  productIP: string[];
+}
+
+export interface ClarityParanoiaMap {
+  ai: string;
+  inHouse: string;
+  priceCompression: string;
+  speedCommoditization: string;
+  other: string[];
+}
+
+export interface ClarityStrategy {
+  core: string;
+  expansion: string;
+  orgShift: string;
+  founderRole: string;
+  topRisks: string[];
+}
+
+export interface ClaritySwimlaneTimeframe {
+  objective: string;
+  items: string[];
+}
+
+export interface ClaritySwimlane {
+  short: ClaritySwimlaneTimeframe | string[]; // Support both new and legacy formats
+  mid: ClaritySwimlaneTimeframe | string[];
+  long: ClaritySwimlaneTimeframe | string[];
+}
+
+export interface ClaritySwimlanes {
+  web: ClaritySwimlane;
+  brandPositioning: ClaritySwimlane;
+  gtm: ClaritySwimlane;
+  sales: ClaritySwimlane;
+  pricingPackaging: ClaritySwimlane;
+  offersAssets: ClaritySwimlane;
+  deliveryProduction: ClaritySwimlane;
+  teamOrg: ClaritySwimlane;
+  opsSystems: ClaritySwimlane;
+  financeMargin: ClaritySwimlane;
+  founderRole: ClaritySwimlane;
+  riskDefensibility: ClaritySwimlane;
+  ecosystemPartners: ClaritySwimlane;
+  legalIP: ClaritySwimlane;
+  technology: ClaritySwimlane;
+  // Custom swimlanes with dynamic keys
+  [key: `custom_${string}`]: ClaritySwimlane & { label: string };
+}
+
+export interface ClarityCanvasVersion {
+  id: string;
+  timestamp: string;
+  changedBy: 'user' | 'ai';
+  changes: string; // description of what changed
+  snapshot?: Partial<{
+    strategicTruth: ClarityStrategicTruth;
+    northStar: ClarityNorthStar;
+    strategy: ClarityStrategy;
+  }>;
+}
+
+// Clarity Method™ Canvas - Strategic Diagnosis + Execution Mapping
+export const clarityMethodCanvases = pgTable('clarity_method_canvases', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  clientId: uuid('client_id').references(() => clients.id, { onDelete: 'cascade' }).notNull().unique(),
+  userId: text('user_id').references(() => users.id).notNull(),
+  
+  // Section 0: Strategic Truth Header (6 boxes)
+  strategicTruth: jsonb('strategic_truth').$type<ClarityStrategicTruth>(),
+  
+  // Section 1: North Star (Constraints, not vision)
+  northStar: jsonb('north_star').$type<ClarityNorthStar>(),
+  
+  // Section 2: Core Engine (Reality diagnosis)
+  coreEngine: jsonb('core_engine').$type<ClarityCoreEngine>(),
+  
+  // Section 3: Value Expansion Map
+  valueExpansion: jsonb('value_expansion').$type<ClarityValueExpansion>(),
+  
+  // Section 4: Service vs Product Filter
+  serviceProductFilter: jsonb('service_product_filter').$type<ClarityServiceProduct>(),
+  
+  // Section 5: Kill List
+  killList: jsonb('kill_list').$type<string[]>(),
+  
+  // Section 6: Paranoia Map
+  paranoiaMap: jsonb('paranoia_map').$type<ClarityParanoiaMap>(),
+  
+  // Section 7: Strategy (1-page synthesis)
+  strategy: jsonb('strategy').$type<ClarityStrategy>(),
+  
+  // Section 8: Execution Swimlanes
+  swimlanes: jsonb('swimlanes').$type<ClaritySwimlanes>(),
+  
+  // Canvas state
+  phase: text('phase').default('diagnostic'), // diagnostic, constraint, execution
+  lockedSections: jsonb('locked_sections').$type<string[]>(), // locked section IDs
+  
+  // Version history
+  history: jsonb('history').$type<ClarityCanvasVersion[]>(),
+  
+  // AI conversation for this canvas
+  conversationId: uuid('conversation_id'),
+  
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  clientIdx: index('clarity_canvas_client_idx').on(table.clientId),
+  userIdx: index('clarity_canvas_user_idx').on(table.userId),
+}));
+
 // Sources - documents, websites, repos, local folders linked to a client
 export const sources = pgTable('sources', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -552,157 +711,8 @@ export interface ClaritySection {
   source?: string; // session ID or manual
 }
 
-// Clarity Method™ Canvas - Strategic Diagnosis + Execution Mapping
-export const clarityMethodCanvases = pgTable('clarity_method_canvases', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  clientId: uuid('client_id').references(() => clients.id, { onDelete: 'cascade' }).notNull().unique(),
-  userId: text('user_id').references(() => users.id).notNull(),
-  
-  // Section 0: Strategic Truth Header (6 boxes)
-  strategicTruth: jsonb('strategic_truth').$type<ClarityStrategicTruth>(),
-  
-  // Section 1: North Star (Constraints, not vision)
-  northStar: jsonb('north_star').$type<ClarityNorthStar>(),
-  
-  // Section 2: Core Engine (Reality diagnosis)
-  coreEngine: jsonb('core_engine').$type<ClarityCoreEngine>(),
-  
-  // Section 3: Value Expansion Map
-  valueExpansion: jsonb('value_expansion').$type<ClarityValueExpansion>(),
-  
-  // Section 4: Service vs Product Filter
-  serviceProductFilter: jsonb('service_product_filter').$type<ClarityServiceProduct>(),
-  
-  // Section 5: Kill List
-  killList: jsonb('kill_list').$type<string[]>(),
-  
-  // Section 6: Paranoia Map
-  paranoiaMap: jsonb('paranoia_map').$type<ClarityParanoiaMap>(),
-  
-  // Section 7: Strategy (1-page synthesis)
-  strategy: jsonb('strategy').$type<ClarityStrategy>(),
-  
-  // Section 8: Execution Swimlanes
-  swimlanes: jsonb('swimlanes').$type<ClaritySwimlanes>(),
-  
-  // Canvas state
-  phase: text('phase').default('diagnostic'), // diagnostic, constraint, execution
-  lockedSections: jsonb('locked_sections').$type<string[]>(), // locked section IDs
-  
-  // Version history
-  history: jsonb('history').$type<ClarityCanvasVersion[]>(),
-  
-  // AI conversation for this canvas
-  conversationId: uuid('conversation_id'),
-  
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
-}, (table) => ({
-  clientIdx: index('clarity_canvas_client_idx').on(table.clientId),
-  userIdx: index('clarity_canvas_user_idx').on(table.userId),
-}));
 
-// Clarity Method Types
-export interface ClarityStrategicTruth {
-  whoWeAre: { value: string; status: 'draft' | 'locked'; lockedAt?: string };
-  whatWeDo: { value: string; status: 'draft' | 'locked'; lockedAt?: string };
-  whyWeWin: { value: string; status: 'draft' | 'locked'; lockedAt?: string };
-  whatWeAreNot: { value: string; status: 'draft' | 'locked'; lockedAt?: string };
-  howWeDie: { value: string; status: 'draft' | 'locked'; lockedAt?: string };
-  theWedge: { value: string; status: 'draft' | 'locked'; lockedAt?: string };
-}
 
-export interface ClarityNorthStar {
-  revenueTarget: string;
-  marginFloor: string;
-  founderRole: string; // what they stop doing
-  complexityCeiling: string;
-}
-
-export interface ClarityCoreEngine {
-  demand: { answer: string; warning?: string };
-  salesScoping: { answer: string; warning?: string };
-  delivery: { answer: string; warning?: string };
-  qualityControl: { answer: string; warning?: string };
-  cashFlow: { answer: string; warning?: string };
-  marginByOffer: { answer: string; warning?: string };
-  teamLoad: { answer: string; warning?: string };
-  primaryConstraint: string; // the ONE constraint
-}
-
-export interface ClarityValueExpansion {
-  left: { items: ClarityExpansionItem[] };
-  core: { items: ClarityExpansionItem[] };
-  right: { items: ClarityExpansionItem[] };
-  vertical: { items: ClarityExpansionItem[] };
-}
-
-export interface ClarityExpansionItem {
-  id: string;
-  name: string;
-  isAttachable: boolean;
-  isRepeatable: boolean;
-  improvesMargin: boolean;
-  status: 'active' | 'parked'; // parked if fails 2 of 3
-}
-
-export interface ClarityServiceProduct {
-  customService: string[];
-  productizedService: string[];
-  productIP: string[];
-}
-
-export interface ClarityParanoiaMap {
-  ai: string;
-  inHouse: string;
-  priceCompression: string;
-  speedCommoditization: string;
-  other: string[];
-}
-
-export interface ClarityStrategy {
-  core: string;
-  expansion: string;
-  orgShift: string;
-  founderRole: string;
-  topRisks: string[];
-}
-
-export interface ClaritySwimlane {
-  short: string[]; // 0-90 days - max 3 bullets
-  mid: string[];   // 3-12 months - max 3 bullets
-  long: string[];  // 12-24 months - max 3 bullets
-}
-
-export interface ClaritySwimlanes {
-  web: ClaritySwimlane;
-  brandPositioning: ClaritySwimlane;
-  gtm: ClaritySwimlane;
-  sales: ClaritySwimlane;
-  pricingPackaging: ClaritySwimlane;
-  offersAssets: ClaritySwimlane;
-  deliveryProduction: ClaritySwimlane;
-  teamOrg: ClaritySwimlane;
-  opsSystems: ClaritySwimlane;
-  financeMargin: ClaritySwimlane;
-  founderRole: ClaritySwimlane;
-  riskDefensibility: ClaritySwimlane;
-  ecosystemPartners: ClaritySwimlane;
-  legalIP: ClaritySwimlane;
-  technology: ClaritySwimlane;
-}
-
-export interface ClarityCanvasVersion {
-  id: string;
-  timestamp: string;
-  changedBy: 'user' | 'ai';
-  changes: string; // description of what changed
-  snapshot?: Partial<{
-    strategicTruth: ClarityStrategicTruth;
-    northStar: ClarityNorthStar;
-    strategy: ClarityStrategy;
-  }>;
-}
 
 // Clarity field metadata (status, source tracking per field)
 export interface ClarityFieldMeta {
