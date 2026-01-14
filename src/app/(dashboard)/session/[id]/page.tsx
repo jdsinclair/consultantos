@@ -248,27 +248,40 @@ export default function LiveSessionPage({ params }: { params: { id: string } }) 
   };
 
   const startRecording = async () => {
-    await fetch(`/api/sessions/${params.id}`, {
-      method: "PATCH",
+    const res = await fetch(`/api/sessions/${params.id}`, {
+      method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "live", startedAt: new Date().toISOString() }),
+      body: JSON.stringify({ action: "start" }),
     });
-    setIsRecording(true);
-    setSession((prev) => prev ? { ...prev, startedAt: new Date().toISOString() } : prev);
+    if (res.ok) {
+      const updated = await res.json();
+      setSession(updated);
+      setIsRecording(true);
+    }
   };
 
-  const endSession = async () => {
+  const pauseRecording = () => {
+    // Pause just stops the timer locally - session stays "live"
+    setIsRecording(false);
+  };
+
+  const handleEndSession = async () => {
     // Save all remaining commitments as action items
     for (const commitment of detectedCommitments) {
       await saveCommitmentAsAction(commitment);
     }
 
-    await fetch(`/api/sessions/${params.id}`, {
-      method: "PATCH",
+    const res = await fetch(`/api/sessions/${params.id}`, {
+      method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "completed", endedAt: new Date().toISOString() }),
+      body: JSON.stringify({ action: "end" }),
     });
-    setIsRecording(false);
+    
+    if (res.ok) {
+      const updated = await res.json();
+      setSession(updated); // This will trigger the completed view
+      setIsRecording(false);
+    }
   };
 
   const formatDuration = (seconds: number | null) => {
@@ -548,15 +561,29 @@ export default function LiveSessionPage({ params }: { params: { id: string } }) 
           </div>
           <div className="flex gap-3">
             {isRecording ? (
-              <Button size="lg" variant="destructive" onClick={endSession}>
-                <Square className="h-4 w-4 mr-2" />
-                End Session
-              </Button>
+              <>
+                <Button size="lg" variant="outline" onClick={pauseRecording}>
+                  <MicOff className="h-4 w-4 mr-2" />
+                  Pause
+                </Button>
+                <Button size="lg" variant="destructive" onClick={handleEndSession}>
+                  <Square className="h-4 w-4 mr-2" />
+                  End Session
+                </Button>
+              </>
             ) : (
-              <Button size="lg" onClick={startRecording}>
-                <Mic className="h-5 w-5 mr-2" />
-                {session.startedAt ? "Resume Recording" : "Start Recording"}
-              </Button>
+              <>
+                <Button size="lg" onClick={startRecording}>
+                  <Mic className="h-5 w-5 mr-2" />
+                  {session.startedAt ? "Resume" : "Start Session"}
+                </Button>
+                {session.startedAt && (
+                  <Button size="lg" variant="destructive" onClick={handleEndSession}>
+                    <Square className="h-4 w-4 mr-2" />
+                    End Session
+                  </Button>
+                )}
+              </>
             )}
           </div>
         </div>
