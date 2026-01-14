@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
 import { requireUser } from "@/lib/auth";
 import {
   getActionItems,
@@ -35,26 +34,6 @@ const bulkParseSchema = z.object({
 
 export async function GET(req: NextRequest) {
   try {
-    // Debug: Check cookies first
-    const cookies = req.cookies.getAll();
-    const sessionCookie = cookies.find(c => c.name === '__session');
-    
-    // Debug: Check auth
-    const authObj = await auth();
-
-    if (!authObj.userId) {
-      return NextResponse.json({ 
-        error: "Unauthorized",
-        debug: {
-          stage: "auth_check",
-          userId: authObj.userId,
-          hasCookies: cookies.length,
-          hasSessionCookie: !!sessionCookie,
-          cookieNames: cookies.map(c => c.name),
-        }
-      }, { status: 401 });
-    }
-
     const user = await requireUser();
     const { searchParams } = new URL(req.url);
     const clientId = searchParams.get("clientId");
@@ -75,17 +54,8 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(items);
   } catch (error) {
-    // Debug: catch any errors
-    const cookies = req.cookies.getAll();
-    return NextResponse.json({ 
-      error: "Unauthorized",
-      debug: {
-        stage: "catch",
-        errorMessage: error instanceof Error ? error.message : String(error),
-        hasCookies: cookies.length,
-        cookieNames: cookies.map(c => c.name),
-      }
-    }, { status: 401 });
+    console.error("Failed to get action items:", error);
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 }
 

@@ -379,6 +379,21 @@ export const inboundEmailsRelations = relations(inboundEmails, ({ one }) => ({
   client: one(clients, { fields: [inboundEmails.clientId], references: [clients.id] }),
 }));
 
+export const actionItemsRelations = relations(actionItems, ({ one }) => ({
+  user: one(users, { fields: [actionItems.userId], references: [users.id] }),
+  client: one(clients, { fields: [actionItems.clientId], references: [clients.id] }),
+  session: one(sessions, { fields: [actionItems.sessionId], references: [sessions.id] }),
+  note: one(notes, { fields: [actionItems.noteId], references: [notes.id] }),
+  email: one(inboundEmails, { fields: [actionItems.emailId], references: [inboundEmails.id] }),
+}));
+
+export const notesRelations = relations(notes, ({ one, many }) => ({
+  user: one(users, { fields: [notes.userId], references: [users.id] }),
+  client: one(clients, { fields: [notes.clientId], references: [clients.id] }),
+  session: one(sessions, { fields: [notes.sessionId], references: [sessions.id] }),
+  actionItems: many(actionItems),
+}));
+
 // Types
 export interface MethodStep {
   id: string;
