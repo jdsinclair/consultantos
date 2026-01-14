@@ -80,7 +80,13 @@ export async function PATCH(
     }
 
     // Add to history if significant change
-    const history = existing.history || [];
+    const history = (existing.history || []) as Array<{
+      id: string;
+      timestamp: string;
+      changedBy: string;
+      changes: string;
+      snapshot?: unknown;
+    }>;
     if (updates.addToHistory) {
       history.push({
         id: crypto.randomUUID(),
