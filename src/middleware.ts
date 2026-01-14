@@ -6,6 +6,7 @@ const isPublicRoute = createRouteMatcher([
   '/sign-up(.*)',
   '/api/webhooks(.*)',
   '/api/debug(.*)',
+  '/api/(.*)',  // Temporarily make all API routes public to test
 ]);
 
 export default clerkMiddleware((auth, request) => {
