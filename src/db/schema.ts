@@ -1,13 +1,27 @@
 import { pgTable, text, timestamp, jsonb, uuid, integer, boolean, index } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
-// Users - synced from Clerk, stores user preferences
+// Users - synced from Clerk, stores user preferences and consultant profile
 export const users = pgTable('users', {
   id: text('id').primaryKey(), // Clerk user ID
   email: text('email').notNull(),
   name: text('name'),
   imageUrl: text('image_url'),
+  // Consultant profile
+  nickname: text('nickname'), // How they want AI to refer to them
+  businessName: text('business_name'), // Consulting business name
+  website: text('website'),
+  phone: text('phone'),
+  timezone: text('timezone'),
+  bio: text('bio'), // About the consultant - used for AI context
+  specialties: jsonb('specialties').$type<string[]>(), // Areas of expertise
+  // Onboarding
+  onboardingCompleted: boolean('onboarding_completed').default(false),
+  onboardingStep: integer('onboarding_step').default(0),
+  // Settings
   preferences: jsonb('preferences'), // user settings, default persona, etc.
+  // Email ingestion
+  ingestEmail: text('ingest_email'), // unique email for forwarding emails into system
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
