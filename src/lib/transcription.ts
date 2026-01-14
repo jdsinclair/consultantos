@@ -182,42 +182,85 @@ export class RealtimeTranscription {
 
     const wsUrl = `wss://api.deepgram.com/v1/listen?model=nova-2&language=en&smart_format=true&diarize=true&punctuate=true&interim_results=true`;
 
-    this.socket = new WebSocket(wsUrl, ["token", apiKey]);
+    // Track if we ever successfully connected
+    let hasConnected = false;
 
-    this.socket.onopen = () => {
-      console.log("Deepgram connection opened");
-      this.setStatus("connected");
-      this.startRecording();
-    };
+    return new Promise<void>((resolve, reject) => {
+      try {
+        this.socket = new WebSocket(wsUrl, ["token", apiKey]);
+      } catch (err) {
+        reject(new Error("Failed to create WebSocket connection"));
+        return;
+      }
 
-    this.socket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.channel?.alternatives?.[0]) {
-        const alt = data.channel.alternatives[0];
-        const segment: TranscriptSegment = {
-          text: alt.transcript,
-          speaker: `Speaker ${alt.words?.[0]?.speaker || 0}`,
-          timestamp: data.start || Date.now(),
-          isFinal: data.is_final || false,
-        };
-        if (segment.text.trim()) {
-          this.config.onTranscript(segment);
+      // Set a timeout for initial connection
+      const connectionTimeout = setTimeout(() => {
+        if (!hasConnected) {
+          this.socket?.close();
+          reject(new Error("Connection timeout - check your Deepgram API key"));
         }
-      }
-    };
+      }, 10000);
 
-    this.socket.onerror = (error) => {
-      console.error("Deepgram error:", error);
-      this.setStatus("error");
-      this.config.onError(new Error("Transcription connection error"));
-    };
+      this.socket.onopen = () => {
+        hasConnected = true;
+        clearTimeout(connectionTimeout);
+        console.log("Deepgram connection opened");
+        this.setStatus("connected");
+        this.startRecording();
+        resolve();
+      };
 
-    this.socket.onclose = (event) => {
-      console.log("Deepgram connection closed:", event.code, event.reason);
-      if (this.status === "recording") {
-        this.setStatus("stopped");
-      }
-    };
+      this.socket.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.channel?.alternatives?.[0]) {
+          const alt = data.channel.alternatives[0];
+          const segment: TranscriptSegment = {
+            text: alt.transcript,
+            speaker: `Speaker ${alt.words?.[0]?.speaker || 0}`,
+            timestamp: data.start || Date.now(),
+            isFinal: data.is_final || false,
+          };
+          if (segment.text.trim()) {
+            this.config.onTranscript(segment);
+          }
+        }
+      };
+
+      this.socket.onerror = (error) => {
+        console.error("Deepgram WebSocket error:", error);
+        clearTimeout(connectionTimeout);
+        if (!hasConnected) {
+          // Error before connection - likely auth failure
+          this.setStatus("error");
+          reject(new Error("Deepgram connection failed - verify your API key is valid"));
+        } else {
+          // Error after connection
+          this.setStatus("error");
+          this.config.onError(new Error("Transcription connection error"));
+        }
+      };
+
+      this.socket.onclose = (event) => {
+        console.log("Deepgram connection closed:", event.code, event.reason);
+        clearTimeout(connectionTimeout);
+
+        if (!hasConnected) {
+          // Closed before connecting - this is an auth failure (code 1006)
+          this.setStatus("error");
+          let errorMessage = "Deepgram connection rejected";
+          if (event.code === 1006) {
+            errorMessage = "Deepgram API key invalid or expired. Check NEXT_PUBLIC_DEEPGRAM_API_KEY in your environment.";
+          } else if (event.code === 1008) {
+            errorMessage = "Deepgram policy violation - check API key permissions";
+          } else if (event.reason) {
+            errorMessage = `Deepgram: ${event.reason}`;
+          }
+          reject(new Error(errorMessage));
+        } else if (this.status === "recording") {
+          this.setStatus("stopped");
+        }
+      };
+    });
   }
 
   private startRecording() {

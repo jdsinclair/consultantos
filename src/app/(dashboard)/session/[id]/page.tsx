@@ -308,6 +308,9 @@ export default function LiveSessionPage({ params }: { params: { id: string } }) 
   };
 
   const startRecordingWithSource = async (sourceId: string | null) => {
+    // Clear any previous errors
+    setTranscriptionError(null);
+
     // Update session status first
     await fetch(`/api/sessions/${params.id}`, {
       method: "PUT",
@@ -346,7 +349,15 @@ export default function LiveSessionPage({ params }: { params: { id: string } }) 
     });
 
     // Start with selected audio source (pass sourceId for Electron)
-    await transcriptionRef.current.start(audioSource, sourceId || undefined);
+    try {
+      await transcriptionRef.current.start(audioSource, sourceId || undefined);
+    } catch (error) {
+      console.error("Failed to start transcription:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to start transcription";
+      setTranscriptionError(errorMessage);
+      setTranscriptionStatus("error");
+      // Don't stop the session - user can still take notes without transcription
+    }
   };
 
   const pauseRecording = () => {
@@ -753,6 +764,21 @@ export default function LiveSessionPage({ params }: { params: { id: string } }) 
                   <span className="hidden sm:inline">{session.startedAt ? "Resume" : "Start"}</span>
                 </Button>
               )}
+              {!isRecording && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive flex-shrink-0"
+                  onClick={handleDelete}
+                  disabled={deleting}
+                >
+                  {deleting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4" />
+                  )}
+                </Button>
+              )}
             </div>
           </div>
 
@@ -871,20 +897,33 @@ export default function LiveSessionPage({ params }: { params: { id: string } }) 
                   )}
 
                   {/* Status indicator */}
-                  {isRecording && transcriptionStatus !== "recording" && (
-                    <div className={`flex items-center gap-2 mb-4 text-sm ${transcriptionStatus === "error" ? "text-destructive" : "text-muted-foreground"}`}>
-                      {transcriptionStatus !== "error" && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {isRecording && transcriptionStatus !== "recording" && transcriptionStatus !== "error" && (
+                    <div className="flex items-center gap-2 mb-4 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
                       {transcriptionStatus === "requesting_permissions" && "Requesting microphone access..."}
                       {transcriptionStatus === "connecting" && "Connecting to Deepgram..."}
                       {transcriptionStatus === "connected" && "Starting transcription..."}
-                      {transcriptionStatus === "error" && (
-                        <span>
-                          {transcriptionError || "Connection error"}
-                          {transcriptionError?.includes("API key") && (
-                            <span className="block text-xs mt-1">Add NEXT_PUBLIC_DEEPGRAM_API_KEY to your environment</span>
+                    </div>
+                  )}
+
+                  {/* Error display */}
+                  {transcriptionStatus === "error" && transcriptionError && (
+                    <div className="mb-4 p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+                      <div className="flex items-start gap-2 text-destructive">
+                        <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                        <div className="text-sm">
+                          <p className="font-medium">Transcription Error</p>
+                          <p className="mt-1 text-destructive/90">{transcriptionError}</p>
+                          {transcriptionError.includes("API key") && (
+                            <p className="mt-2 text-xs text-muted-foreground">
+                              Make sure NEXT_PUBLIC_DEEPGRAM_API_KEY is set correctly in Vercel/environment
+                            </p>
                           )}
-                        </span>
-                      )}
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            Session is still recording - you can take manual notes or try restarting.
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   )}
 

@@ -17,6 +17,7 @@ import {
   Play,
   FileText,
   History,
+  Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import { formatDistanceToNow, format } from "date-fns";
@@ -50,6 +51,7 @@ export default function SessionsPage() {
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [clientFilter, setClientFilter] = useState<string | null>(null);
   const [showClientDropdown, setShowClientDropdown] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -106,6 +108,25 @@ export default function SessionsPage() {
     const hours = Math.floor(mins / 60);
     const remainingMins = mins % 60;
     return `${hours}h ${remainingMins}m`;
+  };
+
+  const handleDelete = async (e: React.MouseEvent, sessionId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirm("Are you sure you want to delete this session? This cannot be undone.")) {
+      return;
+    }
+    setDeletingId(sessionId);
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}`, { method: "DELETE" });
+      if (res.ok) {
+        setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+      }
+    } catch (error) {
+      console.error("Failed to delete session:", error);
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   return (
@@ -304,6 +325,19 @@ export default function SessionsPage() {
                         </Button>
                       </Link>
                     )}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive flex-shrink-0"
+                      onClick={(e) => handleDelete(e, session.id)}
+                      disabled={deletingId === session.id}
+                    >
+                      {deletingId === session.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
+                    </Button>
                   </div>
                 </div>
               </CardContent>
