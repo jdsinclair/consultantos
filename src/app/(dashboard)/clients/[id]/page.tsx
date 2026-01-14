@@ -6,6 +6,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import {
   Mic,
   FileText,
@@ -39,6 +49,10 @@ import { cn } from "@/lib/utils";
 interface Client {
   id: string;
   name: string;
+  firstName: string | null;
+  lastName: string | null;
+  email: string | null;
+  phone: string | null;
   company: string | null;
   industry: string | null;
   status: string;
@@ -46,6 +60,8 @@ interface Client {
   website: string | null;
   dealValue: number | null;
   dealStatus: string | null;
+  sourceType: string | null;
+  sourceNotes: string | null;
 }
 
 interface Source {
@@ -120,6 +136,9 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddTodo, setShowAddTodo] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editForm, setEditForm] = useState<Partial<Client>>({});
+  const [saving, setSaving] = useState(false);
 
   const { messages, input, handleInputChange, handleSubmit, isLoading: chatLoading } = useChat({
     api: "/api/chat",
@@ -210,6 +229,49 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
     }
   };
 
+  const handleOpenEditDialog = () => {
+    if (client) {
+      setEditForm({
+        name: client.name,
+        firstName: client.firstName,
+        lastName: client.lastName,
+        email: client.email,
+        phone: client.phone,
+        company: client.company,
+        industry: client.industry,
+        website: client.website,
+        description: client.description,
+        status: client.status,
+        sourceType: client.sourceType,
+        sourceNotes: client.sourceNotes,
+      });
+      setShowEditDialog(true);
+    }
+  };
+
+  const handleSaveClient = async () => {
+    if (!client) return;
+    setSaving(true);
+
+    try {
+      const res = await fetch(`/api/clients/${client.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editForm),
+      });
+
+      if (res.ok) {
+        const updated = await res.json();
+        setClient(updated);
+        setShowEditDialog(false);
+      }
+    } catch (error) {
+      console.error("Failed to update client:", error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const getSourceIcon = (type: string) => {
     switch (type) {
       case "website": return Globe;
@@ -258,6 +320,15 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
             <div>
               <div className="flex items-center gap-3 mb-2">
                 <h1 className="text-3xl font-bold">{client.name}</h1>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={handleOpenEditDialog}
+                  title="Edit client details"
+                >
+                  <Edit2 className="h-4 w-4" />
+                </Button>
                 <Badge variant={client.status === "active" ? "default" : "secondary"}>
                   {client.status}
                 </Badge>
@@ -324,7 +395,12 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                       >
                         <Icon className="h-5 w-5 text-muted-foreground shrink-0" />
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{source.name}</p>
+                          <Link
+                            href={`/sources/${source.id}`}
+                            className="text-sm font-medium truncate hover:text-primary hover:underline block"
+                          >
+                            {source.name}
+                          </Link>
                           <p className="text-xs text-muted-foreground">
                             {source.url || formatFileSize(source.fileSize) || source.fileType}
                           </p>
@@ -336,16 +412,12 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                           {source.processingStatus === "error" && (
                             <Badge variant="destructive" className="text-xs">Error</Badge>
                           )}
-                          {(source.url || source.blobUrl) && (
-                            <a
-                              href={source.url || source.blobUrl || "#"}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="opacity-0 group-hover:opacity-100"
-                            >
-                              <ExternalLink className="h-4 w-4 text-muted-foreground hover:text-foreground" />
-                            </a>
-                          )}
+                          <Link href={`/sources/${source.id}`}>
+                            <Button variant="ghost" size="sm" className="h-8 gap-1 opacity-0 group-hover:opacity-100">
+                              <ExternalLink className="h-3 w-3" />
+                              View
+                            </Button>
+                          </Link>
                           <button
                             onClick={() => handleDeleteSource(source.id)}
                             className="opacity-0 group-hover:opacity-100"
@@ -677,6 +749,175 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
         </div>
       </div>
 
+      {/* Client Edit Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Client</DialogTitle>
+            <DialogDescription>
+              Update client details and contact information
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            {/* Basic Info */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="firstName">First Name</Label>
+                <Input
+                  id="firstName"
+                  value={editForm.firstName || ""}
+                  onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })}
+                  placeholder="John"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="lastName">Last Name</Label>
+                <Input
+                  id="lastName"
+                  value={editForm.lastName || ""}
+                  onChange={(e) => setEditForm({ ...editForm, lastName: e.target.value })}
+                  placeholder="Doe"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="name">Display Name</Label>
+              <Input
+                id="name"
+                value={editForm.name || ""}
+                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                placeholder="Client display name"
+              />
+            </div>
+
+            {/* Contact Info */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={editForm.email || ""}
+                  onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                  placeholder="john@company.com"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone</Label>
+                <Input
+                  id="phone"
+                  value={editForm.phone || ""}
+                  onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                  placeholder="+1 555-123-4567"
+                />
+              </div>
+            </div>
+
+            {/* Company Info */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="company">Company</Label>
+                <Input
+                  id="company"
+                  value={editForm.company || ""}
+                  onChange={(e) => setEditForm({ ...editForm, company: e.target.value })}
+                  placeholder="Acme Corp"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="industry">Industry</Label>
+                <Input
+                  id="industry"
+                  value={editForm.industry || ""}
+                  onChange={(e) => setEditForm({ ...editForm, industry: e.target.value })}
+                  placeholder="Technology"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="website">Website</Label>
+              <Input
+                id="website"
+                value={editForm.website || ""}
+                onChange={(e) => setEditForm({ ...editForm, website: e.target.value })}
+                placeholder="https://company.com"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                value={editForm.description || ""}
+                onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                placeholder="Brief description of the client or engagement..."
+                rows={3}
+              />
+            </div>
+
+            {/* Status */}
+            <div className="space-y-2">
+              <Label htmlFor="status">Status</Label>
+              <select
+                id="status"
+                className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                value={editForm.status || "prospect"}
+                onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+              >
+                <option value="prospect">Prospect</option>
+                <option value="active">Active</option>
+                <option value="paused">Paused</option>
+                <option value="completed">Completed</option>
+                <option value="prospect_lost">Prospect Lost</option>
+                <option value="client_cancelled">Client Cancelled</option>
+              </select>
+            </div>
+
+            {/* Source Info */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="sourceType">Lead Source</Label>
+                <select
+                  id="sourceType"
+                  className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                  value={editForm.sourceType || ""}
+                  onChange={(e) => setEditForm({ ...editForm, sourceType: e.target.value })}
+                >
+                  <option value="">Select source...</option>
+                  <option value="referral">Referral</option>
+                  <option value="inbound">Inbound</option>
+                  <option value="outreach">Outreach</option>
+                  <option value="email">Email</option>
+                  <option value="social">Social Media</option>
+                  <option value="conference">Conference</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="sourceNotes">Source Notes</Label>
+                <Input
+                  id="sourceNotes"
+                  value={editForm.sourceNotes || ""}
+                  onChange={(e) => setEditForm({ ...editForm, sourceNotes: e.target.value })}
+                  placeholder="How did they find you?"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveClient} disabled={saving}>
+              {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+              Save Changes
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

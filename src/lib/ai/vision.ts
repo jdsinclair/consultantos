@@ -1,5 +1,6 @@
 import { generateText } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
+import { withAILogging } from "./logger";
 
 /**
  * Extract content from an image using Claude's vision capability
@@ -13,8 +14,13 @@ export async function extractImageContent(
   keyElements: string[];
   suggestedLabels: string[];
 }> {
-  try {
-    const prompt = `Analyze this image${context?.clientName ? ` (for client: ${context.clientName})` : ""}${context?.fileName ? ` (filename: ${context.fileName})` : ""}.
+  const model = "claude-sonnet-4-20250514";
+
+  return withAILogging(
+    "vision-extract",
+    model,
+    async () => {
+      const prompt = `Analyze this image${context?.clientName ? ` (for client: ${context.clientName})` : ""}${context?.fileName ? ` (filename: ${context.fileName})` : ""}.
 
 Provide a detailed analysis in JSON format:
 {
@@ -35,34 +41,39 @@ If this is a document or screenshot:
 
 Return ONLY valid JSON, no other text.`;
 
-    const { text } = await generateText({
-      model: anthropic("claude-sonnet-4-20250514"),
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "image",
-              image: new URL(imageUrl),
-            },
-            {
-              type: "text",
-              text: prompt,
-            },
-          ],
-        },
-      ],
-      maxTokens: 2000,
-    });
+      console.log(`[Vision] Starting extraction for: ${context?.fileName || imageUrl.slice(0, 50)}...`);
 
-    const result = JSON.parse(text);
-    return {
-      description: result.description || "Image content extracted",
-      textContent: result.textContent || [],
-      keyElements: result.keyElements || [],
-      suggestedLabels: result.suggestedLabels || [],
-    };
-  } catch (error) {
+      const { text } = await generateText({
+        model: anthropic(model),
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "image",
+                image: new URL(imageUrl),
+              },
+              {
+                type: "text",
+                text: prompt,
+              },
+            ],
+          },
+        ],
+        maxTokens: 2000,
+      });
+
+      console.log(`[Vision] Response received, parsing JSON...`);
+      const result = JSON.parse(text);
+      return {
+        description: result.description || "Image content extracted",
+        textContent: result.textContent || [],
+        keyElements: result.keyElements || [],
+        suggestedLabels: result.suggestedLabels || [],
+      };
+    },
+    { imageUrl: imageUrl.slice(0, 100), fileName: context?.fileName }
+  ).catch((error) => {
     console.error("Vision extraction error:", error);
     return {
       description: "Failed to extract image content",
@@ -70,7 +81,7 @@ Return ONLY valid JSON, no other text.`;
       keyElements: [],
       suggestedLabels: [],
     };
-  }
+  });
 }
 
 /**

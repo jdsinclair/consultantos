@@ -4,6 +4,7 @@ import { getSource, updateSource, updateSourceContent, setSourceError, updateSou
 import { processSourceEmbeddings } from "@/lib/rag";
 import { extractImageContent, formatImageContentForRAG } from "@/lib/ai/vision";
 import { generateSourceSummary } from "@/lib/ai/source-summary";
+import { generateClarityInsightsFromSource } from "@/lib/ai/clarity-insights";
 
 export async function POST(
   req: NextRequest,
@@ -90,6 +91,18 @@ async function reprocessSource(
         type: source.type,
         fileType: source.fileType || undefined,
         fileName: source.name,
+      });
+    }
+
+    // Generate clarity insights from the source content
+    if (content && !content.startsWith("[Error") && !content.startsWith("[Unsupported")) {
+      console.log(`Generating clarity insights for: ${source.name}`);
+      await generateClarityInsightsFromSource(content, {
+        sourceId,
+        clientId,
+        userId,
+        sourceName: source.name,
+        sourceType: source.type,
       });
     }
   } catch (error) {
