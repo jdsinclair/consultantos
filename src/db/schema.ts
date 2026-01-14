@@ -1,5 +1,22 @@
-import { pgTable, text, timestamp, jsonb, uuid, integer, boolean, index } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, jsonb, uuid, integer, boolean, index, real } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
+import { customType } from 'drizzle-orm/pg-core';
+
+// Custom vector type for pgvector
+const vector = customType<{ data: number[]; config: { dimensions: number } }>({
+  dataType(config) {
+    return `vector(${config?.dimensions ?? 1536})`; // OpenAI text-embedding-3-small is 1536 dims
+  },
+  toDriver(value: number[]): string {
+    return `[${value.join(',')}]`;
+  },
+  fromDriver(value: unknown): number[] {
+    if (typeof value === 'string') {
+      return value.slice(1, -1).split(',').map(Number);
+    }
+    return value as number[];
+  },
+});
 
 // Users - synced from Clerk, stores user preferences and consultant profile
 export const users = pgTable('users', {
@@ -31,7 +48,14 @@ export const users = pgTable('users', {
 export const clients = pgTable('clients', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: text('user_id').references(() => users.id).notNull(),
-  name: text('name').notNull(),
+  // Contact info (primary contact for this client/prospect)
+  firstName: text('first_name'),
+  lastName: text('last_name'),
+  name: text('name').notNull(), // Display name (can be computed or manual)
+  email: text('email'),
+  phone: text('phone'),
+  phoneCountryCode: text('phone_country_code').default('+1'),
+  // Company info
   company: text('company'),
   industry: text('industry'),
   website: text('website'),
@@ -105,6 +129,32 @@ export const sources = pgTable('sources', {
 }, (table) => ({
   clientIdx: index('sources_client_idx').on(table.clientId),
   userIdx: index('sources_user_idx').on(table.userId),
+}));
+
+// Source Chunks - chunked content with embeddings for RAG
+export const sourceChunks = pgTable('source_chunks', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  sourceId: uuid('source_id').references(() => sources.id, { onDelete: 'cascade' }).notNull(),
+  clientId: uuid('client_id').references(() => clients.id, { onDelete: 'cascade' }).notNull(),
+  userId: text('user_id').references(() => users.id).notNull(),
+  // Chunk content
+  content: text('content').notNull(), // The actual chunk text
+  chunkIndex: integer('chunk_index').notNull(), // Position in source (0-indexed)
+  // Metadata for retrieval
+  startChar: integer('start_char'), // Character position in original content
+  endChar: integer('end_char'),
+  metadata: jsonb('metadata'), // Page number, section title, etc.
+  // Vector embedding for similarity search
+  embedding: vector('embedding', { dimensions: 1536 }), // OpenAI text-embedding-3-small
+  // Summary for context (optional, AI-generated)
+  summary: text('summary'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  sourceIdx: index('source_chunks_source_idx').on(table.sourceId),
+  clientIdx: index('source_chunks_client_idx').on(table.clientId),
+  userIdx: index('source_chunks_user_idx').on(table.userId),
+  // Note: Vector index needs to be created via raw SQL with pgvector
+  // CREATE INDEX source_chunks_embedding_idx ON source_chunks USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
 }));
 
 // Inbound Emails - emails forwarded into the system
@@ -286,12 +336,25 @@ export const usersRelations = relations(users, ({ many }) => ({
 export const clientsRelations = relations(clients, ({ one, many }) => ({
   user: one(users, { fields: [clients.userId], references: [users.id] }),
   sources: many(sources),
+  sourceChunks: many(sourceChunks),
   sessions: many(sessions),
   actionItems: many(actionItems),
   notes: many(notes),
   contacts: many(contacts),
   inboundEmails: many(inboundEmails),
   clarityDocument: one(clarityDocuments, { fields: [clients.id], references: [clarityDocuments.clientId] }),
+}));
+
+export const sourcesRelations = relations(sources, ({ one, many }) => ({
+  client: one(clients, { fields: [sources.clientId], references: [clients.id] }),
+  user: one(users, { fields: [sources.userId], references: [users.id] }),
+  chunks: many(sourceChunks),
+}));
+
+export const sourceChunksRelations = relations(sourceChunks, ({ one }) => ({
+  source: one(sources, { fields: [sourceChunks.sourceId], references: [sources.id] }),
+  client: one(clients, { fields: [sourceChunks.clientId], references: [clients.id] }),
+  user: one(users, { fields: [sourceChunks.userId], references: [users.id] }),
 }));
 
 export const clarityDocumentsRelations = relations(clarityDocuments, ({ one }) => ({
@@ -388,3 +451,5 @@ export type InboundEmail = typeof inboundEmails.$inferSelect;
 export type NewInboundEmail = typeof inboundEmails.$inferInsert;
 export type ClarityDocument = typeof clarityDocuments.$inferSelect;
 export type NewClarityDocument = typeof clarityDocuments.$inferInsert;
+export type SourceChunk = typeof sourceChunks.$inferSelect;
+export type NewSourceChunk = typeof sourceChunks.$inferInsert;
