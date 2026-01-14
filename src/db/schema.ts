@@ -139,6 +139,31 @@ export const clarityInsights = pgTable('clarity_insights', {
   statusIdx: index('clarity_insights_status_idx').on(table.status),
 }));
 
+// Clarity Method™ Canvas - Strategic Diagnosis + Execution Mapping
+export const clarityMethodCanvases = pgTable('clarity_method_canvases', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  clientId: uuid('client_id').references(() => clients.id, { onDelete: 'cascade' }).notNull().unique(),
+  userId: text('user_id').references(() => users.id).notNull(),
+  strategicTruth: jsonb('strategic_truth'),
+  northStar: jsonb('north_star'),
+  coreEngine: jsonb('core_engine'),
+  valueExpansion: jsonb('value_expansion'),
+  serviceProductFilter: jsonb('service_product_filter'),
+  killList: jsonb('kill_list'),
+  paranoiaMap: jsonb('paranoia_map'),
+  strategy: jsonb('strategy'),
+  swimlanes: jsonb('swimlanes'),
+  phase: text('phase').default('diagnostic'),
+  lockedSections: jsonb('locked_sections'),
+  history: jsonb('history'),
+  conversationId: uuid('conversation_id'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  clientIdx: index('clarity_canvas_client_idx').on(table.clientId),
+  userIdx: index('clarity_canvas_user_idx').on(table.userId),
+}));
+
 // Sources - documents, websites, repos, local folders linked to a client
 export const sources = pgTable('sources', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -395,6 +420,7 @@ export const clientsRelations = relations(clients, ({ one, many }) => ({
   inboundEmails: many(inboundEmails),
   clarityDocument: one(clarityDocuments, { fields: [clients.id], references: [clarityDocuments.clientId] }),
   clarityInsights: many(clarityInsights),
+  clarityMethodCanvas: one(clarityMethodCanvases, { fields: [clients.id], references: [clarityMethodCanvases.clientId] }),
 }));
 
 export const sourcesRelations = relations(sources, ({ one, many }) => ({
@@ -417,6 +443,11 @@ export const clarityDocumentsRelations = relations(clarityDocuments, ({ one }) =
 export const clarityInsightsRelations = relations(clarityInsights, ({ one }) => ({
   client: one(clients, { fields: [clarityInsights.clientId], references: [clients.id] }),
   user: one(users, { fields: [clarityInsights.userId], references: [users.id] }),
+}));
+
+export const clarityMethodCanvasesRelations = relations(clarityMethodCanvases, ({ one }) => ({
+  client: one(clients, { fields: [clarityMethodCanvases.clientId], references: [clients.id] }),
+  user: one(users, { fields: [clarityMethodCanvases.userId], references: [users.id] }),
 }));
 
 export const sessionsRelations = relations(sessions, ({ one, many }) => ({
@@ -545,6 +576,8 @@ export interface ClaritySection {
   lockedAt: string;
   source?: string; // session ID or manual
 }
+
+// Clarity Method™ Canvas - Strategic Diagnosis + Execution Mapping
 
 // Clarity field metadata (status, source tracking per field)
 export interface ClarityFieldMeta {
