@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { sourceChunks, sources } from "@/db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import type { NewSourceChunk } from "@/db/schema";
+import { logAICall, updateAILog } from "./ai/logger";
 
 // Embedding model configuration
 const EMBEDDING_MODEL = openai.embedding("text-embedding-3-small");
@@ -100,44 +101,76 @@ export async function processSourceEmbeddings(
   content: string,
   metadata?: Record<string, unknown>
 ): Promise<void> {
-  // Delete existing chunks for this source
-  await db.delete(sourceChunks).where(eq(sourceChunks.sourceId, sourceId));
+  const startTime = Date.now();
+  const logId = logAICall({
+    operation: "embeddings",
+    model: "text-embedding-3-small",
+    status: "pending",
+    metadata: { sourceId, contentLength: content.length },
+  });
 
-  // Chunk the content
-  const chunks = chunkContent(content);
+  try {
+    // Delete existing chunks for this source
+    await db.delete(sourceChunks).where(eq(sourceChunks.sourceId, sourceId));
 
-  if (chunks.length === 0) return;
+    // Chunk the content
+    const chunks = chunkContent(content);
 
-  // Generate embeddings in batches (OpenAI has limits)
-  const BATCH_SIZE = 100;
-  const allChunkData: NewSourceChunk[] = [];
-
-  for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
-    const batch = chunks.slice(i, i + BATCH_SIZE);
-    const texts = batch.map(c => c.content);
-
-    // Generate embeddings for batch
-    const embeddings = await generateEmbeddings(texts);
-
-    // Create chunk records
-    for (let j = 0; j < batch.length; j++) {
-      allChunkData.push({
-        sourceId,
-        clientId,
-        userId,
-        content: batch[j].content,
-        chunkIndex: i + j,
-        startChar: batch[j].startChar,
-        endChar: batch[j].endChar,
-        embedding: embeddings[j],
-        metadata: metadata || null,
+    if (chunks.length === 0) {
+      updateAILog(logId, {
+        status: "success",
+        duration: Date.now() - startTime,
+        metadata: { sourceId, contentLength: content.length, chunks: 0 },
       });
+      return;
     }
-  }
 
-  // Insert all chunks
-  if (allChunkData.length > 0) {
-    await db.insert(sourceChunks).values(allChunkData);
+    // Generate embeddings in batches (OpenAI has limits)
+    const BATCH_SIZE = 100;
+    const allChunkData: NewSourceChunk[] = [];
+
+    for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
+      const batch = chunks.slice(i, i + BATCH_SIZE);
+      const texts = batch.map(c => c.content);
+
+      // Generate embeddings for batch
+      const embeddings = await generateEmbeddings(texts);
+
+      // Create chunk records
+      for (let j = 0; j < batch.length; j++) {
+        allChunkData.push({
+          sourceId,
+          clientId,
+          userId,
+          content: batch[j].content,
+          chunkIndex: i + j,
+          startChar: batch[j].startChar,
+          endChar: batch[j].endChar,
+          embedding: embeddings[j],
+          metadata: metadata || null,
+        });
+      }
+    }
+
+    // Insert all chunks
+    if (allChunkData.length > 0) {
+      await db.insert(sourceChunks).values(allChunkData);
+    }
+
+    updateAILog(logId, {
+      status: "success",
+      duration: Date.now() - startTime,
+      metadata: { sourceId, contentLength: content.length, chunks: allChunkData.length },
+    });
+
+    console.log(`[Embeddings] Generated ${allChunkData.length} chunks for source ${sourceId}`);
+  } catch (error) {
+    updateAILog(logId, {
+      status: "error",
+      duration: Date.now() - startTime,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
   }
 }
 
