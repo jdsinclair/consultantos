@@ -23,6 +23,7 @@ import {
   Eye,
   CheckCircle,
   AlertCircle,
+  RefreshCw,
 } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
@@ -76,6 +77,7 @@ export default function SourceDetailPage({ params }: { params: { id: string } })
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editedSummary, setEditedSummary] = useState<AISummary | null>(null);
+  const [reprocessing, setReprocessing] = useState(false);
 
   useEffect(() => {
     fetchSource();
@@ -136,6 +138,38 @@ export default function SourceDetailPage({ params }: { params: { id: string } })
       console.error("Error saving summary:", error);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleReprocess = async () => {
+    setReprocessing(true);
+    try {
+      const res = await fetch(`/api/sources/${params.id}/reprocess`, { method: "POST" });
+      if (!res.ok) throw new Error("Failed to start reprocessing");
+      // Optimistically update status
+      setSource((prev) => prev && { ...prev, processingStatus: "processing" });
+      // Poll for completion
+      const pollInterval = setInterval(async () => {
+        const checkRes = await fetch(`/api/sources/${params.id}`);
+        if (checkRes.ok) {
+          const data = await checkRes.json();
+          if (data.processingStatus !== "processing") {
+            clearInterval(pollInterval);
+            setSource(data);
+            if (data.aiSummary) setEditedSummary(data.aiSummary);
+            setReprocessing(false);
+          }
+        }
+      }, 2000);
+      // Stop polling after 60 seconds
+      setTimeout(() => {
+        clearInterval(pollInterval);
+        setReprocessing(false);
+        fetchSource();
+      }, 60000);
+    } catch (error) {
+      console.error("Error reprocessing:", error);
+      setReprocessing(false);
     }
   };
 
@@ -219,6 +253,16 @@ export default function SourceDetailPage({ params }: { params: { id: string } })
               )}
               {source.processingStatus}
             </Badge>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1"
+              onClick={handleReprocess}
+              disabled={reprocessing || source.processingStatus === "processing"}
+            >
+              <RefreshCw className={`h-4 w-4 ${reprocessing ? "animate-spin" : ""}`} />
+              {reprocessing ? "Reprocessing..." : "Retry"}
+            </Button>
             {source.blobUrl && (
               <a href={source.blobUrl} target="_blank" rel="noopener noreferrer">
                 <Button variant="outline" size="sm" className="gap-1">
