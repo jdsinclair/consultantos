@@ -90,6 +90,10 @@ export function FileUpload({ clientId, onUploadComplete }: FileUploadProps) {
       "text/plain": [".txt"],
       "text/markdown": [".md"],
       "text/csv": [".csv"],
+      "image/png": [".png"],
+      "image/jpeg": [".jpg", ".jpeg"],
+      "image/gif": [".gif"],
+      "image/webp": [".webp"],
     },
   });
 
@@ -114,7 +118,7 @@ export function FileUpload({ clientId, onUploadComplete }: FileUploadProps) {
               Drag & drop files here, or click to select
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              PDF, DOCX, PPTX, TXT, MD, CSV
+              PDF, DOCX, PPTX, TXT, MD, CSV, Images
             </p>
           </>
         )}

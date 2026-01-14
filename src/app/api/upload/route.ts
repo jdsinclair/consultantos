@@ -67,6 +67,11 @@ function getFileType(extension: string): string {
     md: "md",
     csv: "csv",
     json: "json",
+    png: "image",
+    jpg: "image",
+    jpeg: "image",
+    gif: "image",
+    webp: "image",
   };
   return typeMap[extension] || "unknown";
 }
@@ -143,6 +148,12 @@ async function processDocument(
         } catch {
           content = "[DOCX content - extraction failed]";
         }
+        break;
+
+      case "image":
+        // Images are stored but no text extraction
+        // Could add OCR or vision AI in future
+        content = `[Image: ${file.name}]`;
         break;
 
       default:
