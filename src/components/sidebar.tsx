@@ -67,7 +67,7 @@ export function Sidebar() {
       </nav>
 
       {/* Bottom section */}
-      <div className="border-t border-border p-4 space-y-2">
+      <div className="border-t border-border p-3 space-y-2">
         {/* Deal Mode Toggle */}
         <button
           onClick={toggleDealMode}
@@ -84,8 +84,6 @@ export function Sidebar() {
         </button>
 
         {/* Settings */}
-      {/* Settings */}
-      <div className="border-t border-border p-3">
         <Link
           href="/settings"
           className={cn(
@@ -99,6 +97,5 @@ export function Sidebar() {
           Settings
         </Link>
       </div>
-    </div>
   );
 }
