@@ -55,7 +55,13 @@ Focus on actionable insights for a consultant. Return ONLY valid JSON.`;
         maxTokens: 1500,
       });
 
-      const result = JSON.parse(text);
+      // Strip markdown code blocks if present (```json ... ```)
+      let jsonText = text.trim();
+      if (jsonText.startsWith("```")) {
+        jsonText = jsonText.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?```\s*$/, "");
+      }
+
+      const result = JSON.parse(jsonText);
 
       return {
         whatItIs: result.whatItIs || "Document uploaded for reference",

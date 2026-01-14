@@ -103,7 +103,13 @@ Rules:
           maxTokens: 2000,
         });
 
-        const result = JSON.parse(text);
+        // Strip markdown code blocks if present (```json ... ```)
+        let jsonText = text.trim();
+        if (jsonText.startsWith("```")) {
+          jsonText = jsonText.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?```\s*$/, "");
+        }
+
+        const result = JSON.parse(jsonText);
         return Array.isArray(result) ? result : [];
       },
       { sourceName: context.sourceName, sourceId: context.sourceId }

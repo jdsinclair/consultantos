@@ -64,7 +64,14 @@ Return ONLY valid JSON, no other text.`;
       });
 
       console.log(`[Vision] Response received, parsing JSON...`);
-      const result = JSON.parse(text);
+
+      // Strip markdown code blocks if present (```json ... ```)
+      let jsonText = text.trim();
+      if (jsonText.startsWith("```")) {
+        jsonText = jsonText.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?```\s*$/, "");
+      }
+
+      const result = JSON.parse(jsonText);
       return {
         description: result.description || "Image content extracted",
         textContent: result.textContent || [],
