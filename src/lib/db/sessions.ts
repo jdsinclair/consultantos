@@ -52,10 +52,12 @@ export async function updateSession(
 }
 
 export async function startSession(sessionId: string, userId: string) {
-  return updateSession(sessionId, userId, {
+  await updateSession(sessionId, userId, {
     status: "live",
     startedAt: new Date(),
   });
+  // Return full session with relations
+  return getSession(sessionId, userId);
 }
 
 export async function endSession(sessionId: string, userId: string) {
@@ -66,11 +68,13 @@ export async function endSession(sessionId: string, userId: string) {
     ? Math.floor((Date.now() - session.startedAt.getTime()) / 1000)
     : 0;
 
-  return updateSession(sessionId, userId, {
+  await updateSession(sessionId, userId, {
     status: "completed",
     endedAt: new Date(),
     duration,
   });
+  // Return full session with relations
+  return getSession(sessionId, userId);
 }
 
 export async function updateGameplan(

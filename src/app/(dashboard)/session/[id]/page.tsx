@@ -127,6 +127,7 @@ export default function LiveSessionPage({ params }: { params: { id: string } }) 
   // Audio transcription state
   const [audioStream, setAudioStream] = useState<MediaStream | null>(null);
   const [transcriptionStatus, setTranscriptionStatus] = useState<TranscriptionStatus>("idle");
+  const [transcriptionError, setTranscriptionError] = useState<string | null>(null);
   const [audioSource, setAudioSource] = useState<AudioSource>("microphone");
   const [liveTranscript, setLiveTranscript] = useState<TranscriptSegment[]>([]);
   const [interimTranscript, setInterimTranscript] = useState<string>("");
@@ -335,7 +336,7 @@ export default function LiveSessionPage({ params }: { params: { id: string } }) 
       },
       onError: (error: Error) => {
         console.error("Transcription error:", error);
-        // Show error to user but don't stop recording
+        setTranscriptionError(error.message);
       },
       onStreamReady: (stream: MediaStream) => {
         setAudioStream(stream);
@@ -857,12 +858,19 @@ export default function LiveSessionPage({ params }: { params: { id: string } }) 
 
                   {/* Status indicator */}
                   {isRecording && transcriptionStatus !== "recording" && (
-                    <div className="flex items-center gap-2 mb-4 text-sm text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                    <div className={`flex items-center gap-2 mb-4 text-sm ${transcriptionStatus === "error" ? "text-destructive" : "text-muted-foreground"}`}>
+                      {transcriptionStatus !== "error" && <Loader2 className="h-4 w-4 animate-spin" />}
                       {transcriptionStatus === "requesting_permissions" && "Requesting microphone access..."}
                       {transcriptionStatus === "connecting" && "Connecting to Deepgram..."}
                       {transcriptionStatus === "connected" && "Starting transcription..."}
-                      {transcriptionStatus === "error" && "Connection error - check console"}
+                      {transcriptionStatus === "error" && (
+                        <span>
+                          {transcriptionError || "Connection error"}
+                          {transcriptionError?.includes("API key") && (
+                            <span className="block text-xs mt-1">Add NEXT_PUBLIC_DEEPGRAM_API_KEY to your environment</span>
+                          )}
+                        </span>
+                      )}
                     </div>
                   )}
 
