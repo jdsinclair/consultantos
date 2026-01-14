@@ -44,7 +44,7 @@ export const users = pgTable('users', {
 });
 
 // Clients - each consulting engagement (belongs to a user)
-// Status can be: 'prospect' (lead), 'active', 'paused', 'completed'
+// Status can be: 'prospect', 'active', 'paused', 'completed', 'prospect_lost', 'client_cancelled'
 export const clients = pgTable('clients', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: text('user_id').references(() => users.id).notNull(),
@@ -60,8 +60,12 @@ export const clients = pgTable('clients', {
   industry: text('industry'),
   website: text('website'),
   description: text('description'),
-  status: text('status').default('prospect'), // prospect, active, paused, completed
+  status: text('status').default('prospect'), // prospect, active, paused, completed, prospect_lost, client_cancelled
   color: text('color'), // for UI display
+  // Deal/Financial info (hidden by default with $ toggle)
+  dealValue: integer('deal_value'), // in cents (e.g., 500000 = $5,000)
+  dealStatus: text('deal_status').default('none'), // none, placeholder, presented, active
+  dealNotes: text('deal_notes'), // private notes about the deal
   // Prospect evaluation
   evaluation: jsonb('evaluation').$type<ProspectEvaluation>(), // AI evaluation of the prospect
   evaluatedAt: timestamp('evaluated_at'),
@@ -222,15 +226,19 @@ export const sessions = pgTable('sessions', {
   methodId: uuid('method_id').references(() => methods.id),
   title: text('title').notNull(),
   status: text('status').default('scheduled'), // scheduled, live, completed
+  isHistoric: boolean('is_historic').default(false), // true for manually added past sessions
   gameplan: jsonb('gameplan').$type<GameplanItem[]>(), // pre-session plan/agenda
   transcript: text('transcript'), // full transcript
   transcriptChunks: jsonb('transcript_chunks'), // timestamped chunks
   summary: text('summary'), // AI-generated summary
   keyPoints: jsonb('key_points'), // extracted key points
+  notes: text('notes'), // manual notes from the session
   recordingUrl: text('recording_url'), // audio/video recording
+  attachments: jsonb('attachments').$type<SessionAttachment[]>(), // whiteboard images, docs, etc.
   scheduledAt: timestamp('scheduled_at'),
   startedAt: timestamp('started_at'),
   endedAt: timestamp('ended_at'),
+  sessionDate: timestamp('session_date'), // for historic sessions - when it actually happened
   duration: integer('duration'), // in seconds
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -404,6 +412,18 @@ export interface EmailAttachment {
   contentType: string;
   size: number;
   blobUrl?: string; // stored in Vercel Blob
+}
+
+export interface SessionAttachment {
+  id: string;
+  filename: string;
+  contentType: string;
+  size: number;
+  blobUrl: string; // stored in Vercel Blob
+  type: 'whiteboard' | 'document' | 'image' | 'recording' | 'other';
+  description?: string;
+  addedToSources?: boolean; // true if auto-added as a source
+  sourceId?: string; // reference to the created source
 }
 
 // Prospect evaluation structure (from AI analysis)

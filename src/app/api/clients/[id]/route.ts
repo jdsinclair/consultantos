@@ -9,8 +9,11 @@ const updateClientSchema = z.object({
   industry: z.string().optional(),
   website: z.string().url().optional().or(z.literal("")),
   description: z.string().optional(),
-  status: z.enum(["active", "paused", "completed"]).optional(),
+  status: z.enum(["prospect", "active", "paused", "completed", "prospect_lost", "client_cancelled"]).optional(),
   color: z.string().optional(),
+  dealValue: z.number().optional(),
+  dealStatus: z.enum(["none", "placeholder", "presented", "active"]).optional(),
+  dealNotes: z.string().optional(),
 });
 
 export async function GET(

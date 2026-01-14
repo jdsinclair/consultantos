@@ -32,6 +32,7 @@ import { formatDistanceToNow, isPast } from "date-fns";
 import { FileUpload } from "@/components/file-upload";
 import { SourceAdder } from "@/components/source-adder";
 import { TodoQuickAdd } from "@/components/todo-quick-add";
+import { DealBadge } from "@/components/deal-badge";
 import { cn } from "@/lib/utils";
 
 interface Client {
@@ -42,6 +43,8 @@ interface Client {
   status: string;
   description: string | null;
   website: string | null;
+  dealValue: number | null;
+  dealStatus: string | null;
 }
 
 interface Source {
@@ -246,6 +249,23 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                 <Badge variant={client.status === "active" ? "default" : "secondary"}>
                   {client.status}
                 </Badge>
+                <DealBadge
+                  clientId={client.id}
+                  dealValue={client.dealValue}
+                  dealStatus={client.dealStatus}
+                  status={client.status}
+                  onUpdate={async (data) => {
+                    const res = await fetch(`/api/clients/${client.id}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify(data),
+                    });
+                    if (res.ok) {
+                      const updated = await res.json();
+                      setClient(updated);
+                    }
+                  }}
+                />
               </div>
               {(client.company || client.industry) && (
                 <p className="text-muted-foreground">

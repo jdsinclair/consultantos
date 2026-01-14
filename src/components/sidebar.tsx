@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { useDealMode } from "@/contexts/deal-mode";
 import {
   Users,
   FileText,
@@ -15,6 +16,7 @@ import {
   Mail,
   CheckCircle,
   UserPlus,
+  DollarSign,
 } from "lucide-react";
 
 const navigation = [
@@ -32,6 +34,7 @@ const navigation = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { dealModeEnabled, toggleDealMode } = useDealMode();
 
   return (
     <div className="flex h-full w-64 flex-col border-r border-border bg-card">
@@ -65,8 +68,24 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* Settings */}
-      <div className="border-t border-border p-4">
+      {/* Bottom section */}
+      <div className="border-t border-border p-4 space-y-2">
+        {/* Deal Mode Toggle */}
+        <button
+          onClick={toggleDealMode}
+          className={cn(
+            "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors w-full",
+            dealModeEnabled
+              ? "bg-green-600 text-white hover:bg-green-700"
+              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+          )}
+          title={dealModeEnabled ? "Hide deal values" : "Show deal values"}
+        >
+          <DollarSign className="h-5 w-5" />
+          {dealModeEnabled ? "$ ON" : "$ OFF"}
+        </button>
+
+        {/* Settings */}
         <Link
           href="/settings"
           className={cn(
