@@ -84,9 +84,9 @@ export async function POST(req: NextRequest) {
       };
     }
 
-    // Find user by ingest email address
+    // Find user by ingest email address (case-insensitive)
     const user = await db.query.users.findFirst({
-      where: eq(users.ingestEmail, emailData.to.toLowerCase()),
+      where: ilike(users.ingestEmail, emailData.to),
     });
 
     if (!user) {
