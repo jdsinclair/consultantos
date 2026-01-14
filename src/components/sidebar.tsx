@@ -13,12 +13,14 @@ import {
   Sparkles,
   LayoutDashboard,
   Mail,
+  CheckCircle,
 } from "lucide-react";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Clients", href: "/clients", icon: Users },
-  { name: "Live Session", href: "/session", icon: Mic },
+  { name: "Sessions", href: "/session", icon: Mic },
+  { name: "Action Items", href: "/action-items", icon: CheckCircle },
   { name: "Methods", href: "/methods", icon: BookOpen },
   { name: "Personas", href: "/personas", icon: Sparkles },
   { name: "Chat", href: "/chat", icon: MessageSquare },

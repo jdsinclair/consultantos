@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { users } from "@/db/schema";
+import { users, methods } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { createDefaultMethods } from "@/lib/db/methods";
 import { createDefaultPersonas } from "@/lib/db/personas";
@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
 
     // Create default methods and personas if not already created
     const existingMethods = await db.query.methods.findFirst({
-      where: eq(users.id, userId),
+      where: eq(methods.userId, userId),
     });
 
     if (!existingMethods) {
