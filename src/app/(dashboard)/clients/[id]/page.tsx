@@ -196,6 +196,12 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
               )}
             </div>
             <div className="flex gap-3">
+              <Link href={`/clients/${client.id}/clarity`}>
+                <Button variant="outline" className="gap-2">
+                  <FileText className="h-4 w-4" />
+                  Clarity Doc
+                </Button>
+              </Link>
               <Link href={`/session/new?client=${client.id}`}>
                 <Button className="gap-2">
                   <Mic className="h-4 w-4" />

@@ -27,6 +27,7 @@ export const users = pgTable('users', {
 });
 
 // Clients - each consulting engagement (belongs to a user)
+// Status can be: 'prospect' (lead), 'active', 'paused', 'completed'
 export const clients = pgTable('clients', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: text('user_id').references(() => users.id).notNull(),
@@ -35,13 +36,50 @@ export const clients = pgTable('clients', {
   industry: text('industry'),
   website: text('website'),
   description: text('description'),
-  status: text('status').default('active'), // active, paused, completed
+  status: text('status').default('prospect'), // prospect, active, paused, completed
   color: text('color'), // for UI display
+  // Prospect evaluation
+  evaluation: jsonb('evaluation').$type<ProspectEvaluation>(), // AI evaluation of the prospect
+  evaluatedAt: timestamp('evaluated_at'),
+  // Source info (how they came to us)
+  sourceType: text('source_type'), // email, referral, inbound, outreach
+  sourceNotes: text('source_notes'),
   metadata: jsonb('metadata'), // flexible storage for client-specific data
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => ({
   userIdx: index('clients_user_idx').on(table.userId),
+  statusIdx: index('clients_status_idx').on(table.status),
+}));
+
+// Clarity Documents - the evolving business definition for each client
+export const clarityDocuments = pgTable('clarity_documents', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  clientId: uuid('client_id').references(() => clients.id, { onDelete: 'cascade' }).notNull().unique(),
+  userId: text('user_id').references(() => users.id).notNull(),
+  // Core positioning
+  niche: text('niche'), // Who they serve
+  desiredOutcome: text('desired_outcome'), // What they help achieve
+  offer: text('offer'), // How they deliver it
+  positioningStatement: text('positioning_statement'), // "We help [NICHE] achieve [OUTCOME] with [OFFER]"
+  // Business fundamentals
+  whoWeAre: text('who_we_are'),
+  whatWeDo: text('what_we_do'),
+  howWeDoIt: text('how_we_do_it'),
+  ourWedge: text('our_wedge'), // Unique differentiator
+  whyPeopleLoveUs: text('why_people_love_us'),
+  howWeWillDie: text('how_we_will_die'), // Biggest risks/threats
+  // Additional sections
+  sections: jsonb('sections').$type<ClaritySection[]>(), // Custom locked-in insights
+  // AI conversation history for this doc
+  conversationId: uuid('conversation_id'),
+  // Status
+  lastUpdatedBy: text('last_updated_by'), // 'user' or 'ai'
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  clientIdx: index('clarity_docs_client_idx').on(table.clientId),
+  userIdx: index('clarity_docs_user_idx').on(table.userId),
 }));
 
 // Sources - documents, websites, repos, local folders linked to a client
@@ -253,6 +291,12 @@ export const clientsRelations = relations(clients, ({ one, many }) => ({
   notes: many(notes),
   contacts: many(contacts),
   inboundEmails: many(inboundEmails),
+  clarityDocument: one(clarityDocuments, { fields: [clients.id], references: [clarityDocuments.clientId] }),
+}));
+
+export const clarityDocumentsRelations = relations(clarityDocuments, ({ one }) => ({
+  client: one(clients, { fields: [clarityDocuments.clientId], references: [clients.id] }),
+  user: one(users, { fields: [clarityDocuments.userId], references: [users.id] }),
 }));
 
 export const sessionsRelations = relations(sessions, ({ one, many }) => ({
@@ -296,6 +340,30 @@ export interface EmailAttachment {
   blobUrl?: string; // stored in Vercel Blob
 }
 
+// Prospect evaluation structure (from AI analysis)
+export interface ProspectEvaluation {
+  summary: string;
+  whyWeLoveIt: string[];
+  whyWeHateIt: string[];
+  potentialBiases: string[];
+  keyInsights: string[];
+  marketPosition: string;
+  competitiveAdvantage: string;
+  biggestRisks: string[];
+  recommendedApproach: string;
+  fitScore: number; // 1-10
+  evaluatedAt: string;
+}
+
+// Clarity document section (locked-in insights)
+export interface ClaritySection {
+  id: string;
+  title: string;
+  content: string;
+  lockedAt: string;
+  source?: string; // session ID or manual
+}
+
 // Export types for TypeScript
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -318,3 +386,5 @@ export type Note = typeof notes.$inferSelect;
 export type Contact = typeof contacts.$inferSelect;
 export type InboundEmail = typeof inboundEmails.$inferSelect;
 export type NewInboundEmail = typeof inboundEmails.$inferInsert;
+export type ClarityDocument = typeof clarityDocuments.$inferSelect;
+export type NewClarityDocument = typeof clarityDocuments.$inferInsert;

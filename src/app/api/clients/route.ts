@@ -9,14 +9,19 @@ const createClientSchema = z.object({
   industry: z.string().optional(),
   website: z.string().url().optional().or(z.literal("")),
   description: z.string().optional(),
-  status: z.enum(["active", "paused", "completed"]).default("active"),
+  status: z.enum(["prospect", "active", "paused", "completed"]).default("active"),
   color: z.string().optional(),
+  sourceType: z.string().optional(),
+  sourceNotes: z.string().optional(),
 });
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const user = await requireUser();
-    const clients = await getClients(user.id);
+    const { searchParams } = new URL(req.url);
+    const status = searchParams.get("status");
+
+    const clients = await getClients(user.id, status || undefined);
     return NextResponse.json(clients);
   } catch (error) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
