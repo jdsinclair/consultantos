@@ -22,8 +22,8 @@
     --secondary: 220 20% 96%;          /* Off-white/pale gray */
     --secondary-foreground: 220 60% 12%;
 
-    /* Muted - For subtle backgrounds */
-    --muted: 220 20% 96%;              /* Subtle gray */
+    /* Muted - For subtle backgrounds & hovers */
+    --muted: 220 14% 94%;              /* Subtle warm gray */
     --muted-foreground: 220 15% 45%;   /* Medium gray text */
 
     /* Accent - Electric Blue (Intentional Color Whisp) */
@@ -31,21 +31,21 @@
     --accent-foreground: 0 0% 100%;    /* White */
 
     /* Destructive - Coral Red */
-    --destructive: 10 80% 55%;         /* Attention coral */
+    --destructive: 0 72% 51%;          /* Vibrant red */
     --destructive-foreground: 0 0% 100%;
 
     /* Success - Emerald Green */
-    --success: 160 70% 40%;
+    --success: 152 69% 40%;
     --success-foreground: 0 0% 100%;
 
     /* Warning - Corporate Gold */
-    --warning: 45 90% 55%;
-    --warning-foreground: 220 60% 12%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
 
     /* Borders & Inputs */
-    --border: 220 15% 88%;             /* Subtle gray border */
-    --input: 220 15% 88%;              /* Input border */
-    --ring: 210 100% 50%;              /* Focus ring - electric blue */
+    --border: 220 13% 86%;             /* Subtle gray border */
+    --input: 220 13% 86%;              /* Input border */
+    --ring: 220 60% 12%;               /* Focus ring - navy to match primary */
 
     /* Design System */
     --radius: 0.5rem;
@@ -56,6 +56,10 @@
     --navy-700: 220 50% 25%;
     --navy-600: 220 45% 35%;
     --navy-100: 220 30% 96%;
+
+    /* Popover - matches card */
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 60% 12%;
   }
 
   .dark {
@@ -86,21 +90,25 @@
     --accent-foreground: 0 0% 100%;
 
     /* Destructive */
-    --destructive: 10 75% 50%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
     /* Success */
-    --success: 160 65% 45%;
+    --success: 152 65% 45%;
     --success-foreground: 0 0% 100%;
 
     /* Warning */
-    --warning: 45 85% 50%;
+    --warning: 38 92% 50%;
     --warning-foreground: 220 60% 12%;
 
     /* Borders & Inputs */
     --border: 220 50% 25%;
     --input: 220 50% 25%;
     --ring: 210 100% 55%;
+
+    /* Popover */
+    --popover: 220 55% 16%;
+    --popover-foreground: 220 20% 96%;
   }
 }
 
@@ -117,6 +125,11 @@
   html {
     @apply scroll-smooth;
   }
+
+  /* Selection color */
+  ::selection {
+    @apply bg-primary/20 text-foreground;
+  }
 }
 
 /* Live indicator pulse */
@@ -127,6 +140,22 @@
 
 .animate-pulse-live {
   animation: pulse-live 2s ease-in-out infinite;
+}
+
+/* Fade in animation */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.15s ease-out;
 }
 
 /* Corporate focus styles */
@@ -146,5 +175,97 @@
   }
   .shadow-corporate-lg {
     box-shadow: 0 10px 15px rgba(0, 0, 0, 0.08), 0 4px 6px rgba(0, 0, 0, 0.04);
+  }
+}
+
+/* Gradient utilities for personality */
+@layer utilities {
+  .gradient-primary {
+    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--navy-800)) 100%);
+  }
+  .gradient-accent {
+    background: linear-gradient(135deg, hsl(var(--accent)) 0%, hsl(210 100% 60%) 100%);
+  }
+  .gradient-subtle {
+    background: linear-gradient(180deg, hsl(var(--background)) 0%, hsl(var(--muted)) 100%);
+  }
+  .gradient-glow-primary {
+    box-shadow: 0 0 40px -10px hsl(var(--primary) / 0.3);
+  }
+  .gradient-glow-accent {
+    box-shadow: 0 0 40px -10px hsl(var(--accent) / 0.4);
+  }
+  .gradient-glow-warning {
+    box-shadow: 0 0 40px -10px hsl(var(--warning) / 0.4);
+  }
+}
+
+/* Text gradient for headlines */
+@layer utilities {
+  .text-gradient-primary {
+    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--navy-600)) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .text-gradient-accent {
+    background: linear-gradient(135deg, hsl(var(--accent)) 0%, hsl(210 100% 60%) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+}
+
+/* Decorative elements */
+@layer utilities {
+  .decoration-dot {
+    @apply relative;
+  }
+  .decoration-dot::before {
+    content: "";
+    @apply absolute -left-3 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-primary;
+  }
+}
+
+/* Card hover glow effect */
+@layer utilities {
+  .hover-glow {
+    @apply transition-all duration-300;
+  }
+  .hover-glow:hover {
+    box-shadow: 0 0 0 1px hsl(var(--primary) / 0.1), 0 8px 20px -4px hsl(var(--primary) / 0.1);
+  }
+}
+
+/* Accent borders for personality */
+@layer utilities {
+  .border-accent-gradient {
+    border-image: linear-gradient(135deg, hsl(var(--accent)), hsl(var(--primary))) 1;
+  }
+}
+
+/* Status indicator dots */
+@layer components {
+  .status-dot {
+    @apply w-2 h-2 rounded-full;
+  }
+  .status-dot-success {
+    @apply bg-success;
+  }
+  .status-dot-warning {
+    @apply bg-warning;
+  }
+  .status-dot-destructive {
+    @apply bg-destructive;
+  }
+  .status-dot-accent {
+    @apply bg-accent;
+  }
+}
+
+/* Backdrop blur variations */
+@layer utilities {
+  .backdrop-blur-corporate {
+    backdrop-filter: blur(12px) saturate(180%);
   }
 }
