@@ -3,7 +3,10 @@ import { requireUser } from "@/lib/auth";
 import { getNotes, createNote } from "@/lib/db/notes";
 import { extractTodosFromText } from "@/lib/ai/extract-todos";
 import { createActionItem } from "@/lib/db/action-items";
+import { generateNoteTitle } from "@/lib/ai/source-summary";
 import { z } from "zod";
+
+const NOTE_TYPES = ["general", "future", "competitor", "partner", "idea", "reference"] as const;
 
 const createNoteSchema = z.object({
   clientId: z.string().uuid(),
@@ -11,7 +14,10 @@ const createNoteSchema = z.object({
   title: z.string().optional(),
   content: z.string().min(1),
   isPinned: z.boolean().optional(),
+  noteType: z.enum(NOTE_TYPES).optional(),
+  labels: z.array(z.string()).optional(),
   extractTodos: z.boolean().optional(), // If true, AI will extract TODOs from content
+  generateTitle: z.boolean().optional(), // If true, AI will generate title from content
 });
 
 export async function GET(req: NextRequest) {
@@ -40,14 +46,28 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const data = createNoteSchema.parse(body);
 
+    // Generate AI title if not provided and generateTitle is true (default true if no title)
+    let title = data.title;
+    if (!title && (data.generateTitle !== false)) {
+      try {
+        title = await generateNoteTitle(data.content);
+      } catch (error) {
+        console.error("Failed to generate note title:", error);
+        // Fall back to first line truncated
+        title = data.content.split("\n")[0].slice(0, 50) + (data.content.length > 50 ? "..." : "");
+      }
+    }
+
     // Create the note
     const note = await createNote({
       userId: user.id,
       clientId: data.clientId,
       sessionId: data.sessionId,
-      title: data.title,
+      title,
       content: data.content,
       isPinned: data.isPinned,
+      noteType: data.noteType,
+      labels: data.labels,
     });
 
     // Optionally extract TODOs from the note content

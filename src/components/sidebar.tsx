@@ -84,8 +84,6 @@ export function Sidebar() {
         </button>
 
         {/* Settings */}
-      {/* Settings */}
-      <div className="border-t border-border p-3">
         <Link
           href="/settings"
           className={cn(
