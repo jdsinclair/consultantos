@@ -171,8 +171,8 @@ export default function ProspectDetailPage({ params }: { params: { id: string } 
   const eval_ = prospect.evaluation;
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <Link
           href="/prospects"
           className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
@@ -184,8 +184,10 @@ export default function ProspectDetailPage({ params }: { params: { id: string } 
         <div className="flex gap-2">
           <Button
             variant="outline"
+            size="sm"
             onClick={handleEvaluate}
             disabled={evaluating}
+            className="flex-1 sm:flex-none"
           >
             {evaluating ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -195,13 +197,14 @@ export default function ProspectDetailPage({ params }: { params: { id: string } 
             {eval_ ? "Re-evaluate" : "Evaluate"}
           </Button>
 
-          <Button onClick={handleConvert} disabled={converting} className="gap-2">
+          <Button onClick={handleConvert} disabled={converting} className="gap-2 flex-1 sm:flex-none" size="sm">
             {converting ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <UserCheck className="h-4 w-4" />
             )}
-            Convert to Client
+            <span className="hidden sm:inline">Convert to Client</span>
+            <span className="sm:hidden">Convert</span>
           </Button>
         </div>
       </div>
@@ -209,25 +212,25 @@ export default function ProspectDetailPage({ params }: { params: { id: string } 
       {/* Header */}
       <Card className="mb-6">
         <CardHeader>
-          <div className="flex items-start justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
             <div>
-              <div className="flex items-center gap-3">
-                <CardTitle className="text-2xl">{prospect.name}</CardTitle>
+              <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                <CardTitle className="text-xl sm:text-2xl">{prospect.name}</CardTitle>
                 <Badge variant="secondary">Prospect</Badge>
               </div>
               {prospect.company && (
-                <CardDescription className="text-lg mt-1">
+                <CardDescription className="text-base sm:text-lg mt-1">
                   {prospect.company}
                 </CardDescription>
               )}
             </div>
             {eval_ && (
-              <div className={`text-4xl font-bold ${getFitScoreColor(eval_.fitScore)}`}>
+              <div className={`text-3xl sm:text-4xl font-bold ${getFitScoreColor(eval_.fitScore)} flex-shrink-0`}>
                 <div className="flex items-center gap-2">
-                  <Star className="h-8 w-8 fill-current" />
+                  <Star className="h-6 w-6 sm:h-8 sm:w-8 fill-current" />
                   {eval_.fitScore}/10
                 </div>
-                <p className="text-sm text-muted-foreground font-normal mt-1">
+                <p className="text-xs sm:text-sm text-muted-foreground font-normal mt-1">
                   Fit Score
                 </p>
               </div>
@@ -285,7 +288,7 @@ export default function ProspectDetailPage({ params }: { params: { id: string } 
             </CardContent>
           </Card>
 
-          <div className="grid md:grid-cols-2 gap-6">
+          <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
             {/* Why We Love It */}
             <Card className="border-green-500/30">
               <CardHeader className="pb-3">
@@ -353,7 +356,7 @@ export default function ProspectDetailPage({ params }: { params: { id: string } 
             </CardContent>
           </Card>
 
-          <div className="grid md:grid-cols-2 gap-6">
+          <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
             {/* Market Position */}
             <Card>
               <CardHeader className="pb-3">

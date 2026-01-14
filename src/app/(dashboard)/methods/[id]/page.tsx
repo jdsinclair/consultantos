@@ -178,8 +178,8 @@ export default function MethodDetailPage({ params }: { params: { id: string } })
   }
 
   return (
-    <div className="p-8 max-w-3xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <Link
           href="/methods"
           className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
@@ -189,9 +189,10 @@ export default function MethodDetailPage({ params }: { params: { id: string } })
         </Link>
 
         <div className="flex gap-2">
-          <Button variant="outline" onClick={startSessionWithMethod}>
+          <Button variant="outline" size="sm" onClick={startSessionWithMethod} className="flex-1 sm:flex-none">
             <Play className="h-4 w-4 mr-1" />
-            Use in Session
+            <span className="hidden sm:inline">Use in Session</span>
+            <span className="sm:hidden">Use</span>
           </Button>
           {!method.isTemplate && (
             <Button
@@ -199,6 +200,7 @@ export default function MethodDetailPage({ params }: { params: { id: string } })
               size="sm"
               onClick={handleDelete}
               disabled={deleting}
+              className="flex-1 sm:flex-none"
             >
               {deleting ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -314,7 +316,7 @@ export default function MethodDetailPage({ params }: { params: { id: string } })
                       />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
                         <Label>Key Questions</Label>
                         <Textarea

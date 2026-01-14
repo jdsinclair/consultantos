@@ -121,7 +121,7 @@ export default function NewPersonaPage() {
   };
 
   return (
-    <div className="p-8 max-w-3xl mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto">
       <Link
         href="/personas"
         className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6"
@@ -159,7 +159,7 @@ export default function NewPersonaPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="name">Persona Name *</Label>
                 <Input
@@ -175,12 +175,12 @@ export default function NewPersonaPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="icon">Icon</Label>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   {icons.map((icon) => (
                     <button
                       key={icon.id}
                       type="button"
-                      className={`w-10 h-10 rounded-lg border flex items-center justify-center transition-colors ${
+                      className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg border flex items-center justify-center transition-colors ${
                         formData.icon === icon.id
                           ? "border-primary bg-primary/10"
                           : "border-input hover:bg-accent"
@@ -226,7 +226,7 @@ export default function NewPersonaPage() {
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="model">AI Model</Label>
                 <select
@@ -276,15 +276,16 @@ export default function NewPersonaPage() {
         </Card>
 
         {/* Submit */}
-        <div className="flex gap-4">
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
           <Button
             type="submit"
             disabled={loading || !formData.name || !formData.systemPrompt}
+            className="w-full sm:w-auto"
           >
             {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             Create Persona
           </Button>
-          <Button type="button" variant="outline" onClick={() => router.back()}>
+          <Button type="button" variant="outline" onClick={() => router.back()} className="w-full sm:w-auto">
             Cancel
           </Button>
         </div>

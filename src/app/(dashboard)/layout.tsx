@@ -1,6 +1,7 @@
 "use client";
 
-import { Sidebar } from "@/components/sidebar";
+import { useState } from "react";
+import { Sidebar, MobileSidebar, MobileHeader } from "@/components/sidebar";
 import { OnboardingGuard } from "@/components/onboarding-guard";
 import { GlobalSearch } from "@/components/global-search";
 import { UserButton } from "@clerk/nextjs";
@@ -11,15 +12,31 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
   return (
     <DealModeProvider>
       <OnboardingGuard>
-        <div className="flex h-screen">
+        <div className="flex h-[100dvh]">
+          {/* Desktop Sidebar */}
           <Sidebar />
-          <div className="flex-1 flex flex-col overflow-hidden">
+
+          {/* Mobile Sidebar Drawer */}
+          <MobileSidebar open={sidebarOpen} onOpenChange={setSidebarOpen} />
+
+          {/* Main Content */}
+          <div className="flex-1 flex flex-col overflow-hidden min-w-0">
             {/* Top bar with search and user */}
-            <header className="h-14 border-b border-border flex items-center justify-between px-6">
-              <GlobalSearch />
+            <header className="h-14 border-b border-border bg-background flex items-center justify-between px-4 lg:px-6 gap-4 flex-shrink-0">
+              {/* Mobile: Hamburger + Logo */}
+              <MobileHeader onMenuClick={() => setSidebarOpen(true)} />
+
+              {/* Search - grows to fill space */}
+              <div className="flex-1 flex justify-center lg:justify-start">
+                <GlobalSearch />
+              </div>
+
+              {/* User button */}
               <UserButton
                 afterSignOutUrl="/sign-in"
                 appearance={{
@@ -29,6 +46,8 @@ export default function DashboardLayout({
                 }}
               />
             </header>
+
+            {/* Main content area */}
             <main className="flex-1 overflow-auto">{children}</main>
           </div>
         </div>
