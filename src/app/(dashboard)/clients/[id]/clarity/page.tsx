@@ -14,6 +14,7 @@ import {
   Save,
   Plus,
   Lock,
+  Unlock,
   FileText,
   Sparkles,
   Target,
@@ -22,6 +23,14 @@ import {
   Heart,
   Skull,
   MessageSquare,
+  Bell,
+  Check,
+  X,
+  Clock,
+  ChevronRight,
+  AlertCircle,
+  CheckCircle2,
+  LockIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
@@ -32,6 +41,30 @@ interface ClaritySection {
   content: string;
   lockedAt: string;
   source?: string;
+}
+
+interface ClarityFieldMeta {
+  status: "draft" | "confirmed" | "locked";
+  source?: string;
+  sourceContext?: string;
+  confirmedAt?: string;
+  lockedAt?: string;
+}
+
+interface ClarityInsight {
+  id: string;
+  clientId: string;
+  fieldName: string;
+  customFieldTitle?: string;
+  suggestedValue: string;
+  action: string;
+  reasoning?: string;
+  confidence?: number;
+  sourceType: string;
+  sourceId?: string;
+  sourceContext?: string;
+  status: string;
+  createdAt: string;
 }
 
 interface ClarityDocument {
@@ -48,6 +81,7 @@ interface ClarityDocument {
   whyPeopleLoveUs: string | null;
   howWeWillDie: string | null;
   sections: ClaritySection[] | null;
+  fieldMeta: Record<string, ClarityFieldMeta> | null;
   updatedAt: string;
 }
 
@@ -57,15 +91,74 @@ interface Client {
   company: string | null;
 }
 
+// Field Status Control Component
+function FieldStatusControl({
+  fieldName,
+  status,
+  hasContent,
+  onChange,
+}: {
+  fieldName: string;
+  status?: "draft" | "confirmed" | "locked";
+  hasContent: boolean;
+  onChange: (fieldName: string, status: "draft" | "confirmed" | "locked") => void;
+}) {
+  if (!hasContent) return null;
+
+  const currentStatus = status || "draft";
+
+  const handleClick = () => {
+    // Cycle through statuses: draft -> confirmed -> locked -> draft
+    const nextStatus: Record<string, "draft" | "confirmed" | "locked"> = {
+      draft: "confirmed",
+      confirmed: "locked",
+      locked: "draft",
+    };
+    onChange(fieldName, nextStatus[currentStatus]);
+  };
+
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={handleClick}
+      className="h-7 gap-1 text-xs"
+      title={`Click to ${currentStatus === "draft" ? "confirm" : currentStatus === "confirmed" ? "lock" : "unlock"}`}
+    >
+      {currentStatus === "draft" && (
+        <>
+          <AlertCircle className="h-3 w-3 text-muted-foreground" />
+          <span className="text-muted-foreground">Draft</span>
+        </>
+      )}
+      {currentStatus === "confirmed" && (
+        <>
+          <CheckCircle2 className="h-3 w-3 text-green-600" />
+          <span className="text-green-600">Confirmed</span>
+        </>
+      )}
+      {currentStatus === "locked" && (
+        <>
+          <LockIcon className="h-3 w-3 text-primary" />
+          <span className="text-primary">Locked</span>
+        </>
+      )}
+    </Button>
+  );
+}
+
 export default function ClarityDocumentPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const [client, setClient] = useState<Client | null>(null);
   const [doc, setDoc] = useState<ClarityDocument | null>(null);
+  const [insights, setInsights] = useState<ClarityInsight[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [newSection, setNewSection] = useState({ title: "", content: "" });
   const [showAddSection, setShowAddSection] = useState(false);
+  const [showInsightsPanel, setShowInsightsPanel] = useState(false);
+  const [processingInsight, setProcessingInsight] = useState<string | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -73,13 +166,15 @@ export default function ClarityDocumentPage({ params }: { params: { id: string }
 
   const fetchData = async () => {
     try {
-      const [clientRes, clarityRes] = await Promise.all([
+      const [clientRes, clarityRes, insightsRes] = await Promise.all([
         fetch(`/api/clients/${params.id}`),
         fetch(`/api/clients/${params.id}/clarity`),
+        fetch(`/api/clients/${params.id}/clarity/insights`),
       ]);
 
       if (clientRes.ok) setClient(await clientRes.json());
       if (clarityRes.ok) setDoc(await clarityRes.json());
+      if (insightsRes.ok) setInsights(await insightsRes.json());
     } catch (error) {
       console.error("Failed to fetch data:", error);
     } finally {
@@ -147,6 +242,96 @@ export default function ClarityDocumentPage({ params }: { params: { id: string }
     }
   };
 
+  const handleInsightAction = async (insightId: string, action: "accept" | "reject" | "defer") => {
+    setProcessingInsight(insightId);
+    try {
+      const res = await fetch(`/api/clients/${params.id}/clarity/insights`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ insightId, action }),
+      });
+
+      if (res.ok) {
+        // Remove from pending list
+        setInsights((prev) => prev.filter((i) => i.id !== insightId));
+        // Refresh doc if accepted (to get updated values)
+        if (action === "accept") {
+          fetchData();
+        }
+      }
+    } catch (error) {
+      console.error("Failed to process insight:", error);
+    } finally {
+      setProcessingInsight(null);
+    }
+  };
+
+  const handleFieldStatusChange = async (fieldName: string, status: "draft" | "confirmed" | "locked") => {
+    try {
+      const res = await fetch(`/api/clients/${params.id}/clarity/field-status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fieldName, status }),
+      });
+
+      if (res.ok) {
+        const updatedDoc = await res.json();
+        setDoc(updatedDoc);
+      }
+    } catch (error) {
+      console.error("Failed to update field status:", error);
+    }
+  };
+
+  const getFieldStatus = (fieldName: string): ClarityFieldMeta | undefined => {
+    return doc?.fieldMeta?.[fieldName];
+  };
+
+  const getFieldStatusBadge = (fieldName: string) => {
+    const meta = getFieldStatus(fieldName);
+    if (!meta) return null;
+
+    switch (meta.status) {
+      case "draft":
+        return (
+          <Badge variant="secondary" className="gap-1 text-xs">
+            <AlertCircle className="h-3 w-3" />
+            Draft
+          </Badge>
+        );
+      case "confirmed":
+        return (
+          <Badge variant="default" className="gap-1 text-xs bg-green-600">
+            <CheckCircle2 className="h-3 w-3" />
+            Confirmed
+          </Badge>
+        );
+      case "locked":
+        return (
+          <Badge variant="outline" className="gap-1 text-xs border-primary">
+            <LockIcon className="h-3 w-3" />
+            Locked
+          </Badge>
+        );
+    }
+  };
+
+  const getFieldNameDisplay = (fieldName: string) => {
+    const displayNames: Record<string, string> = {
+      niche: "Niche",
+      desiredOutcome: "Desired Outcome",
+      offer: "Offer",
+      positioningStatement: "Positioning Statement",
+      whoWeAre: "Who We Are",
+      whatWeDo: "What We Do",
+      howWeDoIt: "How We Do It",
+      ourWedge: "Our Wedge",
+      whyPeopleLoveUs: "Why People Love Us",
+      howWeWillDie: "How We Will Die",
+    };
+    return displayNames[fieldName] || fieldName;
+  };
+
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center p-8">
@@ -176,14 +361,32 @@ export default function ClarityDocumentPage({ params }: { params: { id: string }
           Back to {client.name}
         </Link>
 
-        <Button onClick={handleSave} disabled={saving || !hasChanges}>
-          {saving ? (
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-          ) : (
-            <Save className="h-4 w-4 mr-2" />
-          )}
-          Save Changes
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* Insights Bell */}
+          <Button
+            variant={showInsightsPanel ? "default" : "outline"}
+            size="sm"
+            onClick={() => setShowInsightsPanel(!showInsightsPanel)}
+            className="relative gap-2"
+          >
+            <Bell className="h-4 w-4" />
+            Insights
+            {insights.length > 0 && (
+              <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center font-medium">
+                {insights.length}
+              </span>
+            )}
+          </Button>
+
+          <Button onClick={handleSave} disabled={saving || !hasChanges}>
+            {saving ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Save className="h-4 w-4 mr-2" />
+            )}
+            Save Changes
+          </Button>
+        </div>
       </div>
 
       {/* Header */}
@@ -201,6 +404,111 @@ export default function ClarityDocumentPage({ params }: { params: { id: string }
           </p>
         )}
       </div>
+
+      {/* Insights Panel */}
+      {showInsightsPanel && (
+        <Card className="mb-8 border-amber-500/50 bg-amber-50/50 dark:bg-amber-950/20">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Bell className="h-5 w-5 text-amber-600" />
+                Pending Insights
+                {insights.length > 0 && (
+                  <Badge variant="secondary" className="ml-2">{insights.length}</Badge>
+                )}
+              </CardTitle>
+              <Button variant="ghost" size="sm" onClick={() => setShowInsightsPanel(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <CardDescription>
+              AI-suggested updates based on your sources and conversations
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {insights.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No pending insights. New suggestions will appear here as you add sources and have conversations.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {insights.map((insight) => (
+                  <Card key={insight.id} className="bg-background">
+                    <CardContent className="p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Badge variant="outline" className="text-xs">
+                              {getFieldNameDisplay(insight.fieldName)}
+                            </Badge>
+                            {insight.confidence && (
+                              <span className="text-xs text-muted-foreground">
+                                {Math.round(insight.confidence * 100)}% confidence
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm font-medium mb-2 line-clamp-2">
+                            {insight.suggestedValue}
+                          </p>
+                          {insight.reasoning && (
+                            <p className="text-xs text-muted-foreground mb-2 line-clamp-2">
+                              {insight.reasoning}
+                            </p>
+                          )}
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Badge variant="secondary" className="text-xs">
+                              {insight.sourceType}
+                            </Badge>
+                            <span>
+                              {formatDistanceToNow(new Date(insight.createdAt), { addSuffix: true })}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <Button
+                            size="sm"
+                            variant="default"
+                            className="h-8 gap-1"
+                            onClick={() => handleInsightAction(insight.id, "accept")}
+                            disabled={processingInsight === insight.id}
+                          >
+                            {processingInsight === insight.id ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <Check className="h-3 w-3" />
+                            )}
+                            Accept
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 gap-1"
+                            onClick={() => handleInsightAction(insight.id, "reject")}
+                            disabled={processingInsight === insight.id}
+                          >
+                            <X className="h-3 w-3" />
+                            Reject
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 gap-1 text-xs"
+                            onClick={() => handleInsightAction(insight.id, "defer")}
+                            disabled={processingInsight === insight.id}
+                          >
+                            <Clock className="h-3 w-3" />
+                            Later
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Positioning Statement */}
       <Card className="mb-8 border-primary">
@@ -268,9 +576,17 @@ export default function ClarityDocumentPage({ params }: { params: { id: string }
 
       {/* Business Fundamentals */}
       <div className="grid md:grid-cols-2 gap-6 mb-8">
-        <Card>
+        <Card className={getFieldStatus("whoWeAre")?.status === "locked" ? "border-primary/50" : ""}>
           <CardHeader className="pb-3">
-            <CardTitle className="text-lg">Who We Are</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg">Who We Are</CardTitle>
+              <FieldStatusControl
+                fieldName="whoWeAre"
+                status={getFieldStatus("whoWeAre")?.status}
+                hasContent={!!doc.whoWeAre}
+                onChange={handleFieldStatusChange}
+              />
+            </div>
           </CardHeader>
           <CardContent>
             <Textarea
@@ -278,13 +594,23 @@ export default function ClarityDocumentPage({ params }: { params: { id: string }
               value={doc.whoWeAre || ""}
               onChange={(e) => handleFieldChange("whoWeAre", e.target.value)}
               rows={4}
+              disabled={getFieldStatus("whoWeAre")?.status === "locked"}
+              className={getFieldStatus("whoWeAre")?.status === "locked" ? "bg-muted" : ""}
             />
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className={getFieldStatus("whatWeDo")?.status === "locked" ? "border-primary/50" : ""}>
           <CardHeader className="pb-3">
-            <CardTitle className="text-lg">What We Do</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg">What We Do</CardTitle>
+              <FieldStatusControl
+                fieldName="whatWeDo"
+                status={getFieldStatus("whatWeDo")?.status}
+                hasContent={!!doc.whatWeDo}
+                onChange={handleFieldStatusChange}
+              />
+            </div>
           </CardHeader>
           <CardContent>
             <Textarea
@@ -292,13 +618,23 @@ export default function ClarityDocumentPage({ params }: { params: { id: string }
               value={doc.whatWeDo || ""}
               onChange={(e) => handleFieldChange("whatWeDo", e.target.value)}
               rows={4}
+              disabled={getFieldStatus("whatWeDo")?.status === "locked"}
+              className={getFieldStatus("whatWeDo")?.status === "locked" ? "bg-muted" : ""}
             />
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className={getFieldStatus("howWeDoIt")?.status === "locked" ? "border-primary/50" : ""}>
           <CardHeader className="pb-3">
-            <CardTitle className="text-lg">How We Do It</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg">How We Do It</CardTitle>
+              <FieldStatusControl
+                fieldName="howWeDoIt"
+                status={getFieldStatus("howWeDoIt")?.status}
+                hasContent={!!doc.howWeDoIt}
+                onChange={handleFieldStatusChange}
+              />
+            </div>
           </CardHeader>
           <CardContent>
             <Textarea
@@ -306,16 +642,26 @@ export default function ClarityDocumentPage({ params }: { params: { id: string }
               value={doc.howWeDoIt || ""}
               onChange={(e) => handleFieldChange("howWeDoIt", e.target.value)}
               rows={4}
+              disabled={getFieldStatus("howWeDoIt")?.status === "locked"}
+              className={getFieldStatus("howWeDoIt")?.status === "locked" ? "bg-muted" : ""}
             />
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className={getFieldStatus("ourWedge")?.status === "locked" ? "border-primary/50" : ""}>
           <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Zap className="h-4 w-4" />
-              Our Wedge
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Zap className="h-4 w-4" />
+                Our Wedge
+              </CardTitle>
+              <FieldStatusControl
+                fieldName="ourWedge"
+                status={getFieldStatus("ourWedge")?.status}
+                hasContent={!!doc.ourWedge}
+                onChange={handleFieldStatusChange}
+              />
+            </div>
             <CardDescription>The unique differentiator</CardDescription>
           </CardHeader>
           <CardContent>
@@ -324,16 +670,26 @@ export default function ClarityDocumentPage({ params }: { params: { id: string }
               value={doc.ourWedge || ""}
               onChange={(e) => handleFieldChange("ourWedge", e.target.value)}
               rows={4}
+              disabled={getFieldStatus("ourWedge")?.status === "locked"}
+              className={getFieldStatus("ourWedge")?.status === "locked" ? "bg-muted" : ""}
             />
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className={getFieldStatus("whyPeopleLoveUs")?.status === "locked" ? "border-primary/50" : ""}>
           <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Heart className="h-4 w-4 text-pink-500" />
-              Why People Love Us
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Heart className="h-4 w-4 text-pink-500" />
+                Why People Love Us
+              </CardTitle>
+              <FieldStatusControl
+                fieldName="whyPeopleLoveUs"
+                status={getFieldStatus("whyPeopleLoveUs")?.status}
+                hasContent={!!doc.whyPeopleLoveUs}
+                onChange={handleFieldStatusChange}
+              />
+            </div>
           </CardHeader>
           <CardContent>
             <Textarea
@@ -341,16 +697,26 @@ export default function ClarityDocumentPage({ params }: { params: { id: string }
               value={doc.whyPeopleLoveUs || ""}
               onChange={(e) => handleFieldChange("whyPeopleLoveUs", e.target.value)}
               rows={4}
+              disabled={getFieldStatus("whyPeopleLoveUs")?.status === "locked"}
+              className={getFieldStatus("whyPeopleLoveUs")?.status === "locked" ? "bg-muted" : ""}
             />
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className={getFieldStatus("howWeWillDie")?.status === "locked" ? "border-primary/50" : ""}>
           <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Skull className="h-4 w-4 text-destructive" />
-              How We Will Die
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Skull className="h-4 w-4 text-destructive" />
+                How We Will Die
+              </CardTitle>
+              <FieldStatusControl
+                fieldName="howWeWillDie"
+                status={getFieldStatus("howWeWillDie")?.status}
+                hasContent={!!doc.howWeWillDie}
+                onChange={handleFieldStatusChange}
+              />
+            </div>
             <CardDescription>Existential risks and threats</CardDescription>
           </CardHeader>
           <CardContent>
@@ -359,6 +725,8 @@ export default function ClarityDocumentPage({ params }: { params: { id: string }
               value={doc.howWeWillDie || ""}
               onChange={(e) => handleFieldChange("howWeWillDie", e.target.value)}
               rows={4}
+              disabled={getFieldStatus("howWeWillDie")?.status === "locked"}
+              className={getFieldStatus("howWeWillDie")?.status === "locked" ? "bg-muted" : ""}
             />
           </CardContent>
         </Card>
