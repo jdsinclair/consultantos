@@ -54,14 +54,14 @@ export default function MethodsPage() {
   }
 
   return (
-    <div className="p-8">
-      <div className="mb-8 flex items-center justify-between">
+    <div className="p-4 sm:p-6 lg:p-8">
+      <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Methods</h1>
-          <p className="text-muted-foreground">Your consulting frameworks and playbooks</p>
+          <h1 className="text-2xl sm:text-3xl font-bold">Methods</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">Your consulting frameworks and playbooks</p>
         </div>
         <Link href="/methods/new">
-          <Button className="gap-2">
+          <Button className="gap-2 w-full sm:w-auto">
             <Plus className="h-4 w-4" />
             Create Method
           </Button>
@@ -70,11 +70,12 @@ export default function MethodsPage() {
 
       {/* Method Categories */}
       {categories.length > 0 && (
-        <div className="mb-6 flex gap-2 flex-wrap">
+        <div className="mb-6 flex gap-2 overflow-x-auto pb-1 -mb-1">
           <Button
             variant={categoryFilter === null ? "secondary" : "outline"}
             size="sm"
             onClick={() => setCategoryFilter(null)}
+            className="flex-shrink-0"
           >
             All
           </Button>
@@ -84,6 +85,7 @@ export default function MethodsPage() {
               variant={categoryFilter === cat ? "secondary" : "outline"}
               size="sm"
               onClick={() => setCategoryFilter(cat)}
+              className="flex-shrink-0"
             >
               {cat}
             </Button>

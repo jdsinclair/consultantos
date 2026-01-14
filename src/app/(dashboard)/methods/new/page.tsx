@@ -177,7 +177,7 @@ export default function NewMethodPage() {
   };
 
   return (
-    <div className="p-8 max-w-3xl mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto">
       <Link
         href="/methods"
         className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6"
@@ -323,7 +323,7 @@ export default function NewMethodPage() {
                       />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
                         <Label>Key Questions</Label>
                         <Textarea
@@ -374,12 +374,12 @@ export default function NewMethodPage() {
         </div>
 
         {/* Submit */}
-        <div className="flex gap-4">
-          <Button type="submit" disabled={loading || !formData.name}>
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+          <Button type="submit" disabled={loading || !formData.name} className="w-full sm:w-auto">
             {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             Create Method
           </Button>
-          <Button type="button" variant="outline" onClick={() => router.back()}>
+          <Button type="button" variant="outline" onClick={() => router.back()} className="w-full sm:w-auto">
             Cancel
           </Button>
         </div>

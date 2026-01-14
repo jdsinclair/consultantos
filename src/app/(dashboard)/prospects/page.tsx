@@ -82,16 +82,16 @@ export default function ProspectsPage() {
   }
 
   return (
-    <div className="p-8">
-      <div className="mb-8 flex items-center justify-between">
+    <div className="p-4 sm:p-6 lg:p-8">
+      <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Prospects</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl sm:text-3xl font-bold">Prospects</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">
             Evaluate potential clients before they become engagements
           </p>
         </div>
         <Link href="/prospects/new">
-          <Button className="gap-2">
+          <Button className="gap-2 w-full sm:w-auto">
             <Plus className="h-4 w-4" />
             Add Prospect
           </Button>
@@ -99,7 +99,7 @@ export default function ProspectsPage() {
       </div>
 
       {/* Search */}
-      <div className="mb-6 relative max-w-md">
+      <div className="mb-6 relative sm:max-w-md">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           placeholder="Search prospects..."

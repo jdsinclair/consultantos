@@ -68,14 +68,14 @@ export default function ClientsPage() {
   }
 
   return (
-    <div className="p-8">
-      <div className="mb-8 flex items-center justify-between">
+    <div className="p-4 sm:p-6 lg:p-8">
+      <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Clients</h1>
-          <p className="text-muted-foreground">Manage your consulting engagements</p>
+          <h1 className="text-2xl sm:text-3xl font-bold">Clients</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">Manage your consulting engagements</p>
         </div>
         <Link href="/clients/new">
-          <Button className="gap-2">
+          <Button className="gap-2 w-full sm:w-auto">
             <Plus className="h-4 w-4" />
             Add Client
           </Button>
@@ -83,8 +83,8 @@ export default function ClientsPage() {
       </div>
 
       {/* Search and Filters */}
-      <div className="mb-6 flex gap-4">
-        <div className="relative flex-1 max-w-md">
+      <div className="mb-6 flex flex-col sm:flex-row gap-3 sm:gap-4">
+        <div className="relative flex-1 sm:max-w-md">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search clients..."
@@ -93,24 +93,32 @@ export default function ClientsPage() {
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
-        <Button
-          variant={statusFilter === null ? "default" : "outline"}
-          onClick={() => setStatusFilter(null)}
-        >
-          All
-        </Button>
-        <Button
-          variant={statusFilter === "active" ? "default" : "outline"}
-          onClick={() => setStatusFilter("active")}
-        >
-          Active
-        </Button>
-        <Button
-          variant={statusFilter === "paused" ? "default" : "outline"}
-          onClick={() => setStatusFilter("paused")}
-        >
-          Paused
-        </Button>
+        <div className="flex gap-2 overflow-x-auto pb-1 -mb-1">
+          <Button
+            variant={statusFilter === null ? "default" : "outline"}
+            size="sm"
+            onClick={() => setStatusFilter(null)}
+            className="flex-shrink-0"
+          >
+            All
+          </Button>
+          <Button
+            variant={statusFilter === "active" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setStatusFilter("active")}
+            className="flex-shrink-0"
+          >
+            Active
+          </Button>
+          <Button
+            variant={statusFilter === "paused" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setStatusFilter("paused")}
+            className="flex-shrink-0"
+          >
+            Paused
+          </Button>
+        </div>
       </div>
 
       {/* Client Grid */}
