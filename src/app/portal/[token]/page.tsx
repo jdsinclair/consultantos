@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -59,11 +60,15 @@ export default function ClientPortalPage({
 }: {
   params: { token: string };
 }) {
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [portalData, setPortalData] = useState<PortalData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<SharedItem | null>(null);
   const [expandedView, setExpandedView] = useState(false);
+
+  // Get item ID from query param for deep linking
+  const deepLinkItemId = searchParams.get("item");
 
   useEffect(() => {
     async function fetchPortal() {
@@ -79,9 +84,25 @@ export default function ClientPortalPage({
         }
         const data = await res.json();
         setPortalData(data);
-        // Auto-select first item if available
+
+        // Auto-select item: prioritize deep link item, fallback to first item
         if (data.items?.length > 0) {
-          setSelectedItem(data.items[0]);
+          if (deepLinkItemId) {
+            // Find the item matching the deep link
+            const deepLinkedItem = data.items.find(
+              (item: SharedItem) => item.itemId === deepLinkItemId
+            );
+            if (deepLinkedItem) {
+              setSelectedItem(deepLinkedItem);
+              // Auto-expand when deep linking to a specific item
+              setExpandedView(true);
+            } else {
+              // Fallback to first item if deep link item not found
+              setSelectedItem(data.items[0]);
+            }
+          } else {
+            setSelectedItem(data.items[0]);
+          }
         }
       } catch (e) {
         console.error("Failed to fetch portal:", e);
@@ -91,7 +112,7 @@ export default function ClientPortalPage({
       }
     }
     fetchPortal();
-  }, [params.token]);
+  }, [params.token, deepLinkItemId]);
 
   if (loading) {
     return (
