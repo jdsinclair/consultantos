@@ -607,12 +607,27 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
     updatePlan({ sections });
   };
 
+  // Map old status values to new ones for backward compatibility
+  const normalizeStatus = (status?: string): 'active' | 'draft' | 'completed' | 'backlog' => {
+    if (!status) return 'active'; // Default to active for existing plans
+    // Map old statuses
+    if (status === 'in_progress') return 'active';
+    if (status === 'done') return 'completed';
+    if (status === 'not_started') return 'draft';
+    if (status === 'blocked') return 'active'; // Keep blocked items visible
+    // New statuses
+    if (status === 'active' || status === 'draft' || status === 'completed' || status === 'backlog') {
+      return status;
+    }
+    return 'active'; // Default fallback
+  };
+
   // Get sections grouped by status
   const groupedSections = {
-    active: plan?.sections?.filter(s => s.status === 'active') || [],
-    draft: plan?.sections?.filter(s => s.status === 'draft' || !s.status) || [],
-    backlog: plan?.sections?.filter(s => s.status === 'backlog') || [],
-    completed: plan?.sections?.filter(s => s.status === 'completed') || [],
+    active: plan?.sections?.filter(s => normalizeStatus(s.status) === 'active') || [],
+    draft: plan?.sections?.filter(s => normalizeStatus(s.status) === 'draft') || [],
+    backlog: plan?.sections?.filter(s => normalizeStatus(s.status) === 'backlog') || [],
+    completed: plan?.sections?.filter(s => normalizeStatus(s.status) === 'completed') || [],
   };
 
   // Item management
@@ -1109,16 +1124,22 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
 
         {/* Initiatives / The Plan */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <h2 className="text-lg font-semibold flex items-center gap-2">
               <Layers className="h-5 w-5 text-orange-500" />
               Initiatives
             </h2>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => addInitiative('draft')}>
+            <div className="flex gap-2 flex-wrap">
+              <Button variant="outline" size="sm" onClick={() => addInitiative('active')}>
                 <Plus className="h-4 w-4 mr-1" />
                 Add Initiative
               </Button>
+              {groupedSections.backlog.length === 0 && plan.sections && plan.sections.length > 0 && (
+                <Button variant="ghost" size="sm" onClick={() => addInitiative('backlog')}>
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Backlog
+                </Button>
+              )}
               {!plan.sections?.length && (
                 <Button 
                   size="sm" 
@@ -1295,18 +1316,6 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
             </div>
           )}
 
-          {/* Quick add buttons for empty groups */}
-          {plan.sections && plan.sections.length > 0 && groupedSections.backlog.length === 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-muted-foreground"
-              onClick={() => addInitiative('backlog')}
-            >
-              <Plus className="h-4 w-4 mr-1" />
-              Add Backlog
-            </Button>
-          )}
         </div>
 
         {/* Notes */}
