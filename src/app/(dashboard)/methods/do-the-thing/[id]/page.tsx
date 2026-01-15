@@ -1045,13 +1045,27 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
               <Label className="text-xs text-muted-foreground uppercase tracking-wide">Quantitative</Label>
               <div className="space-y-1">
                 {plan.successMetrics?.quantitative?.map((metric, i) => (
-                  <div key={i} className="flex items-center gap-2 text-sm">
-                    <CheckCircle2 className="h-3 w-3 text-green-500" />
-                    <span>{metric}</span>
+                  <div key={i} className="flex items-center gap-2 text-sm group">
+                    <CheckCircle2 className="h-3 w-3 text-green-500 flex-shrink-0" />
+                    <Input
+                      value={metric}
+                      onChange={(e) => {
+                        const newMetrics = [...(plan.successMetrics?.quantitative || [])];
+                        newMetrics[i] = e.target.value;
+                        updatePlan({ 
+                          successMetrics: { 
+                            ...plan.successMetrics, 
+                            quantitative: newMetrics,
+                            qualitative: plan.successMetrics?.qualitative || []
+                          } 
+                        });
+                      }}
+                      className="h-7 text-sm border-0 bg-transparent focus-visible:bg-background focus-visible:border px-1"
+                    />
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-6 w-6 ml-auto opacity-0 hover:opacity-100"
+                      className="h-6 w-6 opacity-0 group-hover:opacity-100 flex-shrink-0"
                       onClick={() => {
                         const metrics = {
                           ...plan.successMetrics,
@@ -1084,13 +1098,27 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
               <Label className="text-xs text-muted-foreground uppercase tracking-wide">Qualitative</Label>
               <div className="space-y-1">
                 {plan.successMetrics?.qualitative?.map((metric, i) => (
-                  <div key={i} className="flex items-center gap-2 text-sm">
-                    <CheckCircle2 className="h-3 w-3 text-blue-500" />
-                    <span>{metric}</span>
+                  <div key={i} className="flex items-center gap-2 text-sm group">
+                    <CheckCircle2 className="h-3 w-3 text-blue-500 flex-shrink-0" />
+                    <Input
+                      value={metric}
+                      onChange={(e) => {
+                        const newMetrics = [...(plan.successMetrics?.qualitative || [])];
+                        newMetrics[i] = e.target.value;
+                        updatePlan({ 
+                          successMetrics: { 
+                            ...plan.successMetrics, 
+                            quantitative: plan.successMetrics?.quantitative || [],
+                            qualitative: newMetrics
+                          } 
+                        });
+                      }}
+                      className="h-7 text-sm border-0 bg-transparent focus-visible:bg-background focus-visible:border px-1"
+                    />
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-6 w-6 ml-auto opacity-0 hover:opacity-100"
+                      className="h-6 w-6 opacity-0 group-hover:opacity-100 flex-shrink-0"
                       onClick={() => {
                         const metrics = {
                           ...plan.successMetrics,
@@ -1349,14 +1377,22 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
             {plan.rules?.map((rule, i) => (
               <div 
                 key={i} 
-                className="flex items-start gap-2 p-2 rounded-lg bg-red-500/5 border border-red-500/20"
+                className="flex items-start gap-2 p-2 rounded-lg bg-red-500/5 border border-red-500/20 group"
               >
-                <AlertTriangle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
-                <span className="text-sm flex-1">{rule}</span>
+                <AlertTriangle className="h-4 w-4 text-red-500 mt-1.5 flex-shrink-0" />
+                <Input
+                  value={rule}
+                  onChange={(e) => {
+                    const newRules = [...(plan.rules || [])];
+                    newRules[i] = e.target.value;
+                    updatePlan({ rules: newRules });
+                  }}
+                  className="text-sm flex-1 h-7 border-0 bg-transparent focus-visible:bg-background focus-visible:border px-1"
+                />
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6"
+                  className="h-6 w-6 opacity-0 group-hover:opacity-100 flex-shrink-0"
                   onClick={() => deleteRule(i)}
                 >
                   <X className="h-3 w-3" />
@@ -1719,12 +1755,27 @@ function InitiativeCard({
                   <Label className="text-xs">Quantitative Metrics</Label>
                   <div className="space-y-1">
                     {section.successMetrics?.quantitative?.map((metric, i) => (
-                      <div key={i} className="flex items-center gap-2 text-sm">
-                        <span className="flex-1">{metric}</span>
+                      <div key={i} className="flex items-center gap-2 text-sm group">
+                        <CheckCircle2 className="h-3 w-3 text-green-500 flex-shrink-0" />
+                        <Input
+                          value={metric}
+                          onChange={(e) => {
+                            const newMetrics = [...(section.successMetrics?.quantitative || [])];
+                            newMetrics[i] = e.target.value;
+                            onUpdate({ 
+                              successMetrics: { 
+                                ...section.successMetrics, 
+                                quantitative: newMetrics,
+                                qualitative: section.successMetrics?.qualitative || []
+                              } 
+                            });
+                          }}
+                          className="h-6 text-xs border-0 bg-transparent focus-visible:bg-background focus-visible:border px-1 flex-1"
+                        />
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-5 w-5"
+                          className="h-5 w-5 opacity-0 group-hover:opacity-100 flex-shrink-0"
                           onClick={() => {
                             const metrics = {
                               ...section.successMetrics,
@@ -1758,12 +1809,27 @@ function InitiativeCard({
                   <Label className="text-xs">Qualitative Metrics</Label>
                   <div className="space-y-1">
                     {section.successMetrics?.qualitative?.map((metric, i) => (
-                      <div key={i} className="flex items-center gap-2 text-sm">
-                        <span className="flex-1">{metric}</span>
+                      <div key={i} className="flex items-center gap-2 text-sm group">
+                        <CheckCircle2 className="h-3 w-3 text-blue-500 flex-shrink-0" />
+                        <Input
+                          value={metric}
+                          onChange={(e) => {
+                            const newMetrics = [...(section.successMetrics?.qualitative || [])];
+                            newMetrics[i] = e.target.value;
+                            onUpdate({ 
+                              successMetrics: { 
+                                ...section.successMetrics, 
+                                quantitative: section.successMetrics?.quantitative || [],
+                                qualitative: newMetrics
+                              } 
+                            });
+                          }}
+                          className="h-6 text-xs border-0 bg-transparent focus-visible:bg-background focus-visible:border px-1 flex-1"
+                        />
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-5 w-5"
+                          className="h-5 w-5 opacity-0 group-hover:opacity-100 flex-shrink-0"
                           onClick={() => {
                             const metrics = {
                               quantitative: section.successMetrics?.quantitative || [],
@@ -1799,13 +1865,21 @@ function InitiativeCard({
                 <Label className="text-xs">Rules / Constraints</Label>
                 <div className="space-y-1">
                   {section.rules?.map((rule, i) => (
-                    <div key={i} className="flex items-center gap-2 text-sm">
+                    <div key={i} className="flex items-center gap-2 text-sm group">
                       <Shield className="h-3 w-3 text-red-500 flex-shrink-0" />
-                      <span className="flex-1">{rule}</span>
+                      <Input
+                        value={rule}
+                        onChange={(e) => {
+                          const newRules = [...(section.rules || [])];
+                          newRules[i] = e.target.value;
+                          onUpdate({ rules: newRules });
+                        }}
+                        className="h-6 text-xs border-0 bg-transparent focus-visible:bg-background focus-visible:border px-1 flex-1"
+                      />
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-5 w-5"
+                        className="h-5 w-5 opacity-0 group-hover:opacity-100 flex-shrink-0"
                         onClick={() => {
                           onUpdate({ rules: section.rules?.filter((_, idx) => idx !== i) });
                         }}
