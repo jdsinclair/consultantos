@@ -209,7 +209,7 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
   }, [messages]);
 
   // Handle chat message submission from ChatComposer
-  const handleChatSubmit = useCallback((
+  const handleChatSubmit = useCallback(async (
     message: string,
     options: {
       personaId?: string;
@@ -235,7 +235,8 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
 **Tips:**
 - Ask me to break down complex tasks
 - Use \`#\` to reference specific documents for context
-- Ask about risks or missing steps`,
+- Ask about risks or missing steps
+- Say "add section X" or "add item Y to section Z" to suggest plan changes`,
       });
       return;
     }
@@ -245,12 +246,112 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
       setSelectedPersona(options.personaId);
     }
 
+    // Build enhanced message with source content
+    let enhancedMessage = message;
+    
+    // Include referenced sources content
+    if (options.sourceIds && options.sourceIds.length > 0) {
+      const sourceContents: string[] = [];
+      for (const sourceId of options.sourceIds) {
+        const source = sources.find(s => s.id === sourceId);
+        if (source) {
+          try {
+            const res = await fetch(`/api/sources/${sourceId}`);
+            if (res.ok) {
+              const data = await res.json();
+              if (data.content) {
+                sourceContents.push(`\n\n--- Content from "${source.name}" ---\n${data.content.slice(0, 5000)}`);
+              }
+            }
+          } catch (e) {
+            console.error("Failed to fetch source content:", e);
+          }
+        }
+      }
+      if (sourceContents.length > 0) {
+        enhancedMessage = message + sourceContents.join("\n");
+      }
+    }
+
+    // Handle file attachments - upload and extract content
+    if (options.attachments && options.attachments.length > 0) {
+      for (const file of options.attachments) {
+        try {
+          // Upload the file
+          const formData = new FormData();
+          formData.append("file", file);
+          formData.append("clientId", plan?.clientId || "");
+          
+          const uploadRes = await fetch("/api/upload", {
+            method: "POST",
+            body: formData,
+          });
+          
+          if (uploadRes.ok) {
+            const uploadData = await uploadRes.json();
+            if (uploadData.content) {
+              enhancedMessage += `\n\n--- Content from attached "${file.name}" ---\n${uploadData.content.slice(0, 5000)}`;
+            } else if (file.type.startsWith("image/")) {
+              enhancedMessage += `\n\n[Attached image: ${file.name} - uploaded to sources for vision analysis]`;
+            }
+          }
+        } catch (e) {
+          console.error("Failed to upload attachment:", e);
+        }
+      }
+    }
+
     // Append message
     append({
       role: "user",
-      content: message,
+      content: enhancedMessage,
     });
-  }, [append, setMessages, selectedPersona, chatStorageKey]);
+  }, [append, setMessages, selectedPersona, chatStorageKey, sources, plan?.clientId]);
+
+  // Apply AI suggestion to plan
+  const applyAISuggestion = useCallback((suggestion: {
+    type: "addSection" | "addItem" | "updateItem";
+    sectionTitle?: string;
+    sectionId?: string;
+    itemText?: string;
+    itemId?: string;
+    updates?: Partial<PlanItem>;
+  }) => {
+    if (!plan) return;
+    
+    if (suggestion.type === "addSection" && suggestion.sectionTitle) {
+      const sections = plan.sections || [];
+      const newSection: PlanSection = {
+        id: crypto.randomUUID(),
+        title: suggestion.sectionTitle,
+        items: [],
+        order: sections.length,
+      };
+      updatePlan({ sections: [...sections, newSection] });
+      setExpandedSections((prev) => new Set([...Array.from(prev), newSection.id]));
+    }
+    
+    if (suggestion.type === "addItem" && suggestion.sectionId && suggestion.itemText) {
+      const sections = plan.sections?.map((s) => {
+        if (s.id === suggestion.sectionId) {
+          return {
+            ...s,
+            items: [
+              ...s.items,
+              {
+                id: crypto.randomUUID(),
+                text: suggestion.itemText!,
+                done: false,
+                order: s.items.length,
+              },
+            ],
+          };
+        }
+        return s;
+      });
+      updatePlan({ sections });
+    }
+  }, [plan, updatePlan]);
 
   // Auto-save with debounce
   const autoSave = useCallback((updates: Partial<ExecutionPlan>) => {

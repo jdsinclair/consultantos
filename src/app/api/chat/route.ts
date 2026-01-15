@@ -200,11 +200,38 @@ Think about:
 - What are the hard boundaries?
 - What are the timing constraints?
 
+## WHEN THE USER ASKS YOU TO ADD/EDIT THE PLAN:
+When the user asks to add sections or items to the plan, format your suggestions clearly so they can easily add them:
+
+For new sections, use this format:
+**📂 ADD SECTION: "(a) Section Name"**
+
+For new items in a section, use this format:
+**➕ ADD TO [section name]:**
+- Item 1 text
+- Item 2 text
+- Item 3 text
+
+For sub-items, indent them:
+**➕ ADD TO [section name]:**
+- Main item
+  - Sub-item 1
+  - Sub-item 2
+
+The user can then copy these directly or ask you to elaborate on any item.
+
+## WHEN USER SHARES IMAGES/DOCUMENTS:
+If the user shares a whiteboard, diagram, or document:
+1. List out every item you can see
+2. Organize them into logical sections
+3. Identify what's missing or unclear
+4. Suggest the order of operations
+
 Be direct. Help the user see what they're missing.`;
 
       // Add plan context if provided
       if (body.plan) {
-        systemPrompt += `\n\n## CURRENT PLAN:\n${JSON.stringify(body.plan, null, 2)}`;
+        systemPrompt += `\n\n## CURRENT PLAN STATE:\n${JSON.stringify(body.plan, null, 2)}`;
       }
     }
 
