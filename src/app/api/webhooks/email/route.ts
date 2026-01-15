@@ -6,9 +6,9 @@ import { eq, ilike } from "drizzle-orm";
 import { extractTodosFromEmail } from "@/lib/ai/extract-todos";
 import { createActionItem } from "@/lib/db/action-items";
 
-// Resend API helper functions (receiving API not yet in SDK)
+// Resend API helper functions for INBOUND emails (receiving API not yet in SDK)
 async function fetchResendEmail(emailId: string) {
-  const res = await fetch(`https://api.resend.com/emails/${emailId}`, {
+  const res = await fetch(`https://api.resend.com/inbound/emails/${emailId}`, {
     headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}` },
   });
   if (!res.ok) return { data: null, error: await res.text() };
@@ -16,7 +16,7 @@ async function fetchResendEmail(emailId: string) {
 }
 
 async function fetchResendAttachments(emailId: string) {
-  const res = await fetch(`https://api.resend.com/emails/${emailId}/attachments`, {
+  const res = await fetch(`https://api.resend.com/inbound/emails/${emailId}/attachments`, {
     headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}` },
   });
   if (!res.ok) return { data: null, error: await res.text() };
