@@ -19,6 +19,8 @@ import {
   Shield,
   TrendingUp,
   BarChart3,
+  Rocket,
+  Building2,
 } from "lucide-react";
 
 export function LandingPage() {
@@ -50,6 +52,12 @@ export function LandingPage() {
             >
               Pricing
             </Link>
+            <Link
+              href="#faq"
+              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+            >
+              FAQ
+            </Link>
           </div>
 
           <div className="flex items-center gap-3">
@@ -79,16 +87,16 @@ export function LandingPage() {
           <div className="text-center max-w-4xl mx-auto">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent/10 text-accent text-sm font-medium mb-8">
               <Zap className="h-4 w-4" />
-              The Operating System for Elite Consultants
+              Built For Solo Consultants Who Do The Work
             </div>
             <h1 className="text-5xl md:text-7xl font-bold tracking-tight text-foreground mb-6 leading-[1.1]">
-              Transform Every Client{" "}
-              <span className="text-primary">Engagement</span>
+              Your AI-Powered{" "}
+              <span className="text-primary">Operating System</span>
             </h1>
             <p className="text-xl text-muted-foreground mb-10 max-w-2xl mx-auto leading-relaxed">
-              The all-in-one platform that captures context, tracks commitments,
-              and provides AI-powered insights during every client conversation.
-              Built for consultants who deliver results.
+              Run a high-performance practice without a team. AI captures every commitment,
+              surfaces context during calls, and helps you deliver 10x the value—
+              built for coaches and consultants who are operational, not managerial.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <SignedOut>
@@ -188,7 +196,7 @@ export function LandingPage() {
                 ))}
               </div>
               <span className="text-sm font-medium text-muted-foreground">
-                500+ consultants
+                500+ coaches & consultants
               </span>
             </div>
             <div className="flex items-center gap-1.5">
@@ -215,12 +223,12 @@ export function LandingPage() {
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-20">
             <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-5">
-              Built for{" "}
-              <span className="text-primary">High-Performance</span> Consulting
+              Everything a Solo Practice Needs —{" "}
+              <span className="text-primary">Zero Overhead</span>
             </h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Every feature designed to help you deliver more value,
-              track every commitment, and never miss an insight.
+              Built for coaches and consultants who run every session themselves.
+              AI handles the admin so you stay focused on delivering value.
             </p>
           </div>
 
@@ -414,43 +422,248 @@ export function LandingPage() {
             </div>
           </div>
 
-          {/* Remaining features as cards */}
-          <div className="grid md:grid-cols-3 gap-6">
-            {[
-              {
-                icon: Mic,
-                title: "Live Transcription",
-                description:
-                  "Real-time speech-to-text with speaker identification. Never miss a word.",
-              },
-              {
-                icon: Target,
-                title: "Session Gameplans",
-                description:
-                  "Set objectives before calls. AI keeps you on track and surfaces talking points.",
-              },
-              {
-                icon: Users,
-                title: "Framework Library",
-                description:
-                  "Save proven methodologies as templates. AI guides sessions through your processes.",
-              },
-            ].map((feature, i) => (
-              <div
-                key={i}
-                className="group p-7 rounded-2xl border-2 border-border/50 bg-card hover:border-primary/30 hover:shadow-corporate-md transition-all duration-200"
-              >
-                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-5 group-hover:bg-primary/15 transition-colors">
-                  <feature.icon className="h-6 w-6 text-primary" />
-                </div>
-                <h3 className="text-lg font-semibold text-foreground mb-2">
-                  {feature.title}
-                </h3>
-                <p className="text-muted-foreground leading-relaxed">
-                  {feature.description}
-                </p>
+          {/* Feature 4: Live AI Suggestions - Animated */}
+          <div className="grid lg:grid-cols-2 gap-12 items-center mb-24">
+            <div>
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-warning/10 text-warning text-sm font-medium mb-4">
+                <Brain className="h-4 w-4" />
+                Real-Time Intelligence
               </div>
-            ))}
+              <h3 className="text-3xl font-bold text-foreground mb-4">
+                AI Suggests While You Talk
+              </h3>
+              <p className="text-lg text-muted-foreground mb-6 leading-relaxed">
+                Watch as AI listens to your conversation and surfaces the perfect question 
+                or captures action items as they happen. Zero effort, maximum insight.
+              </p>
+              <ul className="space-y-3">
+                {["Contextual question suggestions", "Auto-detected action items", "Smart follow-up prompts"].map((item) => (
+                  <li key={item} className="flex items-center gap-3 text-foreground">
+                    <CheckCircle className="h-5 w-5 text-warning flex-shrink-0" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="rounded-2xl border-2 border-border/50 bg-card shadow-corporate-lg overflow-hidden">
+              <div className="bg-muted/30 px-4 py-2.5 border-b border-border flex items-center gap-2">
+                <div className="flex gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-destructive/60" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-warning/60" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-success/60" />
+                </div>
+                <span className="text-xs text-muted-foreground ml-2">Live Session — Q4 Planning</span>
+                <span className="ml-auto flex items-center gap-1 text-xs text-destructive">
+                  <span className="w-2 h-2 bg-destructive rounded-full animate-pulse" />
+                  Recording
+                </span>
+              </div>
+              <div className="p-5">
+                {/* Transcript snippet */}
+                <div className="space-y-3 mb-4 pb-4 border-b border-border/50">
+                  <div className="flex gap-2 text-sm">
+                    <span className="text-muted-foreground font-medium min-w-[50px]">Client:</span>
+                    <span className="text-foreground">&quot;...we&apos;re targeting 40% growth but the team is already stretched...&quot;</span>
+                  </div>
+                </div>
+                {/* AI Suggestions - Animated */}
+                <div className="space-y-3">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-2">
+                    <Brain className="h-3 w-3 text-warning" />
+                    AI Suggestions
+                  </p>
+                  <div className="space-y-2">
+                    <div className="p-3 rounded-xl bg-warning/5 border border-warning/20 animate-pulse">
+                      <p className="text-xs text-warning font-medium mb-1">💡 Ask This</p>
+                      <p className="text-sm text-foreground">&quot;What&apos;s the hiring timeline for Q1?&quot;</p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-success/5 border border-success/20">
+                      <p className="text-xs text-success font-medium mb-1">✓ Action Detected</p>
+                      <p className="text-sm text-foreground">&quot;Review capacity plan before next call&quot;</p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-accent/5 border border-accent/20 opacity-60">
+                      <p className="text-xs text-accent font-medium mb-1">📊 Context</p>
+                      <p className="text-sm text-foreground">&quot;Last quarter they mentioned budget freeze...&quot;</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Feature 5: Plan Builder with AI - Animated typing */}
+          <div className="grid lg:grid-cols-2 gap-12 items-center mb-24">
+            <div className="order-2 lg:order-1 rounded-2xl border-2 border-border/50 bg-card shadow-corporate-lg overflow-hidden">
+              <div className="bg-muted/30 px-4 py-2.5 border-b border-border flex items-center gap-2">
+                <div className="flex gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-destructive/60" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-warning/60" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-success/60" />
+                </div>
+                <span className="text-xs text-muted-foreground ml-2">Do The Thing™ — Growth Plan</span>
+              </div>
+              <div className="p-5">
+                {/* Plan header */}
+                <div className="mb-4 pb-3 border-b border-border/50">
+                  <p className="text-sm font-semibold text-foreground">Phase 1: Foundation</p>
+                  <p className="text-xs text-muted-foreground">Q1 2026 · 12 weeks</p>
+                </div>
+                {/* Plan items with AI typing */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 p-2 rounded-lg hover:bg-muted/30">
+                    <div className="w-4 h-4 rounded border-2 border-success bg-success/20 flex items-center justify-center">
+                      <CheckCircle className="h-3 w-3 text-success" />
+                    </div>
+                    <span className="text-sm text-muted-foreground line-through">Define target personas</span>
+                  </div>
+                  <div className="flex items-center gap-2 p-2 rounded-lg hover:bg-muted/30">
+                    <div className="w-4 h-4 rounded border-2 border-success bg-success/20 flex items-center justify-center">
+                      <CheckCircle className="h-3 w-3 text-success" />
+                    </div>
+                    <span className="text-sm text-muted-foreground line-through">Build sales playbook v1</span>
+                  </div>
+                  <div className="flex items-center gap-2 p-2 rounded-lg bg-primary/5 border border-primary/20">
+                    <div className="w-4 h-4 rounded border-2 border-primary" />
+                    <span className="text-sm text-foreground">Launch outbound campaign</span>
+                    <span className="ml-auto text-xs text-primary font-medium">IN PROGRESS</span>
+                  </div>
+                  {/* AI typing suggestion */}
+                  <div className="flex items-center gap-2 p-2 rounded-lg bg-warning/5 border border-warning/20 border-dashed">
+                    <Brain className="h-4 w-4 text-warning" />
+                    <span className="text-sm text-warning">
+                      <span className="opacity-80">AI: </span>
+                      <span className="inline-flex">
+                        Set up tracking dashboard
+                        <span className="animate-pulse ml-0.5">|</span>
+                      </span>
+                    </span>
+                    <button className="ml-auto text-xs bg-warning/20 text-warning px-2 py-0.5 rounded font-medium hover:bg-warning/30 transition-colors">
+                      + Add
+                    </button>
+                  </div>
+                </div>
+                {/* Metrics preview */}
+                <div className="mt-4 pt-3 border-t border-border/50">
+                  <p className="text-xs text-muted-foreground mb-2">Success Metrics</p>
+                  <div className="flex gap-2">
+                    <span className="px-2 py-1 rounded bg-success/10 text-success text-xs">10 demos booked</span>
+                    <span className="px-2 py-1 rounded bg-primary/10 text-primary text-xs">$50k pipeline</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="order-1 lg:order-2">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-medium mb-4">
+                <Target className="h-4 w-4" />
+                Strategic Planning
+              </div>
+              <h3 className="text-3xl font-bold text-foreground mb-4">
+                AI Builds Your Plan With You
+              </h3>
+              <p className="text-lg text-muted-foreground mb-6 leading-relaxed">
+                Start typing and watch AI complete your thoughts. From high-level strategy 
+                to granular tasks — build executable plans in minutes, not hours.
+              </p>
+              <ul className="space-y-3">
+                {["AI-powered auto-complete", "Smart task suggestions", "Built-in success metrics"].map((item) => (
+                  <li key={item} className="flex items-center gap-3 text-foreground">
+                    <CheckCircle className="h-5 w-5 text-primary flex-shrink-0" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          {/* Feature 6: Share with Clients - Portal Preview */}
+          <div className="rounded-2xl border-2 border-border/50 bg-card shadow-corporate-lg overflow-hidden">
+            <div className="grid lg:grid-cols-5">
+              {/* Left side - description */}
+              <div className="lg:col-span-2 p-8 flex flex-col justify-center border-b lg:border-b-0 lg:border-r border-border/50">
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-accent/10 text-accent text-sm font-medium mb-4 w-fit">
+                  <Users className="h-4 w-4" />
+                  Client Portal
+                </div>
+                <h3 className="text-3xl font-bold text-foreground mb-4">
+                  Share Directly With Clients
+                </h3>
+                <p className="text-lg text-muted-foreground mb-6 leading-relaxed">
+                  One click to share plans, strategies, and progress. Clients see a beautiful, 
+                  branded view — you stay in control of what&apos;s visible.
+                </p>
+                <ul className="space-y-3">
+                  {["Branded client workspace", "Real-time updates", "Granular access control"].map((item) => (
+                    <li key={item} className="flex items-center gap-3 text-foreground">
+                      <CheckCircle className="h-5 w-5 text-accent flex-shrink-0" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              {/* Right side - portal mockup */}
+              <div className="lg:col-span-3 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-6">
+                <div className="rounded-xl border border-border/50 bg-card shadow-lg overflow-hidden">
+                  {/* Portal header */}
+                  <div className="px-4 py-3 border-b border-border flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
+                      <Building2 className="h-4 w-4 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">Acme Corp&apos;s Workspace</p>
+                      <p className="text-xs text-muted-foreground">Shared by Your Consulting</p>
+                    </div>
+                  </div>
+                  {/* Portal content */}
+                  <div className="p-4">
+                    <div className="grid grid-cols-3 gap-3">
+                      {/* Shared items */}
+                      <div className="col-span-1 space-y-2">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Shared Items</p>
+                        <div className="p-2 rounded-lg bg-primary/5 border border-primary/20 cursor-pointer">
+                          <div className="flex items-center gap-2">
+                            <Rocket className="h-4 w-4 text-primary" />
+                            <span className="text-xs font-medium truncate">Growth Plan</span>
+                          </div>
+                        </div>
+                        <div className="p-2 rounded-lg bg-muted/30 border border-border/50 cursor-pointer opacity-60">
+                          <div className="flex items-center gap-2">
+                            <Target className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-xs font-medium truncate">Strategy Canvas</span>
+                          </div>
+                        </div>
+                      </div>
+                      {/* Preview */}
+                      <div className="col-span-2 p-3 rounded-lg bg-muted/20 border border-border/50">
+                        <p className="text-sm font-semibold text-foreground mb-2">Growth Plan — Phase 1</p>
+                        <div className="space-y-1.5">
+                          <div className="h-2 bg-success rounded-full w-3/4" />
+                          <p className="text-xs text-muted-foreground">75% complete · 3 items remaining</p>
+                        </div>
+                        <div className="mt-3 space-y-1">
+                          <div className="flex items-center gap-2 text-xs">
+                            <CheckCircle className="h-3 w-3 text-success" />
+                            <span className="text-muted-foreground line-through">Define personas</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs">
+                            <CheckCircle className="h-3 w-3 text-success" />
+                            <span className="text-muted-foreground line-through">Build playbook</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs">
+                            <div className="w-3 h-3 rounded-full border border-primary" />
+                            <span className="text-foreground">Launch campaign</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    {/* Live indicator */}
+                    <div className="mt-3 flex items-center justify-center gap-2 text-xs text-success">
+                      <span className="w-2 h-2 bg-success rounded-full animate-pulse" />
+                      Updates in real-time
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -509,44 +722,44 @@ export function LandingPage() {
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-20">
             <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-5">
-              Purpose-Built for{" "}
-              <span className="text-primary">Professional Services</span>
+              For Coaches & Consultants{" "}
+              <span className="text-primary">Who Deliver</span>
             </h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Whether strategy, sales, product, or fundraising —
-              ConsultantOS adapts to your practice.
+              Whether you&apos;re an executive coach, business strategist, or solo advisor —
+              ConsultantOS scales your impact without scaling your team.
             </p>
           </div>
 
           <div className="grid md:grid-cols-2 gap-6">
             {[
               {
-                icon: TrendingUp,
-                title: "Strategy & Advisory",
+                icon: Users,
+                title: "Executive & Business Coaching",
                 description:
-                  "Run strategy sessions with AI tracking deliverables. Built-in frameworks for systematic engagement.",
+                  "Run transformational coaching sessions with AI capturing insights. Track client progress across sessions and surface patterns.",
+                tags: ["Leadership", "Performance", "Growth"],
+              },
+              {
+                icon: TrendingUp,
+                title: "Strategy Consulting",
+                description:
+                  "Facilitate strategy sessions with built-in frameworks. AI tracks deliverables and keeps clients accountable.",
                 tags: ["Strategy", "Roadmapping", "Planning"],
               },
               {
                 icon: BarChart3,
-                title: "Sales Consulting",
+                title: "Sales & Revenue Coaching",
                 description:
-                  "Build sales plays, review pipelines, design sequences. AI assists with messaging and positioning.",
-                tags: ["Pipeline", "Sequences", "Coaching"],
+                  "Review pipelines, build playbooks, design outreach sequences. AI assists with messaging and deal strategy.",
+                tags: ["Pipeline", "Sequences", "Deals"],
               },
               {
                 icon: Target,
-                title: "Product & Technical",
+                title: "Startup Advisory",
                 description:
-                  "Product roadmaps, technical reviews, architecture feedback. Full codebase context available to AI.",
-                tags: ["Roadmaps", "Reviews", "Architecture"],
-              },
-              {
-                icon: Shield,
-                title: "Investor Relations",
-                description:
-                  "Prep for investor calls, draft updates, track fundraising milestones. All context in one place.",
-                tags: ["Fundraising", "Updates", "Diligence"],
+                  "Support founders on product, fundraising, and GTM. All context organized and ready for every call.",
+                tags: ["Founders", "GTM", "Fundraising"],
               },
             ].map((useCase, i) => (
               <div
@@ -707,14 +920,86 @@ export function LandingPage() {
         </div>
       </section>
 
+      {/* FAQ Section */}
+      <section id="faq" className="py-28 px-6">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-5">
+              Frequently Asked Questions
+            </h2>
+            <p className="text-lg text-muted-foreground">
+              Everything you need to know about running your practice with ConsultantOS.
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            {[
+              {
+                q: "Who is ConsultantOS built for?",
+                a: "ConsultantOS is built for solo consultants and independent coaches who do the work themselves—not firms that delegate. Whether you're an executive coach, business consultant, strategy advisor, or any professional who runs client sessions independently, ConsultantOS helps you operate at a higher level without additional staff.",
+              },
+              {
+                q: "How does the AI assistance work during sessions?",
+                a: "During client sessions, ConsultantOS transcribes the conversation in real-time and provides AI-powered suggestions. The AI detects action items as they're mentioned, suggests relevant questions based on the context, surfaces insights from previous sessions, and helps you stay fully engaged while never missing a commitment.",
+              },
+              {
+                q: "What are AI personas?",
+                a: "AI personas are specialized modes that adapt the AI's suggestions to your current context. Switch between Strategy Advisor, Sales Coach, Executive Coach, or create custom personas for your specific practice. Each persona provides contextually relevant prompts and insights.",
+              },
+              {
+                q: "Can I share plans and progress with clients?",
+                a: "Yes! ConsultantOS includes a client portal feature that lets you share plans, strategies, and progress updates directly with clients. You control exactly what's visible, and clients see a beautiful, branded view that updates in real-time.",
+              },
+              {
+                q: "What is the Clarity Method™?",
+                a: "The Clarity Method™ is a built-in strategic diagnosis framework that helps you guide clients from confusion to clarity. It includes structured canvases for defining strategic truth, setting north star constraints, identifying what to kill, mapping risks, and creating execution swimlanes.",
+              },
+              {
+                q: "What is Do The Thing™?",
+                a: "Do The Thing™ is an execution planning tool within ConsultantOS. It helps you turn strategy into action by creating structured plans with objectives, success metrics, and trackable initiatives. AI assists by suggesting tasks, tracking progress, and keeping plans aligned with client goals.",
+              },
+              {
+                q: "Is my client data secure?",
+                a: "Absolutely. All data is encrypted in transit and at rest. Each client's data is completely isolated. We never train AI models on your client data, and you maintain full ownership and control of all information stored in the platform.",
+              },
+              {
+                q: "How much does it cost?",
+                a: "ConsultantOS offers three tiers: Starter (free) with 3 clients and 10 sessions/month, Pro ($499/month) with unlimited clients, sessions, and priority AI processing, and Enterprise (starting at $4,999/month) with dedicated infrastructure and custom integrations.",
+              },
+            ].map((faq, i) => (
+              <details
+                key={i}
+                className="group border-2 border-border/50 rounded-xl bg-card hover:shadow-corporate-md transition-all duration-200"
+              >
+                <summary className="flex items-center justify-between p-6 cursor-pointer list-none">
+                  <h3 className="text-lg font-semibold text-foreground pr-4">
+                    {faq.q}
+                  </h3>
+                  <span className="text-muted-foreground group-open:rotate-180 transition-transform duration-200 flex-shrink-0">
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </span>
+                </summary>
+                <div className="px-6 pb-6 pt-0">
+                  <p className="text-muted-foreground leading-relaxed">
+                    {faq.a}
+                  </p>
+                </div>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* CTA */}
-      <section className="py-28 px-6">
+      <section className="py-28 px-6 bg-muted/20">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-5">
-            Ready to elevate your practice?
+            Run Your Practice Like a Pro
           </h2>
           <p className="text-lg text-muted-foreground mb-10">
-            Join hundreds of consultants who deliver more value with ConsultantOS.
+            Join hundreds of solo coaches and consultants delivering more value — without hiring a team.
           </p>
           <SignedOut>
             <SignUpButton mode="modal">
@@ -761,7 +1046,7 @@ export function LandingPage() {
               </Link>
             </div>
             <div className="text-sm text-muted-foreground">
-              © 2025 ConsultantOS. All rights reserved.
+              © 2026 ConsultantOS. All rights reserved.
             </div>
           </div>
         </div>

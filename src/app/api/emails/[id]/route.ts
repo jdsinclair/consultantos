@@ -83,7 +83,16 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { action, clientId } = await req.json();
+    const {
+      action,
+      clientId,
+      // RAG context options
+      excludeFromRag = false,
+      sourceCategory, // competitor_info, client_docs, internal, reference, etc.
+      excludeReason, // notes on why excluded from RAG
+      // Per-attachment exclusion overrides
+      attachmentOverrides, // { [attachmentId]: { excludeFromRag: boolean, sourceCategory: string } }
+    } = await req.json();
 
     const email = await db.query.inboundEmails.findFirst({
       where: and(
@@ -110,21 +119,37 @@ export async function POST(
             from: email.fromEmail,
             subject: email.subject,
             date: email.createdAt,
+            emailId: email.id,
           },
-          processingStatus: "completed",
+          // RAG control - exclude email body if flagged
+          excludeFromRag,
+          sourceCategory,
+          excludeReason,
+          // Skip processing if excluded from RAG (no need to embed)
+          processingStatus: excludeFromRag ? "completed" : "completed",
         })
         .returning();
+
+      // Track added attachment sources
+      const attachmentSources: Array<{ filename: string; sourceId: string; excludeFromRag: boolean }> = [];
 
       // Add attachments as separate sources
       if (email.attachments && Array.isArray(email.attachments)) {
         for (const attachment of email.attachments as Array<{
+          id: string;
           filename: string;
           blobUrl?: string;
           contentType: string;
           size: number;
         }>) {
           if (attachment.blobUrl) {
-            await db.insert(sources).values({
+            // Check for per-attachment override
+            const override = attachmentOverrides?.[attachment.id];
+            const attExcludeFromRag = override?.excludeFromRag ?? excludeFromRag;
+            const attSourceCategory = override?.sourceCategory ?? sourceCategory;
+            const attExcludeReason = override?.excludeReason ?? excludeReason;
+
+            const [attSource] = await db.insert(sources).values({
               clientId,
               userId,
               type: "document",
@@ -132,23 +157,48 @@ export async function POST(
               blobUrl: attachment.blobUrl,
               fileType: attachment.contentType.split("/")[1],
               fileSize: attachment.size,
-              processingStatus: "pending",
+              metadata: {
+                fromEmail: email.fromEmail,
+                emailSubject: email.subject,
+                emailId: email.id,
+              },
+              // RAG control for attachment
+              excludeFromRag: attExcludeFromRag,
+              sourceCategory: attSourceCategory,
+              excludeReason: attExcludeReason,
+              // Set to pending for processing unless excluded from RAG
+              processingStatus: attExcludeFromRag ? "completed" : "pending",
+            }).returning();
+
+            attachmentSources.push({
+              filename: attachment.filename,
+              sourceId: attSource.id,
+              excludeFromRag: attExcludeFromRag,
             });
           }
         }
       }
 
-      // Update email status
+      // Update email with processing context
       await db
         .update(inboundEmails)
         .set({
           clientId,
           status: "processed",
+          sourceCategory,
+          excludeFromRag,
+          contextNotes: excludeReason,
           processedAt: new Date(),
         })
         .where(eq(inboundEmails.id, params.id));
 
-      return NextResponse.json({ success: true, sourceId: source.id });
+      return NextResponse.json({
+        success: true,
+        sourceId: source.id,
+        attachmentSources,
+        excludeFromRag,
+        sourceCategory,
+      });
     }
 
     return NextResponse.json({ error: "Invalid action" }, { status: 400 });

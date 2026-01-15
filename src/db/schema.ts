@@ -73,12 +73,33 @@ export const clients = pgTable('clients', {
   sourceType: text('source_type'), // email, referral, inbound, outreach
   sourceNotes: text('source_notes'),
   metadata: jsonb('metadata'), // flexible storage for client-specific data
+  // "At Some Point" - dumping ground for future ideas/thoughts
+  atSomePoint: jsonb('at_some_point').$type<AtSomePointItem[]>(),
+  // "Links" - reference links (competitors, people, resources)
+  links: jsonb('links').$type<ClientLink[]>(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => ({
   userIdx: index('clients_user_idx').on(table.userId),
   statusIdx: index('clients_status_idx').on(table.status),
 }));
+
+// Type definitions for new client fields
+export interface AtSomePointItem {
+  id: string;
+  title: string;
+  text?: string;
+  createdAt: string;
+}
+
+export interface ClientLink {
+  id: string;
+  title: string;
+  url: string;
+  type?: 'competitor' | 'person' | 'resource' | 'reference' | 'other';
+  notes?: string;
+  createdAt: string;
+}
 
 // Clarity Documents - the evolving business definition for each client
 export const clarityDocuments = pgTable('clarity_documents', {
@@ -412,6 +433,10 @@ export const sources = pgTable('sources', {
   processingStatus: text('processing_status').default('pending'), // pending, processing, completed, failed
   processingError: text('processing_error'),
   lastSyncedAt: timestamp('last_synced_at'),
+  // RAG control - exclude certain sources from being used in AI context (e.g., competitor decks)
+  excludeFromRag: boolean('exclude_from_rag').default(false),
+  sourceCategory: text('source_category'), // competitor_info, client_docs, internal, reference, etc.
+  excludeReason: text('exclude_reason'), // notes on why excluded from RAG
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => ({
@@ -461,6 +486,10 @@ export const inboundEmails = pgTable('inbound_emails', {
   messageId: text('message_id'), // email message ID for threading
   inReplyTo: text('in_reply_to'), // for threading
   status: text('status').default('inbox'), // inbox, processed, archived
+  // Context for when adding to sources - helps decide RAG inclusion
+  sourceCategory: text('source_category'), // competitor_info, client_docs, internal, reference, etc.
+  excludeFromRag: boolean('exclude_from_rag').default(false), // flag to exclude attachments/content from RAG
+  contextNotes: text('context_notes'), // user notes about the email content type
   processedAt: timestamp('processed_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (table) => ({
@@ -932,6 +961,119 @@ export type SharedItem = typeof sharedItems.$inferSelect;
 export type NewSharedItem = typeof sharedItems.$inferInsert;
 export type PortalAccessLog = typeof portalAccessLogs.$inferSelect;
 
+// Roadmap Builder - Visual directional roadmaps
+export interface RoadmapSwimlane {
+  key: string;
+  label: string;
+  color: string;
+  icon?: string;
+  order: number;
+  isCustom?: boolean;
+  collapsed?: boolean;
+}
+
+export interface RoadmapItemLink {
+  id: string;
+  type: 'prototype' | 'prd' | 'design' | 'doc' | 'jira' | 'github' | 'figma' | 'other';
+  url: string;
+  title?: string;
+}
+
+export interface RoadmapItemMetrics {
+  effort?: string;
+  impact?: 'low' | 'medium' | 'high' | 'critical';
+  confidence?: number;
+  roi?: string;
+}
+
+export interface RoadmapItem {
+  id: string;
+  title: string;
+  description?: string;
+  swimlaneKey: string;
+  timeframe: 'now' | 'next' | 'later' | 'someday';
+  order: number;
+  status: 'idea' | 'planned' | 'in_progress' | 'done' | 'blocked' | 'cut';
+  size?: 'xs' | 's' | 'm' | 'l' | 'xl';
+  metrics?: RoadmapItemMetrics;
+  notes?: string;
+  why?: string;
+  successCriteria?: string;
+  risks?: string[];
+  dependencies?: string[];
+  links?: RoadmapItemLink[];
+  source?: 'manual' | 'ai' | 'import';
+  sourceContext?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RoadmapBacklogItem {
+  id: string;
+  title: string;
+  description?: string;
+  notes?: string;
+  suggestedSwimlane?: string;
+  suggestedTimeframe?: 'now' | 'next' | 'later' | 'someday';
+  suggestedSize?: 'xs' | 's' | 'm' | 'l' | 'xl';
+  suggestedImpact?: 'low' | 'medium' | 'high' | 'critical';
+  source?: 'manual' | 'ai' | 'import';
+  sourceContext?: string;
+  links?: RoadmapItemLink[];
+  createdAt: string;
+  order: number;
+}
+
+export interface RoadmapSuccessMetrics {
+  quantitative: string[];
+  qualitative: string[];
+}
+
+export const roadmaps = pgTable('roadmaps', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  clientId: uuid('client_id').references(() => clients.id, { onDelete: 'cascade' }).notNull(),
+  userId: text('user_id').references(() => users.id).notNull(),
+
+  // Header
+  title: text('title').notNull(),
+  objective: text('objective'),
+  vision: text('vision'),
+  planningHorizon: text('planning_horizon'),
+
+  // Swimlanes (ordered)
+  swimlanes: jsonb('swimlanes').$type<RoadmapSwimlane[]>(),
+
+  // Items on the board
+  items: jsonb('items').$type<RoadmapItem[]>(),
+
+  // Backlog / dump area
+  backlog: jsonb('backlog').$type<RoadmapBacklogItem[]>(),
+
+  // Success metrics
+  successMetrics: jsonb('success_metrics').$type<RoadmapSuccessMetrics>(),
+
+  // Notes
+  notes: text('notes'),
+
+  // AI conversation
+  conversationId: uuid('conversation_id'),
+
+  // Status
+  status: text('status').default('draft'), // draft, active, review, archived
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  clientIdx: index('roadmaps_client_idx').on(table.clientId),
+  userIdx: index('roadmaps_user_idx').on(table.userId),
+  statusIdx: index('roadmaps_status_idx').on(table.status),
+}));
+
+export const roadmapsRelations = relations(roadmaps, ({ one }) => ({
+  client: one(clients, { fields: [roadmaps.clientId], references: [clients.id] }),
+  user: one(users, { fields: [roadmaps.userId], references: [users.id] }),
+}));
+
 // Export types for TypeScript
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -964,3 +1106,5 @@ export type ClarityMethodCanvas = typeof clarityMethodCanvases.$inferSelect;
 export type NewClarityMethodCanvas = typeof clarityMethodCanvases.$inferInsert;
 export type ExecutionPlan = typeof executionPlans.$inferSelect;
 export type NewExecutionPlan = typeof executionPlans.$inferInsert;
+export type Roadmap = typeof roadmaps.$inferSelect;
+export type NewRoadmap = typeof roadmaps.$inferInsert;

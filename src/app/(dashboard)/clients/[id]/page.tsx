@@ -39,6 +39,12 @@ import {
   Compass,
   Rocket,
   ArrowRight,
+  Lightbulb,
+  Link2,
+  X,
+  User,
+  Building,
+  BookOpen,
 } from "lucide-react";
 import Link from "next/link";
 import { formatDistanceToNow, isPast } from "date-fns";
@@ -52,6 +58,22 @@ import { PhoneInput } from "@/components/ui/phone-input";
 import { ClientSignals } from "@/components/client-signals";
 import { SharePortalCard } from "@/components/share-portal-card";
 import { cn } from "@/lib/utils";
+
+interface AtSomePointItem {
+  id: string;
+  title: string;
+  text?: string;
+  createdAt: string;
+}
+
+interface ClientLink {
+  id: string;
+  title: string;
+  url: string;
+  type?: 'competitor' | 'person' | 'resource' | 'reference' | 'other';
+  notes?: string;
+  createdAt: string;
+}
 
 interface Client {
   id: string;
@@ -69,6 +91,8 @@ interface Client {
   dealStatus: string | null;
   sourceType: string | null;
   sourceNotes: string | null;
+  atSomePoint?: AtSomePointItem[];
+  links?: ClientLink[];
 }
 
 interface Source {
@@ -164,6 +188,12 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Client>>({});
   const [saving, setSaving] = useState(false);
+  
+  // "At Some Point" and "Links" state
+  const [showAddSomePoint, setShowAddSomePoint] = useState(false);
+  const [showAddLink, setShowAddLink] = useState(false);
+  const [newSomePoint, setNewSomePoint] = useState({ title: "", text: "" });
+  const [newLink, setNewLink] = useState({ title: "", url: "", type: "reference" as ClientLink["type"], notes: "" });
 
   const { messages, append, setMessages, isLoading: chatLoading } = useChat({
     api: "/api/chat",
@@ -322,6 +352,107 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
       console.error("Failed to update client:", error);
     } finally {
       setSaving(false);
+    }
+  };
+
+  // "At Some Point" handlers
+  const handleAddSomePoint = async () => {
+    if (!client || !newSomePoint.title.trim()) return;
+    const newItem: AtSomePointItem = {
+      id: crypto.randomUUID(),
+      title: newSomePoint.title.trim(),
+      text: newSomePoint.text.trim() || undefined,
+      createdAt: new Date().toISOString(),
+    };
+    const updated = [...(client.atSomePoint || []), newItem];
+    try {
+      const res = await fetch(`/api/clients/${client.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ atSomePoint: updated }),
+      });
+      if (res.ok) {
+        setClient({ ...client, atSomePoint: updated });
+        setNewSomePoint({ title: "", text: "" });
+        setShowAddSomePoint(false);
+      }
+    } catch (error) {
+      console.error("Failed to add item:", error);
+    }
+  };
+
+  const handleDeleteSomePoint = async (id: string) => {
+    if (!client) return;
+    const updated = (client.atSomePoint || []).filter(item => item.id !== id);
+    try {
+      const res = await fetch(`/api/clients/${client.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ atSomePoint: updated }),
+      });
+      if (res.ok) {
+        setClient({ ...client, atSomePoint: updated });
+      }
+    } catch (error) {
+      console.error("Failed to delete item:", error);
+    }
+  };
+
+  // "Links" handlers
+  const handleAddLink = async () => {
+    if (!client || !newLink.title.trim() || !newLink.url.trim()) return;
+    let url = newLink.url.trim();
+    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+      url = "https://" + url;
+    }
+    const newItem: ClientLink = {
+      id: crypto.randomUUID(),
+      title: newLink.title.trim(),
+      url,
+      type: newLink.type,
+      notes: newLink.notes.trim() || undefined,
+      createdAt: new Date().toISOString(),
+    };
+    const updated = [...(client.links || []), newItem];
+    try {
+      const res = await fetch(`/api/clients/${client.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ links: updated }),
+      });
+      if (res.ok) {
+        setClient({ ...client, links: updated });
+        setNewLink({ title: "", url: "", type: "reference", notes: "" });
+        setShowAddLink(false);
+      }
+    } catch (error) {
+      console.error("Failed to add link:", error);
+    }
+  };
+
+  const handleDeleteLink = async (id: string) => {
+    if (!client) return;
+    const updated = (client.links || []).filter(link => link.id !== id);
+    try {
+      const res = await fetch(`/api/clients/${client.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ links: updated }),
+      });
+      if (res.ok) {
+        setClient({ ...client, links: updated });
+      }
+    } catch (error) {
+      console.error("Failed to delete link:", error);
+    }
+  };
+
+  const getLinkIcon = (type?: ClientLink["type"]) => {
+    switch (type) {
+      case "competitor": return Building;
+      case "person": return User;
+      case "resource": return BookOpen;
+      default: return Link2;
     }
   };
 
@@ -817,6 +948,234 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                       </Button>
                     }
                   />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* At Some Point - Dumping ground for ideas */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Lightbulb className="h-5 w-5 text-amber-500" />
+                At Some Point
+              </CardTitle>
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1"
+                onClick={() => setShowAddSomePoint(!showAddSomePoint)}
+              >
+                <Plus className="h-3 w-3" />
+                Add
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {showAddSomePoint && (
+                <div className="mb-4 pb-4 border-b space-y-3">
+                  <Input
+                    placeholder="Title / Quick thought..."
+                    value={newSomePoint.title}
+                    onChange={(e) => setNewSomePoint({ ...newSomePoint, title: e.target.value })}
+                    onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleAddSomePoint()}
+                  />
+                  <Textarea
+                    placeholder="More details (optional)..."
+                    value={newSomePoint.text}
+                    onChange={(e) => setNewSomePoint({ ...newSomePoint, text: e.target.value })}
+                    rows={2}
+                  />
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={handleAddSomePoint} disabled={!newSomePoint.title.trim()}>
+                      Add
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => {
+                      setShowAddSomePoint(false);
+                      setNewSomePoint({ title: "", text: "" });
+                    }}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {client.atSomePoint && client.atSomePoint.length > 0 ? (
+                <div className="space-y-3">
+                  {client.atSomePoint.map((item) => (
+                    <div
+                      key={item.id}
+                      className="p-3 rounded-lg bg-amber-500/5 border border-amber-500/20 group"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium">{item.title}</p>
+                          {item.text && (
+                            <p className="text-sm text-muted-foreground mt-1">{item.text}</p>
+                          )}
+                          <p className="text-xs text-muted-foreground mt-2">
+                            {formatDistanceToNow(new Date(item.createdAt), { addSuffix: true })}
+                          </p>
+                        </div>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive"
+                          onClick={() => handleDeleteSomePoint(item.id)}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-4">
+                  <Lightbulb className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">
+                    A place for future ideas & things to revisit
+                  </p>
+                  {!showAddSomePoint && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="mt-2"
+                      onClick={() => setShowAddSomePoint(true)}
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      Add first idea
+                    </Button>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Links - Reference links */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Link2 className="h-5 w-5 text-blue-500" />
+                Links
+              </CardTitle>
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1"
+                onClick={() => setShowAddLink(!showAddLink)}
+              >
+                <Plus className="h-3 w-3" />
+                Add
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {showAddLink && (
+                <div className="mb-4 pb-4 border-b space-y-3">
+                  <Input
+                    placeholder="Link title..."
+                    value={newLink.title}
+                    onChange={(e) => setNewLink({ ...newLink, title: e.target.value })}
+                  />
+                  <Input
+                    placeholder="URL..."
+                    value={newLink.url}
+                    onChange={(e) => setNewLink({ ...newLink, url: e.target.value })}
+                    onKeyDown={(e) => e.key === "Enter" && handleAddLink()}
+                  />
+                  <div className="flex gap-2">
+                    <select
+                      className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                      value={newLink.type}
+                      onChange={(e) => setNewLink({ ...newLink, type: e.target.value as ClientLink["type"] })}
+                    >
+                      <option value="reference">Reference</option>
+                      <option value="competitor">Competitor</option>
+                      <option value="person">Person</option>
+                      <option value="resource">Resource</option>
+                      <option value="other">Other</option>
+                    </select>
+                    <Input
+                      placeholder="Notes (optional)..."
+                      value={newLink.notes}
+                      onChange={(e) => setNewLink({ ...newLink, notes: e.target.value })}
+                      className="flex-1"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={handleAddLink} disabled={!newLink.title.trim() || !newLink.url.trim()}>
+                      Add Link
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => {
+                      setShowAddLink(false);
+                      setNewLink({ title: "", url: "", type: "reference", notes: "" });
+                    }}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {client.links && client.links.length > 0 ? (
+                <div className="space-y-2">
+                  {client.links.map((link) => {
+                    const LinkIcon = getLinkIcon(link.type);
+                    return (
+                      <div
+                        key={link.id}
+                        className="flex items-center gap-3 p-2 rounded-lg hover:bg-accent/50 transition-colors group"
+                      >
+                        <div className={cn(
+                          "h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0",
+                          link.type === "competitor" && "bg-red-500/10 text-red-500",
+                          link.type === "person" && "bg-green-500/10 text-green-500",
+                          link.type === "resource" && "bg-purple-500/10 text-purple-500",
+                          (!link.type || link.type === "reference" || link.type === "other") && "bg-blue-500/10 text-blue-500"
+                        )}>
+                          <LinkIcon className="h-4 w-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <a
+                            href={link.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm font-medium hover:underline flex items-center gap-1"
+                          >
+                            {link.title}
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                          {link.notes && (
+                            <p className="text-xs text-muted-foreground truncate">{link.notes}</p>
+                          )}
+                        </div>
+                        <Badge variant="outline" className="text-xs capitalize">
+                          {link.type || "reference"}
+                        </Badge>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive"
+                          onClick={() => handleDeleteLink(link.id)}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-4">
+                  <Link2 className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">
+                    Competitors, people, resources & references
+                  </p>
+                  {!showAddLink && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="mt-2"
+                      onClick={() => setShowAddLink(true)}
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      Add first link
+                    </Button>
+                  )}
                 </div>
               )}
             </CardContent>

@@ -60,7 +60,7 @@ export default function Dashboard() {
 
         if (clientsRes.ok) {
           const data = await clientsRes.json();
-          setClients(data.slice(0, 5));
+          setClients(data); // Show ALL clients
         }
         if (sessionsRes.ok) {
           const data = await sessionsRes.json();
@@ -228,44 +228,49 @@ export default function Dashboard() {
         </Card>
 
         {/* Active Clients */}
-        <Card>
+        <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Users className="h-5 w-5" />
               Active Clients
+              {clients.length > 0 && (
+                <Badge variant="secondary" className="ml-auto">{clients.length}</Badge>
+              )}
             </CardTitle>
             <CardDescription>Current engagements</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {clients.length > 0 ? (
-                clients.map((client) => (
+            {clients.length > 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 max-h-[300px] overflow-y-auto">
+                {clients.map((client) => (
                   <Link
                     key={client.id}
                     href={`/clients/${client.id}`}
-                    className="flex items-center justify-between hover:bg-accent rounded-lg p-2 -mx-2 transition-colors"
+                    className="flex flex-col items-center p-3 rounded-lg border border-border/50 hover:border-primary/50 hover:bg-accent/50 transition-all text-center group min-w-0"
                   >
-                    <div>
-                      <p className="font-medium">{client.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        Updated {formatDistanceToNow(new Date(client.updatedAt), { addSuffix: true })}
-                      </p>
+                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center mb-2 group-hover:bg-primary/20 transition-colors">
+                      <span className="text-sm font-semibold text-primary">
+                        {client.name.charAt(0).toUpperCase()}
+                      </span>
                     </div>
-                    <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                    <p className="font-medium text-sm truncate w-full">{client.name}</p>
+                    {client.company && (
+                      <p className="text-xs text-muted-foreground truncate w-full">{client.company}</p>
+                    )}
                   </Link>
-                ))
-              ) : (
-                <div className="text-center py-4">
-                  <p className="text-sm text-muted-foreground mb-2">No clients yet</p>
-                  <Link href="/clients/new">
-                    <Button variant="outline" size="sm" className="gap-1">
-                      <Plus className="h-3 w-3" />
-                      Add Client
-                    </Button>
-                  </Link>
-                </div>
-              )}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-4">
+                <p className="text-sm text-muted-foreground mb-2">No clients yet</p>
+                <Link href="/clients/new">
+                  <Button variant="outline" size="sm" className="gap-1">
+                    <Plus className="h-3 w-3" />
+                    Add Client
+                  </Button>
+                </Link>
+              </div>
+            )}
           </CardContent>
         </Card>
 

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, BookOpen, ArrowRight, Loader2, Target, Sparkles, Rocket } from "lucide-react";
+import { Plus, BookOpen, ArrowRight, Loader2, Target, Sparkles, Rocket, Map } from "lucide-react";
 import Link from "next/link";
 
 // Built-in featured methods (micro-apps)
@@ -28,6 +28,16 @@ const FEATURED_METHODS = [
     color: "from-orange-500 to-red-600",
     badge: "New",
     tagline: "Strategy → Action → Results",
+  },
+  {
+    id: "roadmap",
+    name: "Roadmap Builder",
+    description: "Visual directional roadmaps with swimlanes and AI assistance",
+    href: "/methods/roadmap",
+    icon: Map,
+    color: "from-blue-500 to-indigo-600",
+    badge: "New",
+    tagline: "Ideas → Themes → Priorities → Direction",
   },
 ];
 

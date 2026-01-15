@@ -226,6 +226,7 @@ export async function searchRelevantChunks(
 
   // Search using cosine similarity
   // Note: This uses raw SQL for pgvector operations
+  // Excludes sources marked with exclude_from_rag = true
   const results = await db.execute(sql`
     SELECT
       sc.content,
@@ -239,6 +240,7 @@ export async function searchRelevantChunks(
     WHERE sc.client_id = ${clientId}
       AND sc.user_id = ${userId}
       AND sc.embedding IS NOT NULL
+      AND (s.exclude_from_rag IS NULL OR s.exclude_from_rag = false)
       AND 1 - (sc.embedding <=> ${embeddingStr}::vector) >= ${minSimilarity}
     ORDER BY sc.embedding <=> ${embeddingStr}::vector
     LIMIT ${limit}
@@ -329,6 +331,7 @@ export async function searchSimilarChunks(
     : sql``;
 
   // Search using cosine similarity
+  // Excludes sources marked with exclude_from_rag = true
   const results = await db.execute(sql`
     SELECT
       sc.content,
@@ -342,6 +345,7 @@ export async function searchSimilarChunks(
     WHERE sc.user_id = ${userId}
       ${clientCondition}
       AND sc.embedding IS NOT NULL
+      AND (s.exclude_from_rag IS NULL OR s.exclude_from_rag = false)
       AND 1 - (sc.embedding <=> ${embeddingStr}::vector) >= ${minSimilarity}
     ORDER BY sc.embedding <=> ${embeddingStr}::vector
     LIMIT ${limit}

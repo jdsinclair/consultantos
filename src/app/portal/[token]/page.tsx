@@ -614,143 +614,167 @@ function ClarityCanvasFullView({
   const northStar = canvas.northStar || {};
   const coreEngine = canvas.coreEngine || {};
   const valueExpansion = canvas.valueExpansion || {};
-  const serviceProductFilter = canvas.serviceProductFilter || {};
   const paranoiaMap = canvas.paranoiaMap || {};
   const strategy = canvas.strategy || {};
   const swimlanes = canvas.swimlanes || {};
 
+  // Helper to format camelCase to Title Case
+  const formatKey = (key: string) => key.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase()).trim();
+
+  // Helper to get items from swimlane timeframe (handles both new and legacy format)
+  const getSwimlanItems = (timeframe: any) => {
+    if (!timeframe) return [];
+    if (Array.isArray(timeframe)) return timeframe;
+    if (timeframe.items) return timeframe.items;
+    return [];
+  };
+
+  // Check if swimlanes has any content
+  const hasSwimlanesContent = Object.entries(swimlanes).some(([key, lane]: [string, any]) => {
+    if (!lane) return false;
+    return getSwimlanItems(lane.short).length > 0 || 
+           getSwimlanItems(lane.mid).length > 0 || 
+           getSwimlanItems(lane.long).length > 0;
+  });
+
   return (
     <div className="space-y-8">
       {/* Strategic Truth - All boxes */}
-      <div>
-        <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
-          <Target className="h-4 w-4" style={{ color: brandColor }} />
-          Strategic Truth
-        </h3>
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-          {Object.entries(strategicTruth).map(([key, box]: [string, any]) => (
-            <div
-              key={key}
-              className={cn(
-                "p-4 rounded-lg border",
-                box?.status === "locked"
-                  ? "border-primary/50 bg-primary/5"
-                  : "bg-muted/30"
-              )}
-            >
-              <p className="text-xs text-muted-foreground capitalize mb-1 font-medium">
-                {key.replace(/([A-Z])/g, " $1").trim()}
-              </p>
-              <p className="text-sm">
-                {box?.value || (
-                  <span className="text-muted-foreground italic">Not yet defined</span>
+      {Object.keys(strategicTruth).length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
+            <Target className="h-4 w-4" style={{ color: brandColor }} />
+            Strategic Truth
+          </h3>
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            {Object.entries(strategicTruth).map(([key, box]: [string, any]) => (
+              <div
+                key={key}
+                className={cn(
+                  "p-4 rounded-lg border",
+                  box?.status === "locked"
+                    ? "border-primary/50 bg-primary/5"
+                    : "bg-muted/30"
                 )}
-              </p>
-              {box?.status === "locked" && (
-                <Badge
-                  variant="outline"
-                  className="mt-2 text-xs"
-                  style={{ backgroundColor: `${brandColor}20`, color: brandColor, borderColor: brandColor }}
-                >
-                  Locked
-                </Badge>
-              )}
-            </div>
-          ))}
+              >
+                <p className="text-xs text-muted-foreground capitalize mb-1 font-medium">
+                  {formatKey(key)}
+                </p>
+                <p className="text-sm">
+                  {box?.value || (
+                    <span className="text-muted-foreground italic">Not yet defined</span>
+                  )}
+                </p>
+                {box?.status === "locked" && (
+                  <Badge
+                    variant="outline"
+                    className="mt-2 text-xs"
+                    style={{ backgroundColor: `${brandColor}20`, color: brandColor, borderColor: brandColor }}
+                  >
+                    Locked
+                  </Badge>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* North Star */}
-      {(northStar.primaryConstraint || northStar.nonNegotiables?.length > 0) && (
+      {/* North Star - Actual structure: revenueTarget, marginFloor, founderRole, complexityCeiling */}
+      {Object.keys(northStar).length > 0 && (
         <div>
           <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
             <Star className="h-4 w-4 text-warning" />
             North Star Constraints
           </h3>
-          {northStar.primaryConstraint && (
-            <div className="p-4 rounded-lg border mb-3" style={{ backgroundColor: `${brandColor}10`, borderColor: `${brandColor}40` }}>
-              <p className="text-xs text-muted-foreground mb-1">Primary Constraint</p>
-              <p className="text-sm font-medium">{northStar.primaryConstraint}</p>
-            </div>
-          )}
-          {northStar.nonNegotiables?.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs text-muted-foreground">Non-Negotiables</p>
-              <ul className="space-y-1">
-                {northStar.nonNegotiables.map((item: string, i: number) => (
-                  <li key={i} className="flex items-center gap-2 text-sm">
-                    <Shield className="h-3 w-3 text-warning flex-shrink-0" />
-                    {item}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Core Engine */}
-      {(coreEngine.primaryConstraint || coreEngine.currentReality || coreEngine.rootCause) && (
-        <div>
-          <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
-            <Zap className="h-4 w-4 text-primary" />
-            Core Engine (Reality Diagnosis)
-          </h3>
           <div className="grid gap-3 md:grid-cols-2">
-            {coreEngine.primaryConstraint && (
-              <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
-                <p className="text-xs text-primary font-medium mb-1">Primary Constraint</p>
-                <p className="text-sm">{coreEngine.primaryConstraint}</p>
-              </div>
-            )}
-            {coreEngine.currentReality && (
-              <div className="p-4 rounded-lg bg-muted/30 border border-border/50">
-                <p className="text-xs text-muted-foreground font-medium mb-1">Current Reality</p>
-                <p className="text-sm">{coreEngine.currentReality}</p>
-              </div>
-            )}
-            {coreEngine.rootCause && (
-              <div className="p-4 rounded-lg bg-destructive/5 border border-destructive/20">
-                <p className="text-xs text-destructive font-medium mb-1">Root Cause</p>
-                <p className="text-sm">{coreEngine.rootCause}</p>
-              </div>
-            )}
-            {coreEngine.leverage && (
+            {northStar.revenueTarget && (
               <div className="p-4 rounded-lg bg-success/5 border border-success/20">
-                <p className="text-xs text-success font-medium mb-1">Leverage Point</p>
-                <p className="text-sm">{coreEngine.leverage}</p>
+                <p className="text-xs text-success font-medium mb-1">Revenue Target</p>
+                <p className="text-sm">{northStar.revenueTarget}</p>
+              </div>
+            )}
+            {northStar.marginFloor && (
+              <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
+                <p className="text-xs text-primary font-medium mb-1">Margin Floor</p>
+                <p className="text-sm">{northStar.marginFloor}</p>
+              </div>
+            )}
+            {northStar.founderRole && (
+              <div className="p-4 rounded-lg bg-warning/5 border border-warning/20">
+                <p className="text-xs text-warning font-medium mb-1">Founder Role (Stop Doing)</p>
+                <p className="text-sm">{northStar.founderRole}</p>
+              </div>
+            )}
+            {northStar.complexityCeiling && (
+              <div className="p-4 rounded-lg bg-muted/30 border border-border/50">
+                <p className="text-xs text-muted-foreground font-medium mb-1">Complexity Ceiling</p>
+                <p className="text-sm">{northStar.complexityCeiling}</p>
               </div>
             )}
           </div>
         </div>
       )}
 
-      {/* Value Expansion */}
-      {(valueExpansion.currentValue || valueExpansion.expansionOpportunities?.length > 0) && (
+      {/* Core Engine - Actual structure: areas with answer/warning + primaryConstraint */}
+      {(coreEngine.primaryConstraint || Object.keys(coreEngine).length > 1) && (
+        <div>
+          <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
+            <Zap className="h-4 w-4 text-primary" />
+            Core Engine (Reality Diagnosis)
+          </h3>
+          {coreEngine.primaryConstraint && (
+            <div className="p-4 rounded-lg border-2 mb-4" style={{ backgroundColor: `${brandColor}10`, borderColor: `${brandColor}40` }}>
+              <p className="text-xs font-medium mb-1" style={{ color: brandColor }}>Primary Constraint</p>
+              <p className="text-sm font-medium">{coreEngine.primaryConstraint}</p>
+            </div>
+          )}
+          <div className="grid gap-3 md:grid-cols-2">
+            {Object.entries(coreEngine).filter(([key]) => key !== 'primaryConstraint').map(([key, area]: [string, any]) => (
+              area?.answer && (
+                <div key={key} className="p-4 rounded-lg bg-muted/30 border border-border/50">
+                  <p className="text-xs text-muted-foreground font-medium mb-1">{formatKey(key)}</p>
+                  <p className="text-sm">{area.answer}</p>
+                  {area.warning && (
+                    <p className="text-xs text-warning mt-2 flex items-center gap-1">
+                      <AlertTriangle className="h-3 w-3" />
+                      {area.warning}
+                    </p>
+                  )}
+                </div>
+              )
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Value Expansion - Actual structure: left/core/right/vertical with items */}
+      {(valueExpansion.left?.items?.length > 0 || valueExpansion.core?.items?.length > 0 || 
+        valueExpansion.right?.items?.length > 0 || valueExpansion.vertical?.items?.length > 0) && (
         <div>
           <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
             <TrendingUp className="h-4 w-4 text-success" />
             Value Expansion Map
           </h3>
-          {valueExpansion.currentValue && (
-            <div className="p-4 rounded-lg bg-muted/30 border border-border/50 mb-3">
-              <p className="text-xs text-muted-foreground mb-1">Current Value</p>
-              <p className="text-sm">{valueExpansion.currentValue}</p>
-            </div>
-          )}
-          {valueExpansion.expansionOpportunities?.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs text-muted-foreground">Expansion Opportunities</p>
-              <div className="grid gap-2 md:grid-cols-2">
-                {valueExpansion.expansionOpportunities.map((opp: string, i: number) => (
-                  <div key={i} className="flex items-center gap-2 p-2 rounded-lg bg-success/5 border border-success/20 text-sm">
-                    <ArrowRight className="h-3 w-3 text-success flex-shrink-0" />
-                    {opp}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            {['left', 'core', 'right', 'vertical'].map((direction) => {
+              const items = valueExpansion[direction]?.items || [];
+              if (items.length === 0) return null;
+              return (
+                <div key={direction} className="p-4 rounded-lg bg-muted/30 border border-border/50">
+                  <p className="text-xs text-muted-foreground font-medium mb-2 capitalize">{direction}</p>
+                  <ul className="space-y-1">
+                    {items.map((item: any, i: number) => (
+                      <li key={i} className="text-sm flex items-center gap-2">
+                        <ArrowRight className="h-3 w-3 text-success flex-shrink-0" />
+                        {item.name || item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -772,35 +796,48 @@ function ClarityCanvasFullView({
         </div>
       )}
 
-      {/* Paranoia Map */}
-      {(paranoiaMap.threats?.length > 0 || paranoiaMap.blindSpots?.length > 0) && (
+      {/* Paranoia Map - Actual structure: external/internal/existential with items */}
+      {(paranoiaMap.external?.length > 0 || paranoiaMap.internal?.length > 0 || paranoiaMap.existential?.length > 0) && (
         <div>
           <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-warning" />
             Paranoia Map
           </h3>
-          <div className="grid gap-4 md:grid-cols-2">
-            {paranoiaMap.threats?.length > 0 && (
+          <div className="grid gap-4 md:grid-cols-3">
+            {paranoiaMap.external?.length > 0 && (
               <div>
-                <p className="text-xs text-warning font-medium mb-2">Threats</p>
+                <p className="text-xs text-warning font-medium mb-2">External Threats</p>
                 <ul className="space-y-2">
-                  {paranoiaMap.threats.map((threat: string, i: number) => (
+                  {paranoiaMap.external.map((item: any, i: number) => (
                     <li key={i} className="flex items-start gap-2 p-2 rounded-lg bg-warning/5 border border-warning/20 text-sm">
                       <AlertTriangle className="h-3 w-3 text-warning flex-shrink-0 mt-0.5" />
-                      {threat}
+                      {typeof item === 'string' ? item : item.text || item.name}
                     </li>
                   ))}
                 </ul>
               </div>
             )}
-            {paranoiaMap.blindSpots?.length > 0 && (
+            {paranoiaMap.internal?.length > 0 && (
               <div>
-                <p className="text-xs text-muted-foreground font-medium mb-2">Blind Spots</p>
+                <p className="text-xs text-muted-foreground font-medium mb-2">Internal Risks</p>
                 <ul className="space-y-2">
-                  {paranoiaMap.blindSpots.map((spot: string, i: number) => (
+                  {paranoiaMap.internal.map((item: any, i: number) => (
                     <li key={i} className="flex items-start gap-2 p-2 rounded-lg bg-muted/30 border border-border/50 text-sm">
-                      <span className="text-muted-foreground">?</span>
-                      {spot}
+                      <span className="text-muted-foreground">!</span>
+                      {typeof item === 'string' ? item : item.text || item.name}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {paranoiaMap.existential?.length > 0 && (
+              <div>
+                <p className="text-xs text-destructive font-medium mb-2">Existential Threats</p>
+                <ul className="space-y-2">
+                  {paranoiaMap.existential.map((item: any, i: number) => (
+                    <li key={i} className="flex items-start gap-2 p-2 rounded-lg bg-destructive/5 border border-destructive/20 text-sm">
+                      <span className="text-destructive">☠</span>
+                      {typeof item === 'string' ? item : item.text || item.name}
                     </li>
                   ))}
                 </ul>
@@ -811,28 +848,28 @@ function ClarityCanvasFullView({
       )}
 
       {/* Strategy */}
-      {(strategy.oneLiner || strategy.keyMoves?.length > 0) && (
+      {(strategy.oneLiner || strategy.keyMoves?.length > 0 || strategy.thesis) && (
         <div>
           <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
             <Target className="h-4 w-4" style={{ color: brandColor }} />
             Strategy
           </h3>
-          {strategy.oneLiner && (
+          {(strategy.oneLiner || strategy.thesis) && (
             <div className="p-4 rounded-lg border-2 mb-4" style={{ backgroundColor: `${brandColor}10`, borderColor: `${brandColor}40` }}>
-              <p className="text-xs text-muted-foreground mb-1">One-Liner</p>
-              <p className="text-base font-medium">{strategy.oneLiner}</p>
+              <p className="text-xs text-muted-foreground mb-1">Strategic Thesis</p>
+              <p className="text-base font-medium">{strategy.oneLiner || strategy.thesis}</p>
             </div>
           )}
           {strategy.keyMoves?.length > 0 && (
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground">Key Moves</p>
               <div className="space-y-2">
-                {strategy.keyMoves.map((move: string, i: number) => (
+                {strategy.keyMoves.map((move: any, i: number) => (
                   <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 border border-border/50 text-sm">
                     <span className="w-6 h-6 rounded-full bg-primary/20 text-primary text-xs font-bold flex items-center justify-center flex-shrink-0">
                       {i + 1}
                     </span>
-                    {move}
+                    {typeof move === 'string' ? move : move.text || move.name}
                   </div>
                 ))}
               </div>
@@ -841,44 +878,67 @@ function ClarityCanvasFullView({
         </div>
       )}
 
-      {/* Execution Swimlanes */}
-      {(swimlanes.short?.length > 0 || swimlanes.mid?.length > 0 || swimlanes.long?.length > 0) && (
+      {/* Execution Swimlanes - Actual structure: named lanes (web, sales, etc.) each with short/mid/long */}
+      {hasSwimlanesContent && (
         <div>
           <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
             <BarChart3 className="h-4 w-4 text-primary" />
             Execution Swimlanes
           </h3>
-          <div className="grid gap-4 md:grid-cols-3">
-            {swimlanes.short?.length > 0 && (
-              <div className="p-4 rounded-lg bg-success/5 border border-success/20">
-                <p className="text-xs text-success font-medium mb-3">Short-term (30 days)</p>
-                <ul className="space-y-2">
-                  {swimlanes.short.map((item: any, i: number) => (
-                    <li key={i} className="text-sm">{typeof item === 'string' ? item : item.text || item.title}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {swimlanes.mid?.length > 0 && (
-              <div className="p-4 rounded-lg bg-warning/5 border border-warning/20">
-                <p className="text-xs text-warning font-medium mb-3">Mid-term (90 days)</p>
-                <ul className="space-y-2">
-                  {swimlanes.mid.map((item: any, i: number) => (
-                    <li key={i} className="text-sm">{typeof item === 'string' ? item : item.text || item.title}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {swimlanes.long?.length > 0 && (
-              <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
-                <p className="text-xs text-primary font-medium mb-3">Long-term (12 months)</p>
-                <ul className="space-y-2">
-                  {swimlanes.long.map((item: any, i: number) => (
-                    <li key={i} className="text-sm">{typeof item === 'string' ? item : item.text || item.title}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
+          <div className="space-y-4">
+            {Object.entries(swimlanes).map(([laneKey, lane]: [string, any]) => {
+              if (!lane) return null;
+              const shortItems = getSwimlanItems(lane.short);
+              const midItems = getSwimlanItems(lane.mid);
+              const longItems = getSwimlanItems(lane.long);
+              if (shortItems.length === 0 && midItems.length === 0 && longItems.length === 0) return null;
+              
+              return (
+                <div key={laneKey} className="rounded-lg border border-border/50 overflow-hidden">
+                  <div className="bg-muted/30 px-4 py-2 border-b border-border/50">
+                    <p className="text-sm font-medium">{formatKey(laneKey)}</p>
+                  </div>
+                  <div className="grid md:grid-cols-3 divide-x divide-border/50">
+                    <div className="p-3">
+                      <p className="text-xs text-success font-medium mb-2">Short (30 days)</p>
+                      {shortItems.length > 0 ? (
+                        <ul className="space-y-1 text-sm">
+                          {shortItems.map((item: string, i: number) => (
+                            <li key={i} className="flex items-start gap-1">
+                              <span className="text-success">•</span> {item}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : <p className="text-xs text-muted-foreground">—</p>}
+                    </div>
+                    <div className="p-3">
+                      <p className="text-xs text-warning font-medium mb-2">Mid (90 days)</p>
+                      {midItems.length > 0 ? (
+                        <ul className="space-y-1 text-sm">
+                          {midItems.map((item: string, i: number) => (
+                            <li key={i} className="flex items-start gap-1">
+                              <span className="text-warning">•</span> {item}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : <p className="text-xs text-muted-foreground">—</p>}
+                    </div>
+                    <div className="p-3">
+                      <p className="text-xs text-primary font-medium mb-2">Long (12 months)</p>
+                      {longItems.length > 0 ? (
+                        <ul className="space-y-1 text-sm">
+                          {longItems.map((item: string, i: number) => (
+                            <li key={i} className="flex items-start gap-1">
+                              <span className="text-primary">•</span> {item}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : <p className="text-xs text-muted-foreground">—</p>}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

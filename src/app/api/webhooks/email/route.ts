@@ -6,6 +6,23 @@ import { eq, ilike } from "drizzle-orm";
 import { extractTodosFromEmail } from "@/lib/ai/extract-todos";
 import { createActionItem } from "@/lib/db/action-items";
 
+// Resend API helper functions (receiving API not yet in SDK)
+async function fetchResendEmail(emailId: string) {
+  const res = await fetch(`https://api.resend.com/emails/${emailId}`, {
+    headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}` },
+  });
+  if (!res.ok) return { data: null, error: await res.text() };
+  return { data: await res.json(), error: null };
+}
+
+async function fetchResendAttachments(emailId: string) {
+  const res = await fetch(`https://api.resend.com/emails/${emailId}/attachments`, {
+    headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}` },
+  });
+  if (!res.ok) return { data: null, error: await res.text() };
+  return { data: await res.json(), error: null };
+}
+
 // Webhook endpoint for receiving emails
 // Supports both Resend and Cloudflare Email Worker formats
 export async function POST(req: NextRequest) {
@@ -30,7 +47,7 @@ export async function POST(req: NextRequest) {
     }
 
     const payload = await req.json();
-    
+
     // Normalize payload from different providers
     let emailData: {
       to: string;
@@ -41,6 +58,7 @@ export async function POST(req: NextRequest) {
       text?: string;
       html?: string;
       messageId?: string;
+      rawHeaders?: Record<string, string>;
       attachments: Array<{
         filename: string;
         contentType: string;
@@ -51,8 +69,49 @@ export async function POST(req: NextRequest) {
     };
 
     // Detect format and normalize
-    if (payload.type === "email.received" || payload.data?.to) {
-      // Resend format
+    if (payload.type === "email.received" && payload.data?.email_id && process.env.RESEND_API_KEY) {
+      // Resend webhook format - fetch full email content via REST API
+      const emailId = payload.data.email_id;
+
+      // Fetch full email content (body, headers)
+      const { data: fullEmail, error: emailError } = await fetchResendEmail(emailId);
+
+      if (emailError || !fullEmail) {
+        console.error("Failed to fetch email from Resend:", emailError);
+        return NextResponse.json({ error: "Failed to fetch email" }, { status: 500 });
+      }
+
+      // Fetch attachments list
+      const { data: attachmentsList, error: attachmentsError } = await fetchResendAttachments(emailId);
+
+      if (attachmentsError) {
+        console.error("Failed to fetch attachments from Resend:", attachmentsError);
+        // Continue without attachments - don't fail the whole request
+      }
+
+      // Parse from field to extract name and email
+      const fromField = fullEmail.from || "";
+      const fromMatch = fromField.match(/^(.+?)\s*<(.+)>$/);
+
+      emailData = {
+        to: Array.isArray(fullEmail.to) ? fullEmail.to[0] : fullEmail.to,
+        from: fromField,
+        fromName: fromMatch ? fromMatch[1].trim() : undefined,
+        fromEmail: fromMatch ? fromMatch[2] : fromField,
+        subject: fullEmail.subject,
+        text: fullEmail.text,
+        html: fullEmail.html,
+        messageId: fullEmail.message_id,
+        rawHeaders: fullEmail.headers,
+        attachments: (attachmentsList || []).map((att: any) => ({
+          filename: att.filename,
+          contentType: att.content_type,
+          size: att.size,
+          url: att.download_url,
+        })),
+      };
+    } else if (payload.type === "email.received" || payload.data?.to) {
+      // Resend format with data already in payload (fallback)
       const data = payload.data || payload;
       emailData = {
         to: Array.isArray(data.to) ? data.to[0] : data.to,
@@ -156,6 +215,7 @@ export async function POST(req: NextRequest) {
         bodyText: emailData.text,
         bodyHtml: emailData.html,
         attachments: processedAttachments,
+        rawHeaders: emailData.rawHeaders,
         messageId: emailData.messageId,
         status: "inbox",
       })

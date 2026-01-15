@@ -14,6 +14,8 @@ import {
   Pin,
   FileText,
   Check,
+  Lightbulb,
+  Link2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,7 +47,7 @@ interface Client {
   status: string;
 }
 
-type QuickActionType = "note" | "session" | "upload" | "task" | null;
+type QuickActionType = "note" | "session" | "upload" | "task" | "somepoint" | "link" | null;
 
 const NOTE_TYPES = [
   { value: "general", label: "General", color: "bg-gray-100 text-gray-700" },
@@ -158,6 +160,20 @@ export function QuickActionMenu() {
       description: "Add an action item",
       color: "bg-purple-500",
     },
+    {
+      id: "somepoint" as const,
+      label: "At Some Point",
+      icon: Lightbulb,
+      description: "Save an idea for later",
+      color: "bg-yellow-500",
+    },
+    {
+      id: "link" as const,
+      label: "Add Link",
+      icon: Link2,
+      description: "Save a reference link",
+      color: "bg-cyan-500",
+    },
   ];
 
   if (!open) {
@@ -255,6 +271,10 @@ export function QuickActionMenu() {
               <QuickUploadForm clients={clients} onSuccess={handleSuccess} />
             ) : activeAction === "task" ? (
               <QuickTaskForm clients={clients} onSuccess={handleSuccess} />
+            ) : activeAction === "somepoint" ? (
+              <QuickSomePointForm clients={clients} onSuccess={handleSuccess} />
+            ) : activeAction === "link" ? (
+              <QuickLinkForm clients={clients} onSuccess={handleSuccess} />
             ) : null}
           </div>
 
@@ -857,6 +877,257 @@ function QuickTaskForm({
         <Button onClick={handleSubmit} disabled={loading || !title.trim()}>
           {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
           Create Task
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// Quick "At Some Point" Form
+function QuickSomePointForm({
+  clients,
+  onSuccess,
+}: {
+  clients: Client[];
+  onSuccess: () => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [clientId, setClientId] = useState<string>("");
+  const [title, setTitle] = useState("");
+  const [text, setText] = useState("");
+
+  const handleSubmit = async () => {
+    if (!title.trim() || !clientId) return;
+
+    setLoading(true);
+    try {
+      // Fetch current client data
+      const clientRes = await fetch(`/api/clients/${clientId}`);
+      if (!clientRes.ok) throw new Error("Failed to fetch client");
+      const client = await clientRes.json();
+
+      const newItem = {
+        id: crypto.randomUUID(),
+        title: title.trim(),
+        text: text.trim() || undefined,
+        createdAt: new Date().toISOString(),
+      };
+
+      const updated = [...(client.atSomePoint || []), newItem];
+
+      const res = await fetch(`/api/clients/${clientId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ atSomePoint: updated }),
+      });
+
+      if (!res.ok) throw new Error("Failed to save");
+      onSuccess();
+    } catch (error) {
+      console.error("Failed to add item:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Client Selector */}
+      <div className="space-y-2">
+        <Label>Client *</Label>
+        <Select value={clientId} onValueChange={setClientId}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select client..." />
+          </SelectTrigger>
+          <SelectContent>
+            {clients.map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.name} {c.company && `(${c.company})`}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Title */}
+      <div className="space-y-2">
+        <Label>Title / Quick thought *</Label>
+        <Input
+          placeholder="What's the idea?"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              handleSubmit();
+            }
+          }}
+          autoFocus
+        />
+      </div>
+
+      {/* Details */}
+      <div className="space-y-2">
+        <Label>More details (optional)</Label>
+        <Textarea
+          placeholder="Add context or notes..."
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={3}
+          className="resize-none"
+        />
+      </div>
+
+      <p className="text-sm text-muted-foreground">
+        This will be saved to the client&apos;s &quot;At Some Point&quot; scratchpad.
+      </p>
+
+      {/* Submit */}
+      <div className="flex justify-end gap-2 pt-2">
+        <Button onClick={handleSubmit} disabled={loading || !title.trim() || !clientId}>
+          {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+          Save Idea
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// Quick Link Form
+function QuickLinkForm({
+  clients,
+  onSuccess,
+}: {
+  clients: Client[];
+  onSuccess: () => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [clientId, setClientId] = useState<string>("");
+  const [title, setTitle] = useState("");
+  const [url, setUrl] = useState("");
+  const [linkType, setLinkType] = useState<string>("reference");
+  const [notes, setNotes] = useState("");
+
+  const handleSubmit = async () => {
+    if (!title.trim() || !url.trim() || !clientId) return;
+
+    setLoading(true);
+    try {
+      // Fetch current client data
+      const clientRes = await fetch(`/api/clients/${clientId}`);
+      if (!clientRes.ok) throw new Error("Failed to fetch client");
+      const client = await clientRes.json();
+
+      let finalUrl = url.trim();
+      if (!finalUrl.startsWith("http://") && !finalUrl.startsWith("https://")) {
+        finalUrl = "https://" + finalUrl;
+      }
+
+      const newLink = {
+        id: crypto.randomUUID(),
+        title: title.trim(),
+        url: finalUrl,
+        type: linkType,
+        notes: notes.trim() || undefined,
+        createdAt: new Date().toISOString(),
+      };
+
+      const updated = [...(client.links || []), newLink];
+
+      const res = await fetch(`/api/clients/${clientId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ links: updated }),
+      });
+
+      if (!res.ok) throw new Error("Failed to save");
+      onSuccess();
+    } catch (error) {
+      console.error("Failed to add link:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Client Selector */}
+      <div className="space-y-2">
+        <Label>Client *</Label>
+        <Select value={clientId} onValueChange={setClientId}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select client..." />
+          </SelectTrigger>
+          <SelectContent>
+            {clients.map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.name} {c.company && `(${c.company})`}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Title */}
+      <div className="space-y-2">
+        <Label>Link Title *</Label>
+        <Input
+          placeholder="e.g., Competitor X LinkedIn"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          autoFocus
+        />
+      </div>
+
+      {/* URL */}
+      <div className="space-y-2">
+        <Label>URL *</Label>
+        <Input
+          placeholder="https://..."
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              handleSubmit();
+            }
+          }}
+        />
+      </div>
+
+      {/* Type & Notes */}
+      <div className="flex flex-wrap items-start gap-3">
+        <div className="space-y-1">
+          <Label className="text-xs">Type</Label>
+          <Select value={linkType} onValueChange={setLinkType}>
+            <SelectTrigger className="w-[130px] h-9">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="reference">Reference</SelectItem>
+              <SelectItem value="competitor">Competitor</SelectItem>
+              <SelectItem value="person">Person</SelectItem>
+              <SelectItem value="resource">Resource</SelectItem>
+              <SelectItem value="other">Other</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex-1 space-y-1">
+          <Label className="text-xs">Notes (optional)</Label>
+          <Input
+            placeholder="Add context..."
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            className="h-9"
+          />
+        </div>
+      </div>
+
+      {/* Submit */}
+      <div className="flex justify-end gap-2 pt-2">
+        <Button onClick={handleSubmit} disabled={loading || !title.trim() || !url.trim() || !clientId}>
+          {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+          Save Link
         </Button>
       </div>
     </div>
