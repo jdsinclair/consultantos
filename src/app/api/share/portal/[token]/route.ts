@@ -71,6 +71,12 @@ export async function GET(
         client: portal.client,
       },
       items: itemsWithData,
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      },
     });
   } catch (error) {
     console.error("Failed to fetch portal:", error);

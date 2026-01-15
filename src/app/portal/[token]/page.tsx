@@ -73,7 +73,10 @@ export default function ClientPortalPage({
 
   const fetchPortal = useCallback(async () => {
     try {
-      const res = await fetch(`/api/share/portal/${params.token}`);
+      const res = await fetch(`/api/share/portal/${params.token}`, {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache' },
+      });
       if (!res.ok) {
         if (res.status === 404) {
           setError("This portal link is invalid or has expired.");
