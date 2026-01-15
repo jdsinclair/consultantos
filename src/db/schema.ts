@@ -953,6 +953,119 @@ export type SharedItem = typeof sharedItems.$inferSelect;
 export type NewSharedItem = typeof sharedItems.$inferInsert;
 export type PortalAccessLog = typeof portalAccessLogs.$inferSelect;
 
+// Roadmap Builder - Visual directional roadmaps
+export interface RoadmapSwimlane {
+  key: string;
+  label: string;
+  color: string;
+  icon?: string;
+  order: number;
+  isCustom?: boolean;
+  collapsed?: boolean;
+}
+
+export interface RoadmapItemLink {
+  id: string;
+  type: 'prototype' | 'prd' | 'design' | 'doc' | 'jira' | 'github' | 'figma' | 'other';
+  url: string;
+  title?: string;
+}
+
+export interface RoadmapItemMetrics {
+  effort?: string;
+  impact?: 'low' | 'medium' | 'high' | 'critical';
+  confidence?: number;
+  roi?: string;
+}
+
+export interface RoadmapItem {
+  id: string;
+  title: string;
+  description?: string;
+  swimlaneKey: string;
+  timeframe: 'now' | 'next' | 'later' | 'someday';
+  order: number;
+  status: 'idea' | 'planned' | 'in_progress' | 'done' | 'blocked' | 'cut';
+  size?: 'xs' | 's' | 'm' | 'l' | 'xl';
+  metrics?: RoadmapItemMetrics;
+  notes?: string;
+  why?: string;
+  successCriteria?: string;
+  risks?: string[];
+  dependencies?: string[];
+  links?: RoadmapItemLink[];
+  source?: 'manual' | 'ai' | 'import';
+  sourceContext?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RoadmapBacklogItem {
+  id: string;
+  title: string;
+  description?: string;
+  notes?: string;
+  suggestedSwimlane?: string;
+  suggestedTimeframe?: 'now' | 'next' | 'later' | 'someday';
+  suggestedSize?: 'xs' | 's' | 'm' | 'l' | 'xl';
+  suggestedImpact?: 'low' | 'medium' | 'high' | 'critical';
+  source?: 'manual' | 'ai' | 'import';
+  sourceContext?: string;
+  links?: RoadmapItemLink[];
+  createdAt: string;
+  order: number;
+}
+
+export interface RoadmapSuccessMetrics {
+  quantitative: string[];
+  qualitative: string[];
+}
+
+export const roadmaps = pgTable('roadmaps', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  clientId: uuid('client_id').references(() => clients.id, { onDelete: 'cascade' }).notNull(),
+  userId: text('user_id').references(() => users.id).notNull(),
+
+  // Header
+  title: text('title').notNull(),
+  objective: text('objective'),
+  vision: text('vision'),
+  planningHorizon: text('planning_horizon'),
+
+  // Swimlanes (ordered)
+  swimlanes: jsonb('swimlanes').$type<RoadmapSwimlane[]>(),
+
+  // Items on the board
+  items: jsonb('items').$type<RoadmapItem[]>(),
+
+  // Backlog / dump area
+  backlog: jsonb('backlog').$type<RoadmapBacklogItem[]>(),
+
+  // Success metrics
+  successMetrics: jsonb('success_metrics').$type<RoadmapSuccessMetrics>(),
+
+  // Notes
+  notes: text('notes'),
+
+  // AI conversation
+  conversationId: uuid('conversation_id'),
+
+  // Status
+  status: text('status').default('draft'), // draft, active, review, archived
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  clientIdx: index('roadmaps_client_idx').on(table.clientId),
+  userIdx: index('roadmaps_user_idx').on(table.userId),
+  statusIdx: index('roadmaps_status_idx').on(table.status),
+}));
+
+export const roadmapsRelations = relations(roadmaps, ({ one }) => ({
+  client: one(clients, { fields: [roadmaps.clientId], references: [clients.id] }),
+  user: one(users, { fields: [roadmaps.userId], references: [users.id] }),
+}));
+
 // Export types for TypeScript
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -985,3 +1098,5 @@ export type ClarityMethodCanvas = typeof clarityMethodCanvases.$inferSelect;
 export type NewClarityMethodCanvas = typeof clarityMethodCanvases.$inferInsert;
 export type ExecutionPlan = typeof executionPlans.$inferSelect;
 export type NewExecutionPlan = typeof executionPlans.$inferInsert;
+export type Roadmap = typeof roadmaps.$inferSelect;
+export type NewRoadmap = typeof roadmaps.$inferInsert;
