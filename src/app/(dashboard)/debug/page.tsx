@@ -24,6 +24,10 @@ import {
   Calendar,
   MessageSquare,
   Code,
+  Copy,
+  Check,
+  Activity,
+  Bug,
 } from "lucide-react";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
@@ -72,6 +76,63 @@ interface AILogEntry {
   response?: string;
 }
 
+interface RagDiagnostic {
+  diagnostic: {
+    timestamp: string;
+    userId: string;
+    clientFilter: string;
+  };
+  sourceStats: {
+    total: number;
+    byStatus: {
+      pending: number;
+      processing: number;
+      completed: number;
+      error: number;
+    };
+    byType: Record<string, number>;
+  };
+  chunkStats: {
+    totalChunks: number;
+    chunksWithEmbeddings: number;
+    chunksWithoutEmbeddings: number;
+  };
+  sourcesWithChunks: Array<{
+    id: string;
+    name: string;
+    type: string;
+    clientName: string;
+    processingStatus: string;
+    processingError: string | null;
+    contentLength: number;
+    chunkCount: number;
+    embeddingCount: number;
+    hasContent: boolean;
+    createdAt: string;
+  }>;
+  sampleChunks?: Array<{
+    id: string;
+    sourceId: string;
+    sourceName: string;
+    content: string;
+    chunkIndex: number;
+    hasEmbedding: boolean;
+    embeddingDimensions: number | null;
+  }> | string;
+  issues: string[];
+  recommendations: string[];
+}
+
+interface RawChunk {
+  sourceId: string;
+  sourceName: string;
+  sourceType: string;
+  content: string;
+  chunkIndex: number;
+  hasEmbedding: boolean;
+  embeddingDimensions: number;
+}
+
 export default function DebugPage() {
   const [sources, setSources] = useState<Source[]>([]);
   const [stats, setStats] = useState<ProcessingStats>({
@@ -101,6 +162,14 @@ export default function DebugPage() {
   const [expandedLog, setExpandedLog] = useState<string | null>(null);
   const [logFilter, setLogFilter] = useState<string>("all");
   const [logDebugInfo, setLogDebugInfo] = useState<Record<string, unknown> | null>(null);
+
+  // RAG Diagnostic section
+  const [ragDiagnostic, setRagDiagnostic] = useState<RagDiagnostic | null>(null);
+  const [ragDiagLoading, setRagDiagLoading] = useState(false);
+  const [rawChunks, setRawChunks] = useState<RawChunk[]>([]);
+  const [rawChunksLoading, setRawChunksLoading] = useState(false);
+  const [copiedSection, setCopiedSection] = useState<string | null>(null);
+  const [showRagDiagnostic, setShowRagDiagnostic] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -221,6 +290,114 @@ export default function DebugPage() {
     }
   };
 
+  const fetchRagDiagnostic = async () => {
+    setRagDiagLoading(true);
+    try {
+      const params = new URLSearchParams({ showChunks: "true", chunkLimit: "20" });
+      if (ragClientId) params.set("clientId", ragClientId);
+
+      const res = await fetch(`/api/debug/rag-diagnostic?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        setRagDiagnostic(data);
+      }
+    } catch (error) {
+      console.error("RAG diagnostic failed:", error);
+    } finally {
+      setRagDiagLoading(false);
+    }
+  };
+
+  const fetchRawChunks = async () => {
+    setRawChunksLoading(true);
+    try {
+      const params = new URLSearchParams({ raw: "true", limit: "50" });
+      if (ragClientId) params.set("clientId", ragClientId);
+
+      const res = await fetch(`/api/debug/rag-search?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        setRawChunks(data.results || []);
+      }
+    } catch (error) {
+      console.error("Failed to fetch raw chunks:", error);
+    } finally {
+      setRawChunksLoading(false);
+    }
+  };
+
+  const copyToClipboard = async (text: string, section: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedSection(section);
+      setTimeout(() => setCopiedSection(null), 2000);
+    } catch (error) {
+      console.error("Failed to copy:", error);
+    }
+  };
+
+  const generateDiagnosticReport = () => {
+    if (!ragDiagnostic) return "";
+
+    const lines = [
+      "=== RAG DIAGNOSTIC REPORT ===",
+      `Generated: ${ragDiagnostic.diagnostic.timestamp}`,
+      `Client Filter: ${ragDiagnostic.diagnostic.clientFilter}`,
+      "",
+      "--- SOURCE STATS ---",
+      `Total Sources: ${ragDiagnostic.sourceStats.total}`,
+      `  Pending: ${ragDiagnostic.sourceStats.byStatus.pending}`,
+      `  Processing: ${ragDiagnostic.sourceStats.byStatus.processing}`,
+      `  Completed: ${ragDiagnostic.sourceStats.byStatus.completed}`,
+      `  Error: ${ragDiagnostic.sourceStats.byStatus.error}`,
+      "",
+      "Types: " + Object.entries(ragDiagnostic.sourceStats.byType).map(([k, v]) => `${k}(${v})`).join(", "),
+      "",
+      "--- CHUNK STATS ---",
+      `Total Chunks: ${ragDiagnostic.chunkStats.totalChunks}`,
+      `With Embeddings: ${ragDiagnostic.chunkStats.chunksWithEmbeddings}`,
+      `Without Embeddings: ${ragDiagnostic.chunkStats.chunksWithoutEmbeddings}`,
+      "",
+      "--- ISSUES DETECTED ---",
+      ...ragDiagnostic.issues.map(i => `• ${i}`),
+      "",
+      "--- SOURCES DETAIL ---",
+      ...ragDiagnostic.sourcesWithChunks.map(s =>
+        `${s.name} (${s.type}) - Status: ${s.processingStatus}, Chunks: ${s.chunkCount}, Embeddings: ${s.embeddingCount}, Content: ${s.contentLength} chars${s.processingError ? `, ERROR: ${s.processingError}` : ""}`
+      ),
+    ];
+
+    if (Array.isArray(ragDiagnostic.sampleChunks) && ragDiagnostic.sampleChunks.length > 0) {
+      lines.push("", "--- SAMPLE CHUNKS ---");
+      ragDiagnostic.sampleChunks.forEach((chunk, i) => {
+        lines.push(`[${i + 1}] ${chunk.sourceName} (chunk ${chunk.chunkIndex})`);
+        lines.push(`    Embedding: ${chunk.hasEmbedding ? `Yes (${chunk.embeddingDimensions} dims)` : "NO"}`);
+        lines.push(`    Content: ${chunk.content.substring(0, 200)}...`);
+      });
+    }
+
+    return lines.join("\n");
+  };
+
+  const generateRawChunksReport = () => {
+    if (rawChunks.length === 0) return "No raw chunks found";
+
+    const lines = [
+      "=== RAW CHUNKS FROM DATABASE ===",
+      `Total: ${rawChunks.length} chunks`,
+      "",
+      ...rawChunks.map((chunk, i) => [
+        `[${i + 1}] Source: ${chunk.sourceName} (${chunk.sourceType})`,
+        `    Chunk Index: ${chunk.chunkIndex}`,
+        `    Has Embedding: ${chunk.hasEmbedding ? `Yes (${chunk.embeddingDimensions} dims)` : "NO"}`,
+        `    Content: ${chunk.content.substring(0, 300)}...`,
+        "",
+      ]).flat(),
+    ];
+
+    return lines.join("\n");
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "completed":
@@ -313,6 +490,267 @@ export default function DebugPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* RAG Diagnostic Section */}
+      <Card className="mb-6 border-2 border-orange-200 bg-orange-50/50">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-orange-700">
+              <Bug className="h-5 w-5" />
+              RAG Diagnostic Tool
+            </CardTitle>
+            <div className="flex gap-2">
+              <select
+                className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                value={ragClientId}
+                onChange={(e) => setRagClientId(e.target.value)}
+              >
+                <option value="">All clients</option>
+                {clients.map((client) => (
+                  <option key={client.id} value={client.id}>
+                    {client.name}
+                  </option>
+                ))}
+              </select>
+              <Button
+                onClick={() => {
+                  setShowRagDiagnostic(!showRagDiagnostic);
+                  if (!showRagDiagnostic && !ragDiagnostic) {
+                    fetchRagDiagnostic();
+                    fetchRawChunks();
+                  }
+                }}
+                variant={showRagDiagnostic ? "default" : "outline"}
+              >
+                <Activity className="h-4 w-4 mr-2" />
+                {showRagDiagnostic ? "Hide Diagnostic" : "Run Diagnostic"}
+              </Button>
+            </div>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Analyze RAG database contents, find issues, and see what&apos;s actually stored
+          </p>
+        </CardHeader>
+
+        {showRagDiagnostic && (
+          <CardContent className="space-y-4">
+            {/* Action buttons */}
+            <div className="flex gap-2 flex-wrap">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={fetchRagDiagnostic}
+                disabled={ragDiagLoading}
+              >
+                {ragDiagLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}
+                Refresh Diagnostic
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={fetchRawChunks}
+                disabled={rawChunksLoading}
+              >
+                {rawChunksLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Database className="h-4 w-4 mr-1" />}
+                Load Raw Chunks
+              </Button>
+              {ragDiagnostic && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => copyToClipboard(generateDiagnosticReport(), "diagnostic")}
+                >
+                  {copiedSection === "diagnostic" ? <Check className="h-4 w-4 mr-1 text-green-600" /> : <Copy className="h-4 w-4 mr-1" />}
+                  Copy Full Report
+                </Button>
+              )}
+              {rawChunks.length > 0 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => copyToClipboard(generateRawChunksReport(), "chunks")}
+                >
+                  {copiedSection === "chunks" ? <Check className="h-4 w-4 mr-1 text-green-600" /> : <Copy className="h-4 w-4 mr-1" />}
+                  Copy Raw Chunks
+                </Button>
+              )}
+            </div>
+
+            {ragDiagLoading ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : ragDiagnostic ? (
+              <div className="space-y-4">
+                {/* Issues Alert */}
+                {ragDiagnostic.issues.length > 0 && ragDiagnostic.issues[0] !== "No obvious issues detected" && (
+                  <div className="p-4 bg-red-100 border border-red-300 rounded-lg">
+                    <h4 className="font-semibold text-red-800 flex items-center gap-2 mb-2">
+                      <AlertCircle className="h-4 w-4" />
+                      Issues Detected
+                    </h4>
+                    <ul className="list-disc list-inside text-sm text-red-700 space-y-1">
+                      {ragDiagnostic.issues.map((issue, i) => (
+                        <li key={i}>{issue}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Stats Grid */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="p-3 bg-white rounded-lg border">
+                    <p className="text-2xl font-bold">{ragDiagnostic.sourceStats.total}</p>
+                    <p className="text-xs text-muted-foreground">Total Sources</p>
+                  </div>
+                  <div className="p-3 bg-white rounded-lg border">
+                    <p className="text-2xl font-bold">{ragDiagnostic.chunkStats.totalChunks}</p>
+                    <p className="text-xs text-muted-foreground">Total Chunks</p>
+                  </div>
+                  <div className="p-3 bg-white rounded-lg border">
+                    <p className="text-2xl font-bold text-green-600">{ragDiagnostic.chunkStats.chunksWithEmbeddings}</p>
+                    <p className="text-xs text-muted-foreground">With Embeddings</p>
+                  </div>
+                  <div className="p-3 bg-white rounded-lg border">
+                    <p className="text-2xl font-bold text-red-600">{ragDiagnostic.chunkStats.chunksWithoutEmbeddings}</p>
+                    <p className="text-xs text-muted-foreground">Missing Embeddings</p>
+                  </div>
+                </div>
+
+                {/* Source Types */}
+                <div className="p-3 bg-white rounded-lg border">
+                  <h4 className="font-medium text-sm mb-2">Source Types</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {Object.entries(ragDiagnostic.sourceStats.byType).map(([type, count]) => (
+                      <Badge key={type} variant="secondary">
+                        {type}: {count}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Sources with Chunks */}
+                <div className="p-3 bg-white rounded-lg border">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-medium text-sm">Sources Detail (first 20)</h4>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => copyToClipboard(
+                        ragDiagnostic.sourcesWithChunks.map(s =>
+                          `${s.name} | ${s.type} | ${s.processingStatus} | ${s.chunkCount} chunks | ${s.embeddingCount} embeddings | ${s.contentLength} chars${s.processingError ? ` | ERROR: ${s.processingError}` : ""}`
+                        ).join("\n"),
+                        "sources"
+                      )}
+                    >
+                      {copiedSection === "sources" ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                    </Button>
+                  </div>
+                  <div className="max-h-60 overflow-y-auto space-y-1">
+                    {ragDiagnostic.sourcesWithChunks.map((source) => (
+                      <div
+                        key={source.id}
+                        className={`text-xs p-2 rounded ${
+                          source.processingStatus === "error" || source.processingError
+                            ? "bg-red-50 border border-red-200"
+                            : source.chunkCount === 0
+                            ? "bg-yellow-50 border border-yellow-200"
+                            : "bg-gray-50"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium truncate max-w-[200px]">{source.name}</span>
+                          <div className="flex gap-1">
+                            <Badge variant="outline" className="text-xs">{source.type}</Badge>
+                            {getStatusBadge(source.processingStatus)}
+                          </div>
+                        </div>
+                        <div className="text-muted-foreground mt-1">
+                          Chunks: {source.chunkCount} | Embeddings: {source.embeddingCount} | Content: {source.contentLength} chars
+                        </div>
+                        {source.processingError && (
+                          <div className="text-red-600 mt-1 font-mono">Error: {source.processingError}</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Sample Chunks */}
+                {Array.isArray(ragDiagnostic.sampleChunks) && ragDiagnostic.sampleChunks.length > 0 && (
+                  <div className="p-3 bg-white rounded-lg border">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-medium text-sm">Sample Chunks (newest first)</h4>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => copyToClipboard(
+                          (ragDiagnostic.sampleChunks as Array<{sourceName: string; chunkIndex: number; hasEmbedding: boolean; embeddingDimensions: number | null; content: string}>).map((c, i) =>
+                            `[${i + 1}] ${c.sourceName} (chunk ${c.chunkIndex})\nEmbedding: ${c.hasEmbedding ? `Yes (${c.embeddingDimensions} dims)` : "NO"}\nContent: ${c.content}`
+                          ).join("\n\n"),
+                          "sampleChunks"
+                        )}
+                      >
+                        {copiedSection === "sampleChunks" ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                      </Button>
+                    </div>
+                    <div className="max-h-80 overflow-y-auto space-y-2">
+                      {(ragDiagnostic.sampleChunks as Array<{id: string; sourceName: string; chunkIndex: number; hasEmbedding: boolean; embeddingDimensions: number | null; content: string}>).map((chunk) => (
+                        <div key={chunk.id} className={`text-xs p-2 rounded border ${chunk.hasEmbedding ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-medium">{chunk.sourceName} (chunk {chunk.chunkIndex})</span>
+                            <Badge variant={chunk.hasEmbedding ? "default" : "destructive"} className="text-xs">
+                              {chunk.hasEmbedding ? `${chunk.embeddingDimensions} dims` : "NO EMBEDDING"}
+                            </Badge>
+                          </div>
+                          <p className="text-muted-foreground font-mono whitespace-pre-wrap">{chunk.content}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <Bug className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p>Click &quot;Run Diagnostic&quot; to analyze your RAG database</p>
+              </div>
+            )}
+
+            {/* Raw Chunks Section */}
+            {rawChunks.length > 0 && (
+              <div className="p-3 bg-white rounded-lg border">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-medium text-sm flex items-center gap-2">
+                    <Database className="h-4 w-4" />
+                    Raw Chunks from Database ({rawChunks.length})
+                  </h4>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => copyToClipboard(generateRawChunksReport(), "rawChunks")}
+                  >
+                    {copiedSection === "rawChunks" ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                  </Button>
+                </div>
+                <div className="max-h-80 overflow-y-auto space-y-2">
+                  {rawChunks.map((chunk, i) => (
+                    <div key={i} className={`text-xs p-2 rounded border ${chunk.hasEmbedding ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-medium">{chunk.sourceName} ({chunk.sourceType})</span>
+                        <Badge variant={chunk.hasEmbedding ? "default" : "destructive"} className="text-xs">
+                          {chunk.hasEmbedding ? `${chunk.embeddingDimensions} dims` : "NO EMBEDDING"}
+                        </Badge>
+                      </div>
+                      <p className="text-muted-foreground font-mono whitespace-pre-wrap line-clamp-4">{chunk.content}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        )}
+      </Card>
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Source Processing List */}
