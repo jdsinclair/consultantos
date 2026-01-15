@@ -48,34 +48,29 @@ export async function generateClarityInsightsFromSource(
     howWeWillDie: existingClarity?.howWeWillDie || null,
   };
 
-  try {
-    const suggestions = await withAILogging(
-      "clarity-insights",
-      model,
-      async () => {
-        // Truncate content if too long
-        const maxContentLength = 12000;
-        let truncatedContent = content;
-        if (content.length > maxContentLength) {
-          const half = Math.floor(maxContentLength / 2);
-          truncatedContent = content.slice(0, half) + "\n\n[...content truncated...]\n\n" + content.slice(-half);
-        }
+  // Truncate content if too long
+  const maxContentLength = 12000;
+  let truncatedContent = content;
+  if (content.length > maxContentLength) {
+    const half = Math.floor(maxContentLength / 2);
+    truncatedContent = content.slice(0, half) + "\n\n[...content truncated...]\n\n" + content.slice(-half);
+  }
 
-        // Build user context section
-        let userContextSection = "";
-        if (context.userProfile) {
-          const { name, nickname, bio, specialties, businessName } = context.userProfile;
-          const parts: string[] = [];
-          if (nickname || name) parts.push(`Consultant: ${nickname || name}`);
-          if (businessName) parts.push(`Business: ${businessName}`);
-          if (bio) parts.push(`Background: ${bio}`);
-          if (specialties?.length) parts.push(`Focus Areas: ${specialties.join(", ")}`);
-          if (parts.length > 0) {
-            userContextSection = `\n\nCONSULTANT PROFILE (consider their perspective when suggesting insights):\n${parts.join("\n")}\n`;
-          }
-        }
+  // Build user context section
+  let userContextSection = "";
+  if (context.userProfile) {
+    const { name, nickname, bio, specialties, businessName } = context.userProfile;
+    const parts: string[] = [];
+    if (nickname || name) parts.push(`Consultant: ${nickname || name}`);
+    if (businessName) parts.push(`Business: ${businessName}`);
+    if (bio) parts.push(`Background: ${bio}`);
+    if (specialties?.length) parts.push(`Focus Areas: ${specialties.join(", ")}`);
+    if (parts.length > 0) {
+      userContextSection = `\n\nCONSULTANT PROFILE (consider their perspective when suggesting insights):\n${parts.join("\n")}\n`;
+    }
+  }
 
-        const prompt = `You are analyzing a document to extract business clarity insights for a consulting client.${userContextSection}
+  const prompt = `You are analyzing a document to extract business clarity insights for a consulting client.${userContextSection}
 
 SOURCE DOCUMENT (${context.sourceName}):
 ${truncatedContent}
@@ -116,6 +111,11 @@ Rules:
 - Return an empty array [] if no strong insights are found
 - Return ONLY valid JSON, no other text.`;
 
+  try {
+    const suggestions = await withAILogging(
+      "clarity-insights",
+      model,
+      async () => {
         console.log(`[Clarity Insights] Analyzing source: ${context.sourceName}`);
 
         const { text } = await generateText({
@@ -133,7 +133,8 @@ Rules:
         const result = JSON.parse(jsonText);
         return Array.isArray(result) ? result : [];
       },
-      { sourceName: context.sourceName, sourceId: context.sourceId }
+      { sourceName: context.sourceName, sourceId: context.sourceId },
+      { prompt }
     );
 
     // Create insight records for valid suggestions

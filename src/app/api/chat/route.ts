@@ -9,6 +9,7 @@ import { getClarityDocument } from "@/lib/db/clarity";
 import { getClarityMethodCanvas } from "@/lib/db/clarity-method";
 import { searchRelevantChunks, buildContextFromChunks } from "@/lib/rag";
 import { buildCanvasContext } from "@/lib/clarity-method/rag-integration";
+import { logCompletedAICall } from "@/lib/ai/logger";
 
 // Prevent static caching - auth routes must be dynamic
 export const dynamic = "force-dynamic";
@@ -294,16 +295,42 @@ Reference the canvas data when answering questions.`;
       }
     }
 
+    // Extract the user's last message for logging
+    const lastUserMessage = messages
+      .slice()
+      .reverse()
+      .find((m: { role: string; content: string }) => m.role === "user");
+    const userPrompt = lastUserMessage?.content || "(no user message)";
+
     try {
       console.log("[Chat] Starting stream with model: claude-sonnet-4-20250514");
+      const startTime = Date.now();
       const result = await streamText({
         model: models.default,
         system: fullSystemPrompt,
         messages,
-        onFinish: ({ text, usage }) => {
+        onFinish: async ({ text, usage }) => {
+          const duration = Date.now() - startTime;
           console.log("[Chat] Completed:", {
             textLength: text.length,
             usage
+          });
+          // Log the completed chat call
+          await logCompletedAICall({
+            operation: "chat",
+            model: "claude-sonnet-4-20250514",
+            status: "success",
+            duration,
+            inputTokens: usage?.promptTokens,
+            outputTokens: usage?.completionTokens,
+            metadata: {
+              clientId: clientId || "none",
+              personaId: personaId || "default",
+              messageCount: messages.length,
+            },
+            prompt: userPrompt,
+            systemPrompt: fullSystemPrompt.slice(0, 5000) + (fullSystemPrompt.length > 5000 ? "..." : ""),
+            response: text,
           });
         },
       });
@@ -348,6 +375,21 @@ Reference the canvas data when answering questions.`;
       }
 
       const errorMessage = streamError instanceof Error ? streamError.message : "Unknown error";
+
+      // Log the failed chat call
+      await logCompletedAICall({
+        operation: "chat",
+        model: "claude-sonnet-4-20250514",
+        status: "error",
+        error: errorMessage,
+        metadata: {
+          clientId: clientId || "none",
+          personaId: personaId || "default",
+          messageCount: messages.length,
+        },
+        prompt: userPrompt,
+        systemPrompt: fullSystemPrompt.slice(0, 5000) + (fullSystemPrompt.length > 5000 ? "..." : ""),
+      });
       const errorLower = errorMessage.toLowerCase();
 
       if (errorLower.includes("api key") || errorLower.includes("authentication") || errorLower.includes("unauthorized")) {

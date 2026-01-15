@@ -20,6 +20,10 @@ import {
   Layers,
   Cpu,
   Zap,
+  Trash2,
+  Calendar,
+  MessageSquare,
+  Code,
 } from "lucide-react";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
@@ -59,8 +63,13 @@ interface AILogEntry {
   model: string;
   status: "pending" | "success" | "error";
   duration?: number;
+  inputTokens?: number;
+  outputTokens?: number;
   error?: string;
   metadata?: Record<string, unknown>;
+  prompt?: string;
+  systemPrompt?: string;
+  response?: string;
 }
 
 export default function DebugPage() {
@@ -88,6 +97,9 @@ export default function DebugPage() {
   // AI Logs section
   const [aiLogs, setAiLogs] = useState<AILogEntry[]>([]);
   const [aiLogsLoading, setAiLogsLoading] = useState(false);
+  const [aiLogsTotal, setAiLogsTotal] = useState(0);
+  const [expandedLog, setExpandedLog] = useState<string | null>(null);
+  const [logFilter, setLogFilter] = useState<string>("all");
 
   useEffect(() => {
     fetchData();
@@ -97,10 +109,11 @@ export default function DebugPage() {
   const fetchAILogs = async () => {
     setAiLogsLoading(true);
     try {
-      const res = await fetch("/api/debug/ai-logs?limit=50");
+      const res = await fetch("/api/debug/ai-logs?limit=100");
       if (res.ok) {
         const data = await res.json();
         setAiLogs(data.logs || []);
+        setAiLogsTotal(data.total || 0);
       }
     } catch (error) {
       console.error("Failed to fetch AI logs:", error);
@@ -110,11 +123,30 @@ export default function DebugPage() {
   };
 
   const clearAILogs = async () => {
+    if (!confirm("Are you sure you want to delete all AI logs?")) return;
     try {
       await fetch("/api/debug/ai-logs", { method: "DELETE" });
       setAiLogs([]);
+      setAiLogsTotal(0);
     } catch (error) {
       console.error("Failed to clear AI logs:", error);
+    }
+  };
+
+  const cleanupOldLogs = async () => {
+    try {
+      const res = await fetch("/api/debug/ai-logs?action=cleanup", { method: "DELETE" });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.removedCount > 0) {
+          alert(`Cleaned up ${data.removedCount} logs older than 7 days`);
+          fetchAILogs();
+        } else {
+          alert("No old logs to clean up");
+        }
+      }
+    } catch (error) {
+      console.error("Failed to cleanup AI logs:", error);
     }
   };
 
@@ -222,6 +254,11 @@ export default function DebugPage() {
     }
   };
 
+  // Filter AI logs by status
+  const filteredAiLogs = logFilter === "all"
+    ? aiLogs
+    : aiLogs.filter((log) => log.status === logFilter);
+
   return (
     <div className="p-8">
       <div className="mb-8 flex items-center justify-between">
@@ -231,7 +268,7 @@ export default function DebugPage() {
             Debug & Processing
           </h1>
           <p className="text-muted-foreground">
-            Monitor source processing, RAG chunks, and test vector search
+            Monitor source processing, RAG chunks, and AI call logs
           </p>
         </div>
         <Button variant="outline" onClick={fetchData} disabled={loading}>
@@ -456,20 +493,48 @@ export default function DebugPage() {
         </Card>
       </div>
 
-      {/* AI Call Logs */}
+      {/* AI Call Logs - Full Width */}
       <Card className="mt-6">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="flex items-center gap-2">
-            <Cpu className="h-5 w-5" />
-            AI Call Logs
-          </CardTitle>
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Cpu className="h-5 w-5" />
+              AI Call Logs
+              {aiLogsTotal > 0 && (
+                <Badge variant="secondary" className="ml-2">
+                  {aiLogsTotal} total
+                </Badge>
+              )}
+            </CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              Persistent logs - survives page navigation. Auto-cleanup after 7 days.
+            </p>
+          </div>
           <div className="flex gap-2">
+            <div className="flex gap-1 mr-2">
+              {["all", "success", "error"].map((f) => (
+                <Button
+                  key={f}
+                  size="sm"
+                  variant={logFilter === f ? "default" : "ghost"}
+                  onClick={() => setLogFilter(f)}
+                  className="text-xs capitalize"
+                >
+                  {f}
+                </Button>
+              ))}
+            </div>
             <Button size="sm" variant="outline" onClick={fetchAILogs} disabled={aiLogsLoading}>
               <RefreshCw className={`h-4 w-4 mr-1 ${aiLogsLoading ? "animate-spin" : ""}`} />
               Refresh
             </Button>
-            <Button size="sm" variant="ghost" onClick={clearAILogs}>
-              Clear
+            <Button size="sm" variant="outline" onClick={cleanupOldLogs}>
+              <Calendar className="h-4 w-4 mr-1" />
+              Cleanup Old
+            </Button>
+            <Button size="sm" variant="destructive" onClick={clearAILogs}>
+              <Trash2 className="h-4 w-4 mr-1" />
+              Clear All
             </Button>
           </div>
         </CardHeader>
@@ -478,49 +543,109 @@ export default function DebugPage() {
             <div className="flex justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
-          ) : aiLogs.length > 0 ? (
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {aiLogs.map((log) => (
-                <div
-                  key={log.id}
-                  className={`p-3 rounded-lg text-sm ${
-                    log.status === "error"
-                      ? "bg-red-50 border border-red-200"
-                      : log.status === "pending"
-                      ? "bg-blue-50 border border-blue-200"
-                      : "bg-green-50 border border-green-200"
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2">
-                      {log.status === "pending" && (
-                        <Loader2 className="h-3 w-3 animate-spin text-blue-600" />
-                      )}
-                      {log.status === "success" && (
-                        <CheckCircle className="h-3 w-3 text-green-600" />
-                      )}
-                      {log.status === "error" && (
-                        <AlertCircle className="h-3 w-3 text-red-600" />
-                      )}
-                      <span className="font-medium">{log.operation}</span>
-                      <Badge variant="outline" className="text-xs">
-                        {log.model}
-                      </Badge>
+          ) : filteredAiLogs.length > 0 ? (
+            <div className="space-y-2 max-h-[600px] overflow-y-auto">
+              {filteredAiLogs.map((log) => (
+                <div key={log.id}>
+                  <div
+                    className={`p-3 rounded-lg text-sm cursor-pointer transition-colors ${
+                      log.status === "error"
+                        ? "bg-red-50 border border-red-200 hover:bg-red-100"
+                        : log.status === "pending"
+                        ? "bg-blue-50 border border-blue-200 hover:bg-blue-100"
+                        : "bg-green-50 border border-green-200 hover:bg-green-100"
+                    }`}
+                    onClick={() => setExpandedLog(expandedLog === log.id ? null : log.id)}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        {log.status === "pending" && (
+                          <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                        )}
+                        {log.status === "success" && (
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                        )}
+                        {log.status === "error" && (
+                          <AlertCircle className="h-4 w-4 text-red-600" />
+                        )}
+                        <span className="font-semibold">{log.operation}</span>
+                        <Badge variant="outline" className="text-xs">
+                          {log.model}
+                        </Badge>
+                        {log.inputTokens && log.outputTokens && (
+                          <Badge variant="secondary" className="text-xs">
+                            {log.inputTokens} in / {log.outputTokens} out
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        {log.duration && (
+                          <span className="font-mono">{log.duration}ms</span>
+                        )}
+                        <span>{new Date(log.timestamp).toLocaleString()}</span>
+                        {expandedLog === log.id ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      {log.duration && <span>{log.duration}ms</span>}
-                      <span>{new Date(log.timestamp).toLocaleTimeString()}</span>
-                    </div>
+                    {log.error && (
+                      <p className="text-sm text-red-700 font-mono bg-red-100 rounded p-2 mt-2">
+                        {log.error}
+                      </p>
+                    )}
+                    {log.metadata && Object.keys(log.metadata).length > 0 && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {Object.entries(log.metadata)
+                          .map(([k, v]) => `${k}: ${String(v).slice(0, 50)}`)
+                          .join(" | ")}
+                      </p>
+                    )}
                   </div>
-                  {log.error && (
-                    <p className="text-xs text-red-700 mt-1 font-mono">{log.error}</p>
-                  )}
-                  {log.metadata && Object.keys(log.metadata).length > 0 && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {Object.entries(log.metadata)
-                        .map(([k, v]) => `${k}: ${String(v).slice(0, 50)}`)
-                        .join(" | ")}
-                    </p>
+
+                  {/* Expanded view with full prompt/response */}
+                  {expandedLog === log.id && (
+                    <div className="ml-4 mt-2 space-y-3 border-l-2 border-muted pl-4 pb-2">
+                      {log.systemPrompt && (
+                        <div>
+                          <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground mb-1">
+                            <Code className="h-3 w-3" />
+                            SYSTEM PROMPT
+                          </div>
+                          <pre className="text-xs bg-slate-100 p-3 rounded-lg overflow-x-auto max-h-48 overflow-y-auto whitespace-pre-wrap font-mono">
+                            {log.systemPrompt}
+                          </pre>
+                        </div>
+                      )}
+                      {log.prompt && (
+                        <div>
+                          <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground mb-1">
+                            <MessageSquare className="h-3 w-3" />
+                            INPUT PROMPT
+                          </div>
+                          <pre className="text-xs bg-blue-50 p-3 rounded-lg overflow-x-auto max-h-48 overflow-y-auto whitespace-pre-wrap font-mono">
+                            {log.prompt}
+                          </pre>
+                        </div>
+                      )}
+                      {log.response && (
+                        <div>
+                          <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground mb-1">
+                            <Cpu className="h-3 w-3" />
+                            AI RESPONSE
+                          </div>
+                          <pre className="text-xs bg-green-50 p-3 rounded-lg overflow-x-auto max-h-64 overflow-y-auto whitespace-pre-wrap font-mono">
+                            {log.response}
+                          </pre>
+                        </div>
+                      )}
+                      {!log.systemPrompt && !log.prompt && !log.response && (
+                        <p className="text-xs text-muted-foreground italic">
+                          No prompt/response data captured for this log entry.
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
               ))}
@@ -529,7 +654,7 @@ export default function DebugPage() {
             <div className="text-center py-8 text-muted-foreground">
               <Cpu className="h-8 w-8 mx-auto mb-2 opacity-50" />
               <p>No AI calls logged yet</p>
-              <p className="text-xs">Logs appear when AI operations run (upload, reprocess, etc.)</p>
+              <p className="text-xs">Logs appear when AI operations run (upload, reprocess, chat, etc.)</p>
             </div>
           )}
         </CardContent>

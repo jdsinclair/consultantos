@@ -16,11 +16,7 @@ export async function extractImageContent(
 }> {
   const model = "claude-sonnet-4-20250514";
 
-  return withAILogging(
-    "vision-extract",
-    model,
-    async () => {
-      const prompt = `Analyze this image${context?.clientName ? ` (for client: ${context.clientName})` : ""}${context?.fileName ? ` (filename: ${context.fileName})` : ""}.
+  const prompt = `Analyze this image${context?.clientName ? ` (for client: ${context.clientName})` : ""}${context?.fileName ? ` (filename: ${context.fileName})` : ""}.
 
 Provide a detailed analysis in JSON format:
 {
@@ -41,6 +37,10 @@ If this is a document or screenshot:
 
 Return ONLY valid JSON, no other text.`;
 
+  return withAILogging(
+    "vision-extract",
+    model,
+    async () => {
       console.log(`[Vision] Starting extraction for: ${context?.fileName || imageUrl.slice(0, 50)}...`);
 
       const { text } = await generateText({
@@ -79,7 +79,8 @@ Return ONLY valid JSON, no other text.`;
         suggestedLabels: result.suggestedLabels || [],
       };
     },
-    { imageUrl: imageUrl.slice(0, 100), fileName: context?.fileName }
+    { imageUrl: imageUrl.slice(0, 100), fileName: context?.fileName },
+    { prompt }
   ).catch((error) => {
     console.error("Vision extraction error:", error);
     return {
