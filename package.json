@@ -6,10 +6,12 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:vercel": "drizzle-kit push --force && next build",
     "start": "next start",
     "lint": "next lint",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
+    "db:migrate": "drizzle-kit push --force",
     "db:studio": "drizzle-kit studio",
     "electron:dev": "concurrently \"npm run dev\" \"npm run electron:start\"",
     "electron:start": "wait-on http://localhost:3000 && tsc -p electron/tsconfig.json && electron .",
