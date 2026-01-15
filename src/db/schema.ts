@@ -812,6 +812,109 @@ export interface ClarityFieldMeta {
   }>;
 }
 
+// Client Portal / Share Tokens - external sharing with clients
+export const clientPortals = pgTable('client_portals', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  clientId: uuid('client_id').references(() => clients.id, { onDelete: 'cascade' }).notNull().unique(),
+  userId: text('user_id').references(() => users.id).notNull(),
+
+  // Access token - used in URL
+  accessToken: text('access_token').notNull().unique(),
+
+  // Portal settings
+  name: text('name'), // Custom name for the portal (defaults to client name)
+  welcomeMessage: text('welcome_message'), // Optional welcome message
+  brandColor: text('brand_color'), // Custom brand color
+
+  // Access control
+  isActive: boolean('is_active').default(true),
+  expiresAt: timestamp('expires_at'), // Optional expiration
+
+  // Analytics
+  lastAccessedAt: timestamp('last_accessed_at'),
+  accessCount: integer('access_count').default(0),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  clientIdx: index('client_portals_client_idx').on(table.clientId),
+  tokenIdx: index('client_portals_token_idx').on(table.accessToken),
+}));
+
+// Shared Items - what's shared in each portal
+export const sharedItems = pgTable('shared_items', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  portalId: uuid('portal_id').references(() => clientPortals.id, { onDelete: 'cascade' }).notNull(),
+  userId: text('user_id').references(() => users.id).notNull(),
+
+  // What type of item is shared
+  itemType: text('item_type').notNull(), // 'execution_plan', 'clarity_canvas', 'source', 'note'
+  itemId: uuid('item_id').notNull(), // Reference to the actual item
+
+  // Display settings
+  displayName: text('display_name'), // Custom name (defaults to item's title)
+  displayOrder: integer('display_order').default(0),
+
+  // Access control for this specific item
+  isVisible: boolean('is_visible').default(true),
+
+  // Deep link token (for sharing specific items)
+  deepLinkToken: text('deep_link_token').unique(),
+
+  // Analytics
+  viewCount: integer('view_count').default(0),
+  lastViewedAt: timestamp('last_viewed_at'),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  portalIdx: index('shared_items_portal_idx').on(table.portalId),
+  itemIdx: index('shared_items_item_idx').on(table.itemId),
+  deepLinkIdx: index('shared_items_deep_link_idx').on(table.deepLinkToken),
+}));
+
+// Portal Access Log - track who accessed what
+export const portalAccessLogs = pgTable('portal_access_logs', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  portalId: uuid('portal_id').references(() => clientPortals.id, { onDelete: 'cascade' }).notNull(),
+  sharedItemId: uuid('shared_item_id').references(() => sharedItems.id, { onDelete: 'set null' }),
+
+  // Access details
+  accessType: text('access_type').notNull(), // 'portal_view', 'item_view', 'download'
+  ipAddress: text('ip_address'),
+  userAgent: text('user_agent'),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  portalIdx: index('portal_access_logs_portal_idx').on(table.portalId),
+}));
+
+// Relations for sharing
+export const clientPortalsRelations = relations(clientPortals, ({ one, many }) => ({
+  client: one(clients, { fields: [clientPortals.clientId], references: [clients.id] }),
+  user: one(users, { fields: [clientPortals.userId], references: [users.id] }),
+  sharedItems: many(sharedItems),
+  accessLogs: many(portalAccessLogs),
+}));
+
+export const sharedItemsRelations = relations(sharedItems, ({ one, many }) => ({
+  portal: one(clientPortals, { fields: [sharedItems.portalId], references: [clientPortals.id] }),
+  user: one(users, { fields: [sharedItems.userId], references: [users.id] }),
+  accessLogs: many(portalAccessLogs),
+}));
+
+export const portalAccessLogsRelations = relations(portalAccessLogs, ({ one }) => ({
+  portal: one(clientPortals, { fields: [portalAccessLogs.portalId], references: [clientPortals.id] }),
+  sharedItem: one(sharedItems, { fields: [portalAccessLogs.sharedItemId], references: [sharedItems.id] }),
+}));
+
+// Export types for TypeScript
+export type ClientPortal = typeof clientPortals.$inferSelect;
+export type NewClientPortal = typeof clientPortals.$inferInsert;
+export type SharedItem = typeof sharedItems.$inferSelect;
+export type NewSharedItem = typeof sharedItems.$inferInsert;
+export type PortalAccessLog = typeof portalAccessLogs.$inferSelect;
+
 // Export types for TypeScript
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
