@@ -1,0 +1,107 @@
+import { NextRequest, NextResponse } from "next/server";
+import { requireUser } from "@/lib/auth";
+import { z } from "zod";
+import { 
+  getExecutionPlan, 
+  updateExecutionPlan, 
+  deleteExecutionPlan 
+} from "@/lib/db/execution-plans";
+
+export const dynamic = "force-dynamic";
+
+const updatePlanSchema = z.object({
+  title: z.string().min(1).optional(),
+  objective: z.string().optional(),
+  timeframe: z.string().optional(),
+  startDate: z.string().nullable().optional(),
+  targetDate: z.string().nullable().optional(),
+  goal: z.string().optional(),
+  successMetrics: z.object({
+    quantitative: z.array(z.string()),
+    qualitative: z.array(z.string()),
+  }).optional(),
+  sections: z.array(z.any()).optional(),
+  notes: z.string().optional(),
+  rules: z.array(z.string()).optional(),
+  status: z.enum(["draft", "active", "completed", "archived"]).optional(),
+});
+
+export async function GET(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const user = await requireUser();
+    const plan = await getExecutionPlan(params.id, user.id);
+
+    if (!plan) {
+      return NextResponse.json({ error: "Plan not found" }, { status: 404 });
+    }
+
+    return NextResponse.json(plan);
+  } catch (error) {
+    console.error("Failed to fetch execution plan:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch plan" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const user = await requireUser();
+    const body = await req.json();
+    const data = updatePlanSchema.parse(body);
+
+    const updateData: Record<string, unknown> = { ...data };
+    
+    // Handle date conversions
+    if (data.startDate !== undefined) {
+      updateData.startDate = data.startDate ? new Date(data.startDate) : null;
+    }
+    if (data.targetDate !== undefined) {
+      updateData.targetDate = data.targetDate ? new Date(data.targetDate) : null;
+    }
+
+    const plan = await updateExecutionPlan(params.id, user.id, updateData);
+
+    if (!plan) {
+      return NextResponse.json({ error: "Plan not found" }, { status: 404 });
+    }
+
+    return NextResponse.json(plan);
+  } catch (error) {
+    console.error("Failed to update execution plan:", error);
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: "Invalid data", details: error.errors },
+        { status: 400 }
+      );
+    }
+    return NextResponse.json(
+      { error: "Failed to update plan" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const user = await requireUser();
+    await deleteExecutionPlan(params.id, user.id);
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Failed to delete execution plan:", error);
+    return NextResponse.json(
+      { error: "Failed to delete plan" },
+      { status: 500 }
+    );
+  }
+}

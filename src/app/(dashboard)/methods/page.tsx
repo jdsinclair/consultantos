@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, BookOpen, ArrowRight, Loader2, Target, Sparkles } from "lucide-react";
+import { Plus, BookOpen, ArrowRight, Loader2, Target, Sparkles, Rocket } from "lucide-react";
 import Link from "next/link";
 
 // Built-in featured methods (micro-apps)
@@ -18,6 +18,16 @@ const FEATURED_METHODS = [
     color: "from-red-500 to-orange-500",
     badge: "Featured",
     tagline: "Chaos → Clarity → Constraint → Execution",
+  },
+  {
+    id: "do-the-thing",
+    name: "Do The Thing™",
+    description: "Tactical Execution Planner with AI Assistance",
+    href: "/methods/do-the-thing",
+    icon: Rocket,
+    color: "from-orange-500 to-red-600",
+    badge: "New",
+    tagline: "Strategy → Action → Results",
   },
 ];
 

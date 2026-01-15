@@ -38,6 +38,7 @@ import {
   Check,
   Plus,
   HelpCircle,
+  Rocket,
 } from "lucide-react";
 import Link from "next/link";
 import {
@@ -308,6 +309,36 @@ Ask me anything about ${client?.name}'s strategy.`,
         },
       } as any,
     });
+  };
+
+  // Create a "Do The Thing" plan from a swimlane item
+  const createPlanFromSwimlane = async (
+    swimlaneKey: string, 
+    timeframe: 'short' | 'mid' | 'long',
+    item: string
+  ) => {
+    try {
+      const timeframeLabels = { short: '30 days', mid: '90 days', long: '12 months' };
+      const res = await fetch('/api/execution-plans', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientId: params.clientId,
+          title: item,
+          objective: item,
+          timeframe: timeframeLabels[timeframe],
+          sourceSwimlanelKey: swimlaneKey,
+          sourceTimeframe: timeframe,
+          sourceClarityCanvasId: canvas?.id,
+        }),
+      });
+      
+      if (!res.ok) throw new Error('Failed to create plan');
+      const plan = await res.json();
+      router.push(`/methods/do-the-thing/${plan.id}`);
+    } catch (e) {
+      console.error('Failed to create plan:', e);
+    }
   };
 
   if (loading) {
@@ -897,25 +928,42 @@ Ask me anything about ${client?.name}'s strategy.`,
                                 </div>
                               )}
                             </td>
-                            {(['short', 'mid', 'long'] as const).map((timeframe) => (
-                              <td key={timeframe} className="p-2 align-top">
-                                <Input
-                                  value={getSwimlaneObjective((canvas.swimlanes as any)?.[key], timeframe)}
-                                  onChange={(e) => updateSwimlaneObjective(key, timeframe, e.target.value)}
-                                  placeholder="Objective..."
-                                  className="mb-2 text-xs font-medium border-primary/30 focus:border-primary"
-                                />
-                                <Textarea
-                                  value={getSwimlaneItems((canvas.swimlanes as any)?.[key], timeframe).join('\n')}
-                                  onChange={(e) => {
-                                    const lines = e.target.value.split('\n').filter(l => l.trim()).slice(0, 5);
-                                    updateSwimlaneItems(key, timeframe, lines);
-                                  }}
-                                  placeholder="• Action 1&#10;• Action 2&#10;• Action 3"
-                                  className="min-h-[60px] text-xs"
-                                />
-                              </td>
-                            ))}
+                            {(['short', 'mid', 'long'] as const).map((timeframe) => {
+                              const items = getSwimlaneItems((canvas.swimlanes as any)?.[key], timeframe);
+                              const objective = getSwimlaneObjective((canvas.swimlanes as any)?.[key], timeframe);
+                              return (
+                                <td key={timeframe} className="p-2 align-top group/cell">
+                                  <div className="flex items-center gap-1 mb-2">
+                                    <Input
+                                      value={objective}
+                                      onChange={(e) => updateSwimlaneObjective(key, timeframe, e.target.value)}
+                                      placeholder="Objective..."
+                                      className="text-xs font-medium border-primary/30 focus:border-primary"
+                                    />
+                                    {objective && (
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7 opacity-0 group-hover/cell:opacity-100 bg-orange-500/10 hover:bg-orange-500/20 text-orange-500"
+                                        onClick={() => createPlanFromSwimlane(key, timeframe, objective)}
+                                        title="Do The Thing™ - Create execution plan"
+                                      >
+                                        <Rocket className="h-3 w-3" />
+                                      </Button>
+                                    )}
+                                  </div>
+                                  <Textarea
+                                    value={items.join('\n')}
+                                    onChange={(e) => {
+                                      const lines = e.target.value.split('\n').filter(l => l.trim()).slice(0, 5);
+                                      updateSwimlaneItems(key, timeframe, lines);
+                                    }}
+                                    placeholder="• Action 1&#10;• Action 2&#10;• Action 3"
+                                    className="min-h-[60px] text-xs"
+                                  />
+                                </td>
+                              );
+                            })}
                           </tr>
                         );
                       })}
@@ -939,24 +987,41 @@ Ask me anything about ${client?.name}'s strategy.`,
                                   </Button>
                                 </div>
                               </td>
-                              {(['short', 'mid', 'long'] as const).map((timeframe) => (
-                                <td key={timeframe} className="p-2 align-top">
-                                  <Input
-                                    value={getSwimlaneObjective(customLane, timeframe)}
-                                    onChange={(e) => updateSwimlaneObjective(key, timeframe, e.target.value)}
-                                    placeholder="Objective..."
-                                    className="mb-2 text-xs font-medium border-primary/30"
-                                  />
-                                  <Textarea
-                                    value={getSwimlaneItems(customLane, timeframe).join('\n')}
-                                    onChange={(e) => {
-                                      const lines = e.target.value.split('\n').filter(l => l.trim()).slice(0, 5);
-                                      updateSwimlaneItems(key, timeframe, lines);
-                                    }}
-                                    placeholder="• Action 1&#10;• Action 2&#10;• Action 3"
-                                    className="min-h-[60px] text-xs"
-                                  />
-                                </td>
+                              {(['short', 'mid', 'long'] as const).map((timeframe) => {
+                                const items = getSwimlaneItems(customLane, timeframe);
+                                const objective = getSwimlaneObjective(customLane, timeframe);
+                                return (
+                                  <td key={timeframe} className="p-2 align-top group/cell">
+                                    <div className="flex items-center gap-1 mb-2">
+                                      <Input
+                                        value={objective}
+                                        onChange={(e) => updateSwimlaneObjective(key, timeframe, e.target.value)}
+                                        placeholder="Objective..."
+                                        className="text-xs font-medium border-primary/30"
+                                      />
+                                      {objective && (
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-7 w-7 opacity-0 group-hover/cell:opacity-100 bg-orange-500/10 hover:bg-orange-500/20 text-orange-500"
+                                          onClick={() => createPlanFromSwimlane(key, timeframe, objective)}
+                                          title="Do The Thing™ - Create execution plan"
+                                        >
+                                          <Rocket className="h-3 w-3" />
+                                        </Button>
+                                      )}
+                                    </div>
+                                    <Textarea
+                                      value={items.join('\n')}
+                                      onChange={(e) => {
+                                        const lines = e.target.value.split('\n').filter(l => l.trim()).slice(0, 5);
+                                        updateSwimlaneItems(key, timeframe, lines);
+                                      }}
+                                      placeholder="• Action 1&#10;• Action 2&#10;• Action 3"
+                                      className="min-h-[60px] text-xs"
+                                    />
+                                  </td>
+                                );
                               ))}
                             </tr>
                           );

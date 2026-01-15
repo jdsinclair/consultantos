@@ -298,6 +298,75 @@ export const clarityMethodCanvases = pgTable('clarity_method_canvases', {
   userIdx: index('clarity_canvas_user_idx').on(table.userId),
 }));
 
+// "Do The Thing" Execution Plans - tactical drill-down from strategy to action
+export interface ExecutionPlanSection {
+  id: string;
+  title: string;
+  items: ExecutionPlanItem[];
+  order: number;
+  collapsed?: boolean;
+}
+
+export interface ExecutionPlanItem {
+  id: string;
+  text: string;
+  done: boolean;
+  children?: ExecutionPlanItem[];
+  order: number;
+  assignee?: string;
+  dueDate?: string;
+  notes?: string;
+}
+
+export interface ExecutionPlanSuccessMetrics {
+  quantitative: string[];
+  qualitative: string[];
+}
+
+export const executionPlans = pgTable('execution_plans', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  clientId: uuid('client_id').references(() => clients.id, { onDelete: 'cascade' }).notNull(),
+  userId: text('user_id').references(() => users.id).notNull(),
+  
+  // Core
+  title: text('title').notNull(), // "GTM Phase One Plan"
+  objective: text('objective'), // What we're doing
+  
+  // Time
+  timeframe: text('timeframe'), // "Q1 2026" or "Phase 1" or "90 days"
+  startDate: timestamp('start_date'),
+  targetDate: timestamp('target_date'),
+  
+  // Goals
+  goal: text('goal'), // What success looks like
+  successMetrics: jsonb('success_metrics').$type<ExecutionPlanSuccessMetrics>(),
+  
+  // The Plan - nested sections with items
+  sections: jsonb('sections').$type<ExecutionPlanSection[]>(),
+  
+  // Extra
+  notes: text('notes'),
+  rules: jsonb('rules').$type<string[]>(),
+  
+  // Source - link to Clarity Method
+  sourceSwimlanelKey: text('source_swimlane_key'), // e.g., "gtm", "sales", "teamOrg"
+  sourceTimeframe: text('source_timeframe'), // e.g., "short", "mid", "long"
+  sourceClarityCanvasId: uuid('source_clarity_canvas_id').references(() => clarityMethodCanvases.id),
+  
+  // AI conversation for this plan
+  conversationId: uuid('conversation_id'),
+  
+  // Status
+  status: text('status').default('draft'), // draft, active, completed, archived
+  
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  clientIdx: index('execution_plans_client_idx').on(table.clientId),
+  userIdx: index('execution_plans_user_idx').on(table.userId),
+  statusIdx: index('execution_plans_status_idx').on(table.status),
+}));
+
 // Sources - documents, websites, repos, local folders linked to a client
 export const sources = pgTable('sources', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -555,6 +624,7 @@ export const clientsRelations = relations(clients, ({ one, many }) => ({
   clarityDocument: one(clarityDocuments, { fields: [clients.id], references: [clarityDocuments.clientId] }),
   clarityInsights: many(clarityInsights),
   clarityMethodCanvas: one(clarityMethodCanvases, { fields: [clients.id], references: [clarityMethodCanvases.clientId] }),
+  executionPlans: many(executionPlans),
 }));
 
 export const sourcesRelations = relations(sources, ({ one, many }) => ({
@@ -579,9 +649,16 @@ export const clarityInsightsRelations = relations(clarityInsights, ({ one }) => 
   user: one(users, { fields: [clarityInsights.userId], references: [users.id] }),
 }));
 
-export const clarityMethodCanvasesRelations = relations(clarityMethodCanvases, ({ one }) => ({
+export const clarityMethodCanvasesRelations = relations(clarityMethodCanvases, ({ one, many }) => ({
   client: one(clients, { fields: [clarityMethodCanvases.clientId], references: [clients.id] }),
   user: one(users, { fields: [clarityMethodCanvases.userId], references: [users.id] }),
+  executionPlans: many(executionPlans),
+}));
+
+export const executionPlansRelations = relations(executionPlans, ({ one }) => ({
+  client: one(clients, { fields: [executionPlans.clientId], references: [clients.id] }),
+  user: one(users, { fields: [executionPlans.userId], references: [users.id] }),
+  clarityCanvas: one(clarityMethodCanvases, { fields: [executionPlans.sourceClarityCanvasId], references: [clarityMethodCanvases.id] }),
 }));
 
 export const sessionsRelations = relations(sessions, ({ one, many }) => ({
@@ -758,3 +835,5 @@ export type SourceChunk = typeof sourceChunks.$inferSelect;
 export type NewSourceChunk = typeof sourceChunks.$inferInsert;
 export type ClarityMethodCanvas = typeof clarityMethodCanvases.$inferSelect;
 export type NewClarityMethodCanvas = typeof clarityMethodCanvases.$inferInsert;
+export type ExecutionPlan = typeof executionPlans.$inferSelect;
+export type NewExecutionPlan = typeof executionPlans.$inferInsert;
