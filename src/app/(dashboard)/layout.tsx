@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Sidebar, MobileSidebar, MobileHeader } from "@/components/sidebar";
 import { OnboardingGuard } from "@/components/onboarding-guard";
 import { GlobalSearch } from "@/components/global-search";
+import { QuickActionMenu } from "@/components/quick-action-menu";
 import { UserButton } from "@clerk/nextjs";
 import { DealModeProvider } from "@/contexts/deal-mode";
 
@@ -31,9 +32,10 @@ export default function DashboardLayout({
               {/* Mobile: Hamburger + Logo */}
               <MobileHeader onMenuClick={() => setSidebarOpen(true)} />
 
-              {/* Search - grows to fill space */}
-              <div className="flex-1 flex justify-center lg:justify-start">
+              {/* Search and Quick Actions */}
+              <div className="flex-1 flex items-center justify-center lg:justify-start gap-2">
                 <GlobalSearch />
+                <QuickActionMenu />
               </div>
 
               {/* User button */}
