@@ -406,17 +406,21 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
-    
+
     saveTimeoutRef.current = setTimeout(async () => {
       setSaving(true);
       try {
-        await fetch(`/api/execution-plans/${params.id}`, {
+        const res = await fetch(`/api/execution-plans/${params.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(updates),
         });
+        if (!res.ok) {
+          const error = await res.json().catch(() => ({}));
+          console.error("Auto-save failed:", res.status, error);
+        }
       } catch (e) {
-        console.error("Auto-save failed:", e);
+        console.error("Auto-save network error:", e);
       } finally {
         setSaving(false);
       }
@@ -839,7 +843,8 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
                 <DropdownMenuItem
                   onClick={() => {
                     // Open in new window without nav for screen sharing
-                    const url = `/share/plan/${params.id}`;
+                    // Uses (share) route group: /plan/[id]
+                    const url = `/plan/${params.id}`;
                     window.open(
                       url,
                       'plan-share',
@@ -857,7 +862,7 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
                 <DropdownMenuItem
                   onClick={() => {
                     // PDF export - trigger print dialog
-                    const url = `/share/plan/${params.id}?print=true`;
+                    const url = `/plan/${params.id}?print=true`;
                     const printWindow = window.open(url, '_blank');
                     if (printWindow) {
                       printWindow.onload = () => {
@@ -872,8 +877,8 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
 
                 <DropdownMenuItem
                   onClick={async () => {
-                    // Copy shareable link
-                    const url = `${window.location.origin}/share/plan/${params.id}`;
+                    // Copy link to current page (dashboard URL)
+                    const url = `${window.location.origin}/methods/do-the-thing/${params.id}`;
                     await navigator.clipboard.writeText(url);
                     // TODO: Show toast notification
                   }}

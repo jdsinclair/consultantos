@@ -5,8 +5,9 @@ const isPublicRoute = createRouteMatcher([
   '/sign-in(.*)',
   '/sign-up(.*)',
   '/api/webhooks(.*)',
-  '/share(.*)',
-  '/portal(.*)',
+  '/plan(.*)',     // Screen share view for execution plans
+  '/clarity(.*)',  // Screen share view for clarity canvas
+  '/portal(.*)',   // Public client portal
   '/api/share(.*)',
 ]);
 
