@@ -1,6 +1,8 @@
-// Real-time transcription using Deepgram
+// Real-time transcription using Deepgram SDK
 // This is a client-side hook for capturing audio and sending to Deepgram
 // Supports both browser (limited) and Electron (full system audio) modes
+
+import { createClient, LiveTranscriptionEvents, LiveClient } from "@deepgram/sdk";
 
 export interface TranscriptSegment {
   text: string;
@@ -39,7 +41,7 @@ export async function getAudioSources(): Promise<Array<{ id: string; name: strin
 }
 
 export class RealtimeTranscription {
-  private socket: WebSocket | null = null;
+  private connection: LiveClient | null = null;
   private mediaRecorder: MediaRecorder | null = null;
   private micStream: MediaStream | null = null;
   private systemStream: MediaStream | null = null;
@@ -150,12 +152,13 @@ export class RealtimeTranscription {
       // Notify that stream is ready (for visualization)
       this.config.onStreamReady?.(this.combinedStream);
 
-      // Connect to Deepgram WebSocket
+      // Connect to Deepgram using SDK
       this.setStatus("connecting");
-      await this.connectWebSocket();
+      await this.connectDeepgram();
     } catch (error) {
       this.setStatus("error");
       this.config.onError(error as Error);
+      throw error;
     }
   }
 
@@ -174,97 +177,97 @@ export class RealtimeTranscription {
     return destination.stream;
   }
 
-  private async connectWebSocket() {
+  private async connectDeepgram() {
     const apiKey = process.env.NEXT_PUBLIC_DEEPGRAM_API_KEY;
+
+    // Debug: log key info (not the full key for security)
+    console.log("Deepgram key check:", {
+      exists: !!apiKey,
+      length: apiKey?.length,
+      prefix: apiKey?.substring(0, 8) + "...",
+    });
+
     if (!apiKey) {
       throw new Error("Deepgram API key not configured. Add NEXT_PUBLIC_DEEPGRAM_API_KEY to your environment.");
     }
 
-    const wsUrl = `wss://api.deepgram.com/v1/listen?model=nova-2&language=en&smart_format=true&diarize=true&punctuate=true&interim_results=true`;
-
-    // Track if we ever successfully connected
-    let hasConnected = false;
-
     return new Promise<void>((resolve, reject) => {
       try {
-        this.socket = new WebSocket(wsUrl, ["token", apiKey]);
-      } catch (err) {
-        reject(new Error("Failed to create WebSocket connection"));
-        return;
-      }
+        const deepgram = createClient(apiKey);
 
-      // Set a timeout for initial connection
-      const connectionTimeout = setTimeout(() => {
-        if (!hasConnected) {
-          this.socket?.close();
+        this.connection = deepgram.listen.live({
+          model: "nova-2",
+          language: "en",
+          smart_format: true,
+          diarize: true,
+          punctuate: true,
+          interim_results: true,
+          endpointing: 300,
+        });
+
+        // Set a timeout for initial connection
+        const connectionTimeout = setTimeout(() => {
+          console.error("Deepgram connection timeout");
+          this.connection?.finish();
           reject(new Error("Connection timeout - check your Deepgram API key"));
-        }
-      }, 10000);
+        }, 15000);
 
-      this.socket.onopen = () => {
-        hasConnected = true;
-        clearTimeout(connectionTimeout);
-        console.log("Deepgram connection opened");
-        this.setStatus("connected");
-        this.startRecording();
-        resolve();
-      };
+        this.connection.on(LiveTranscriptionEvents.Open, () => {
+          clearTimeout(connectionTimeout);
+          console.log("Deepgram connection opened via SDK");
+          this.setStatus("connected");
+          this.startRecording();
+          resolve();
+        });
 
-      this.socket.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        if (data.channel?.alternatives?.[0]) {
-          const alt = data.channel.alternatives[0];
-          const segment: TranscriptSegment = {
-            text: alt.transcript,
-            speaker: `Speaker ${alt.words?.[0]?.speaker || 0}`,
-            timestamp: data.start || Date.now(),
-            isFinal: data.is_final || false,
-          };
-          if (segment.text.trim()) {
-            this.config.onTranscript(segment);
+        this.connection.on(LiveTranscriptionEvents.Transcript, (data) => {
+          if (data.channel?.alternatives?.[0]) {
+            const alt = data.channel.alternatives[0];
+            const words = alt.words || [];
+            const speakers = new Set(words.map((w: { speaker?: number }) => w.speaker).filter((s: number | undefined) => s !== undefined));
+            const speaker = speakers.size > 0 ? `Speaker ${words[0]?.speaker ?? 0}` : "Speaker 0";
+
+            const segment: TranscriptSegment = {
+              text: alt.transcript,
+              speaker,
+              timestamp: data.start || Date.now(),
+              isFinal: data.is_final || false,
+            };
+            if (segment.text.trim()) {
+              this.config.onTranscript(segment);
+            }
           }
-        }
-      };
+        });
 
-      this.socket.onerror = (error) => {
-        console.error("Deepgram WebSocket error:", error);
-        clearTimeout(connectionTimeout);
-        if (!hasConnected) {
-          // Error before connection - likely auth failure
+        this.connection.on(LiveTranscriptionEvents.Error, (err) => {
+          clearTimeout(connectionTimeout);
+          console.error("Deepgram SDK error:", err);
           this.setStatus("error");
-          reject(new Error("Deepgram connection failed - verify your API key is valid"));
-        } else {
-          // Error after connection
-          this.setStatus("error");
-          this.config.onError(new Error("Transcription connection error"));
-        }
-      };
 
-      this.socket.onclose = (event) => {
-        console.log("Deepgram connection closed:", event.code, event.reason);
-        clearTimeout(connectionTimeout);
-
-        if (!hasConnected) {
-          // Closed before connecting - this is an auth failure (code 1006)
-          this.setStatus("error");
-          let errorMessage = "Deepgram connection rejected";
-          if (event.code === 1006) {
-            errorMessage = "Deepgram API key invalid or expired. Check NEXT_PUBLIC_DEEPGRAM_API_KEY in your environment.";
-          } else if (event.code === 1008) {
-            errorMessage = "Deepgram policy violation - check API key permissions";
-          } else if (event.reason) {
-            errorMessage = `Deepgram: ${event.reason}`;
+          const errorMessage = err?.message || "Deepgram connection error";
+          if (errorMessage.includes("401") || errorMessage.includes("auth")) {
+            reject(new Error("Deepgram API key invalid or expired"));
+          } else {
+            reject(new Error(errorMessage));
           }
-          reject(new Error(errorMessage));
-        } else if (this.status === "recording") {
-          this.setStatus("stopped");
-        }
-      };
+        });
+
+        this.connection.on(LiveTranscriptionEvents.Close, () => {
+          console.log("Deepgram connection closed");
+          if (this.status === "recording") {
+            this.setStatus("stopped");
+          }
+        });
+
+      } catch (err) {
+        console.error("Failed to create Deepgram client:", err);
+        reject(new Error("Failed to initialize Deepgram SDK"));
+      }
     });
   }
 
   private startRecording() {
-    if (!this.combinedStream || !this.socket) return;
+    if (!this.combinedStream || !this.connection) return;
 
     this.setStatus("recording");
 
@@ -279,9 +282,11 @@ export class RealtimeTranscription {
       mimeType,
     });
 
-    this.mediaRecorder.ondataavailable = (event) => {
-      if (event.data.size > 0 && this.socket?.readyState === WebSocket.OPEN) {
-        this.socket.send(event.data);
+    this.mediaRecorder.ondataavailable = async (event) => {
+      if (event.data.size > 0 && this.connection) {
+        // Convert Blob to ArrayBuffer and send
+        const buffer = await event.data.arrayBuffer();
+        this.connection.send(buffer);
       }
     };
 
@@ -300,14 +305,14 @@ export class RealtimeTranscription {
     if (this.systemStream) {
       this.systemStream.getTracks().forEach((track) => track.stop());
     }
-    if (this.socket) {
-      this.socket.close();
+    if (this.connection) {
+      this.connection.finish();
     }
     this.mediaRecorder = null;
     this.micStream = null;
     this.systemStream = null;
     this.combinedStream = null;
-    this.socket = null;
+    this.connection = null;
   }
 }
 
