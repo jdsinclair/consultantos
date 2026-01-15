@@ -173,6 +173,23 @@ export default function SourceDetailPage({ params }: { params: { id: string } })
     }
   };
 
+  const handleResetStatus = async () => {
+    if (!confirm("Reset this source's status? This will mark it as completed if it has content, or pending if it doesn't.")) return;
+    try {
+      const newStatus = source?.content ? "completed" : "pending";
+      const res = await fetch(`/api/sources/${params.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ processingStatus: newStatus, processingError: null }),
+      });
+      if (!res.ok) throw new Error("Failed to reset status");
+      const updated = await res.json();
+      setSource(updated);
+    } catch (error) {
+      console.error("Error resetting status:", error);
+    }
+  };
+
   const getSourceIcon = (type: string) => {
     switch (type) {
       case "image":
@@ -263,6 +280,17 @@ export default function SourceDetailPage({ params }: { params: { id: string } })
               <RefreshCw className={`h-4 w-4 ${reprocessing ? "animate-spin" : ""}`} />
               {reprocessing ? "Reprocessing..." : "Retry"}
             </Button>
+            {source.processingStatus === "processing" && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1 text-destructive hover:text-destructive"
+                onClick={handleResetStatus}
+              >
+                <X className="h-4 w-4" />
+                Kill
+              </Button>
+            )}
             {source.blobUrl && (
               <a href={source.blobUrl} target="_blank" rel="noopener noreferrer">
                 <Button variant="outline" size="sm" className="gap-1">
