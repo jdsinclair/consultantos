@@ -66,6 +66,7 @@ import {
   Layers,
   Settings2,
   MoreVertical,
+  Lightbulb,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -1997,6 +1998,8 @@ function EnhancedPlanItemRow({
 }) {
   const [expanded, setExpanded] = useState(true);
   const [showMoveMenu, setShowMoveMenu] = useState(false);
+  const [editingNotes, setEditingNotes] = useState(false);
+  const [notesValue, setNotesValue] = useState(item.notes || "");
   const hasChildren = item.children && item.children.length > 0;
   const otherSections = allSections.filter(s => s.id !== sectionId);
 
@@ -2071,14 +2074,69 @@ function EnhancedPlanItemRow({
               </Badge>
             )}
           </div>
-          {item.notes && (
-            <p className="text-xs text-muted-foreground ml-0 mt-0.5 italic">
+          {/* Editable notes */}
+          {editingNotes ? (
+            <div className="flex items-center gap-1 mt-1">
+              <span className="text-xs">💡</span>
+              <Input
+                value={notesValue}
+                onChange={(e) => setNotesValue(e.target.value)}
+                onBlur={() => {
+                  onUpdate(sectionId, item.id, { notes: notesValue || undefined });
+                  if (!notesValue) setEditingNotes(false);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    onUpdate(sectionId, item.id, { notes: notesValue || undefined });
+                    setEditingNotes(false);
+                  }
+                  if (e.key === "Escape") {
+                    setNotesValue(item.notes || "");
+                    setEditingNotes(false);
+                  }
+                }}
+                className="flex-1 text-xs border-0 bg-muted/30 focus-visible:ring-1 h-6 px-2 italic text-muted-foreground"
+                placeholder="Add a hint or context..."
+                autoFocus
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-5 w-5"
+                onClick={() => {
+                  setNotesValue("");
+                  onUpdate(sectionId, item.id, { notes: undefined });
+                  setEditingNotes(false);
+                }}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+          ) : item.notes ? (
+            <p 
+              className="text-xs text-muted-foreground ml-0 mt-0.5 italic cursor-pointer hover:text-foreground transition-colors"
+              onClick={() => setEditingNotes(true)}
+              title="Click to edit"
+            >
               💡 {item.notes}
             </p>
-          )}
+          ) : null}
         </div>
 
         <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 flex-shrink-0">
+          {/* Add hint/note */}
+          {!item.notes && !editingNotes && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-warning/70 hover:text-warning"
+              onClick={() => setEditingNotes(true)}
+              title="Add hint/note"
+            >
+              <Lightbulb className="h-3 w-3" />
+            </Button>
+          )}
+          
           {/* Move to initiative */}
           {otherSections.length > 0 && (
             <div className="relative">
@@ -2186,6 +2244,8 @@ function PlanItemRow({
   depth: number;
 }) {
   const [expanded, setExpanded] = useState(true);
+  const [editingNotes, setEditingNotes] = useState(false);
+  const [notesValue, setNotesValue] = useState(item.notes || "");
   const hasChildren = item.children && item.children.length > 0;
 
   return (
@@ -2237,14 +2297,68 @@ function PlanItemRow({
               </Badge>
             )}
           </div>
-          {item.notes && (
-            <p className="text-xs text-muted-foreground ml-0 mt-0.5 italic">
+          {/* Editable notes */}
+          {editingNotes ? (
+            <div className="flex items-center gap-1 mt-1">
+              <span className="text-xs">💡</span>
+              <Input
+                value={notesValue}
+                onChange={(e) => setNotesValue(e.target.value)}
+                onBlur={() => {
+                  onUpdate(sectionId, item.id, { notes: notesValue || undefined });
+                  if (!notesValue) setEditingNotes(false);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    onUpdate(sectionId, item.id, { notes: notesValue || undefined });
+                    setEditingNotes(false);
+                  }
+                  if (e.key === "Escape") {
+                    setNotesValue(item.notes || "");
+                    setEditingNotes(false);
+                  }
+                }}
+                className="flex-1 text-xs border-0 bg-muted/30 focus-visible:ring-1 h-6 px-2 italic text-muted-foreground"
+                placeholder="Add a hint or context..."
+                autoFocus
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-5 w-5"
+                onClick={() => {
+                  setNotesValue("");
+                  onUpdate(sectionId, item.id, { notes: undefined });
+                  setEditingNotes(false);
+                }}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+          ) : item.notes ? (
+            <p 
+              className="text-xs text-muted-foreground ml-0 mt-0.5 italic cursor-pointer hover:text-foreground transition-colors"
+              onClick={() => setEditingNotes(true)}
+              title="Click to edit"
+            >
               💡 {item.notes}
             </p>
-          )}
+          ) : null}
         </div>
 
         <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 flex-shrink-0">
+          {/* Add hint/note */}
+          {!item.notes && !editingNotes && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-warning/70 hover:text-warning"
+              onClick={() => setEditingNotes(true)}
+              title="Add hint/note"
+            >
+              <Lightbulb className="h-3 w-3" />
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon"
