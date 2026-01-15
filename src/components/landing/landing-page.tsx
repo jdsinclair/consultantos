@@ -52,6 +52,12 @@ export function LandingPage() {
             >
               Pricing
             </Link>
+            <Link
+              href="#faq"
+              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+            >
+              FAQ
+            </Link>
           </div>
 
           <div className="flex items-center gap-3">
@@ -81,16 +87,16 @@ export function LandingPage() {
           <div className="text-center max-w-4xl mx-auto">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent/10 text-accent text-sm font-medium mb-8">
               <Zap className="h-4 w-4" />
-              The Operating System for Elite Consultants
+              Built For Solo Consultants Who Do The Work
             </div>
             <h1 className="text-5xl md:text-7xl font-bold tracking-tight text-foreground mb-6 leading-[1.1]">
-              Transform Every Client{" "}
-              <span className="text-primary">Engagement</span>
+              Your AI-Powered{" "}
+              <span className="text-primary">Operating System</span>
             </h1>
             <p className="text-xl text-muted-foreground mb-10 max-w-2xl mx-auto leading-relaxed">
-              The all-in-one platform that captures context, tracks commitments,
-              and provides AI-powered insights during every client conversation.
-              Built for consultants who deliver results.
+              Run a high-performance practice without a team. AI captures every commitment,
+              surfaces context during calls, and helps you deliver 10x the value—
+              built for coaches and consultants who are operational, not managerial.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <SignedOut>
@@ -190,7 +196,7 @@ export function LandingPage() {
                 ))}
               </div>
               <span className="text-sm font-medium text-muted-foreground">
-                500+ consultants
+                500+ coaches & consultants
               </span>
             </div>
             <div className="flex items-center gap-1.5">
@@ -217,12 +223,12 @@ export function LandingPage() {
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-20">
             <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-5">
-              Built for{" "}
-              <span className="text-primary">High-Performance</span> Consulting
+              Everything a Solo Practice Needs —{" "}
+              <span className="text-primary">Zero Overhead</span>
             </h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Every feature designed to help you deliver more value,
-              track every commitment, and never miss an insight.
+              Built for coaches and consultants who run every session themselves.
+              AI handles the admin so you stay focused on delivering value.
             </p>
           </div>
 
@@ -716,44 +722,44 @@ export function LandingPage() {
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-20">
             <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-5">
-              Purpose-Built for{" "}
-              <span className="text-primary">Professional Services</span>
+              For Coaches & Consultants{" "}
+              <span className="text-primary">Who Deliver</span>
             </h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Whether strategy, sales, product, or fundraising —
-              ConsultantOS adapts to your practice.
+              Whether you&apos;re an executive coach, business strategist, or solo advisor —
+              ConsultantOS scales your impact without scaling your team.
             </p>
           </div>
 
           <div className="grid md:grid-cols-2 gap-6">
             {[
               {
-                icon: TrendingUp,
-                title: "Strategy & Advisory",
+                icon: Users,
+                title: "Executive & Business Coaching",
                 description:
-                  "Run strategy sessions with AI tracking deliverables. Built-in frameworks for systematic engagement.",
+                  "Run transformational coaching sessions with AI capturing insights. Track client progress across sessions and surface patterns.",
+                tags: ["Leadership", "Performance", "Growth"],
+              },
+              {
+                icon: TrendingUp,
+                title: "Strategy Consulting",
+                description:
+                  "Facilitate strategy sessions with built-in frameworks. AI tracks deliverables and keeps clients accountable.",
                 tags: ["Strategy", "Roadmapping", "Planning"],
               },
               {
                 icon: BarChart3,
-                title: "Sales Consulting",
+                title: "Sales & Revenue Coaching",
                 description:
-                  "Build sales plays, review pipelines, design sequences. AI assists with messaging and positioning.",
-                tags: ["Pipeline", "Sequences", "Coaching"],
+                  "Review pipelines, build playbooks, design outreach sequences. AI assists with messaging and deal strategy.",
+                tags: ["Pipeline", "Sequences", "Deals"],
               },
               {
                 icon: Target,
-                title: "Product & Technical",
+                title: "Startup Advisory",
                 description:
-                  "Product roadmaps, technical reviews, architecture feedback. Full codebase context available to AI.",
-                tags: ["Roadmaps", "Reviews", "Architecture"],
-              },
-              {
-                icon: Shield,
-                title: "Investor Relations",
-                description:
-                  "Prep for investor calls, draft updates, track fundraising milestones. All context in one place.",
-                tags: ["Fundraising", "Updates", "Diligence"],
+                  "Support founders on product, fundraising, and GTM. All context organized and ready for every call.",
+                tags: ["Founders", "GTM", "Fundraising"],
               },
             ].map((useCase, i) => (
               <div
@@ -914,14 +920,86 @@ export function LandingPage() {
         </div>
       </section>
 
+      {/* FAQ Section */}
+      <section id="faq" className="py-28 px-6">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-5">
+              Frequently Asked Questions
+            </h2>
+            <p className="text-lg text-muted-foreground">
+              Everything you need to know about running your practice with ConsultantOS.
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            {[
+              {
+                q: "Who is ConsultantOS built for?",
+                a: "ConsultantOS is built for solo consultants and independent coaches who do the work themselves—not firms that delegate. Whether you're an executive coach, business consultant, strategy advisor, or any professional who runs client sessions independently, ConsultantOS helps you operate at a higher level without additional staff.",
+              },
+              {
+                q: "How does the AI assistance work during sessions?",
+                a: "During client sessions, ConsultantOS transcribes the conversation in real-time and provides AI-powered suggestions. The AI detects action items as they're mentioned, suggests relevant questions based on the context, surfaces insights from previous sessions, and helps you stay fully engaged while never missing a commitment.",
+              },
+              {
+                q: "What are AI personas?",
+                a: "AI personas are specialized modes that adapt the AI's suggestions to your current context. Switch between Strategy Advisor, Sales Coach, Executive Coach, or create custom personas for your specific practice. Each persona provides contextually relevant prompts and insights.",
+              },
+              {
+                q: "Can I share plans and progress with clients?",
+                a: "Yes! ConsultantOS includes a client portal feature that lets you share plans, strategies, and progress updates directly with clients. You control exactly what's visible, and clients see a beautiful, branded view that updates in real-time.",
+              },
+              {
+                q: "What is the Clarity Method™?",
+                a: "The Clarity Method™ is a built-in strategic diagnosis framework that helps you guide clients from confusion to clarity. It includes structured canvases for defining strategic truth, setting north star constraints, identifying what to kill, mapping risks, and creating execution swimlanes.",
+              },
+              {
+                q: "What is Do The Thing™?",
+                a: "Do The Thing™ is an execution planning tool within ConsultantOS. It helps you turn strategy into action by creating structured plans with objectives, success metrics, and trackable initiatives. AI assists by suggesting tasks, tracking progress, and keeping plans aligned with client goals.",
+              },
+              {
+                q: "Is my client data secure?",
+                a: "Absolutely. All data is encrypted in transit and at rest. Each client's data is completely isolated. We never train AI models on your client data, and you maintain full ownership and control of all information stored in the platform.",
+              },
+              {
+                q: "How much does it cost?",
+                a: "ConsultantOS offers three tiers: Starter (free) with 3 clients and 10 sessions/month, Pro ($499/month) with unlimited clients, sessions, and priority AI processing, and Enterprise (starting at $4,999/month) with dedicated infrastructure and custom integrations.",
+              },
+            ].map((faq, i) => (
+              <details
+                key={i}
+                className="group border-2 border-border/50 rounded-xl bg-card hover:shadow-corporate-md transition-all duration-200"
+              >
+                <summary className="flex items-center justify-between p-6 cursor-pointer list-none">
+                  <h3 className="text-lg font-semibold text-foreground pr-4">
+                    {faq.q}
+                  </h3>
+                  <span className="text-muted-foreground group-open:rotate-180 transition-transform duration-200 flex-shrink-0">
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </span>
+                </summary>
+                <div className="px-6 pb-6 pt-0">
+                  <p className="text-muted-foreground leading-relaxed">
+                    {faq.a}
+                  </p>
+                </div>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* CTA */}
-      <section className="py-28 px-6">
+      <section className="py-28 px-6 bg-muted/20">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-5">
-            Ready to elevate your practice?
+            Run Your Practice Like a Pro
           </h2>
           <p className="text-lg text-muted-foreground mb-10">
-            Join hundreds of consultants who deliver more value with ConsultantOS.
+            Join hundreds of solo coaches and consultants delivering more value — without hiring a team.
           </p>
           <SignedOut>
             <SignUpButton mode="modal">
@@ -968,7 +1046,7 @@ export function LandingPage() {
               </Link>
             </div>
             <div className="text-sm text-muted-foreground">
-              © 2025 ConsultantOS. All rights reserved.
+              © 2026 ConsultantOS. All rights reserved.
             </div>
           </div>
         </div>
