@@ -7,6 +7,9 @@ import { extractImageContent, formatImageContentForRAG } from "@/lib/ai/vision";
 import { generateSourceSummary } from "@/lib/ai/source-summary";
 import { generateClarityInsightsFromSource } from "@/lib/ai/clarity-insights";
 
+// Prevent static caching - auth routes must be dynamic
+export const dynamic = "force-dynamic";
+
 export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }

@@ -3,6 +3,9 @@ import { requireUser } from "@/lib/auth";
 import { getSources, createSource } from "@/lib/db/sources";
 import { z } from "zod";
 
+// Prevent static caching - auth routes must be dynamic
+export const dynamic = "force-dynamic";
+
 const createSourceSchema = z.object({
   type: z.enum(["document", "website", "repo", "folder", "recording", "local_folder"]),
   name: z.string().min(1),

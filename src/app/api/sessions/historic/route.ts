@@ -11,6 +11,9 @@ import { z } from "zod";
 import type { SessionAttachment } from "@/db/schema";
 import pdf from "pdf-parse";
 
+// Prevent static caching - auth routes must be dynamic
+export const dynamic = "force-dynamic";
+
 /**
  * Sanitize content for PostgreSQL - removes null bytes and invalid UTF8
  */

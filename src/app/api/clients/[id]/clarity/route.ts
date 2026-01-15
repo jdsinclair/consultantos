@@ -8,6 +8,9 @@ import {
 } from "@/lib/db/clarity";
 import { z } from "zod";
 
+// Prevent static caching - auth routes must be dynamic
+export const dynamic = "force-dynamic";
+
 const updateSchema = z.object({
   niche: z.string().optional(),
   desiredOutcome: z.string().optional(),

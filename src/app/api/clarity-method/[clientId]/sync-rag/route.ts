@@ -5,6 +5,9 @@ import { clients } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { pushCanvasToRAG } from "@/lib/clarity-method/rag-integration";
 
+// Prevent static caching - auth routes must be dynamic
+export const dynamic = "force-dynamic";
+
 // POST /api/clarity-method/[clientId]/sync-rag - Manually trigger RAG sync
 export async function POST(
   req: NextRequest,

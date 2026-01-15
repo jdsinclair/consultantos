@@ -3,6 +3,9 @@ import { requireUser } from "@/lib/auth";
 import { getPersonas, createPersona } from "@/lib/db/personas";
 import { z } from "zod";
 
+// Prevent static caching - auth routes must be dynamic
+export const dynamic = "force-dynamic";
+
 const createPersonaSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),

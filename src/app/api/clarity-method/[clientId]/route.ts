@@ -6,6 +6,9 @@ import { eq, and } from "drizzle-orm";
 import { DEFAULT_CANVAS } from "@/lib/clarity-method/types";
 import { pushCanvasToRAG } from "@/lib/clarity-method/rag-integration";
 
+// Prevent static caching - auth routes must be dynamic
+export const dynamic = "force-dynamic";
+
 // GET /api/clarity-method/[clientId] - Get or create canvas for client
 export async function GET(
   req: NextRequest,

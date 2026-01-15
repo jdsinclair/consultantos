@@ -5,6 +5,9 @@ import { openai } from "@ai-sdk/openai";
 import { generateObject } from "ai";
 import { z } from "zod";
 
+// Prevent static caching - auth routes must be dynamic
+export const dynamic = "force-dynamic";
+
 const evaluationSchema = z.object({
   summary: z.string().describe("2-3 sentence summary of the business/idea"),
   whyWeLoveIt: z.array(z.string()).describe("3-5 reasons why this is compelling"),

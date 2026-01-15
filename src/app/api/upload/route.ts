@@ -11,6 +11,9 @@ import { clients } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import pdf from "pdf-parse";
 
+// Prevent static caching - auth routes must be dynamic
+export const dynamic = "force-dynamic";
+
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser();

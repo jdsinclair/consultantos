@@ -3,6 +3,9 @@ import { requireUser } from "@/lib/auth";
 import { getNote, updateNote, deleteNote, togglePinNote } from "@/lib/db/notes";
 import { z } from "zod";
 
+// Prevent static caching - auth routes must be dynamic
+export const dynamic = "force-dynamic";
+
 const NOTE_TYPES = ["general", "future", "competitor", "partner", "idea", "reference"] as const;
 
 const updateNoteSchema = z.object({
