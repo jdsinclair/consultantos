@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { unstable_noStore } from "next/cache";
 import { getPortalByToken, logPortalAccess } from "@/lib/db/portals";
 import { getExecutionPlanPublic } from "@/lib/db/execution-plans";
 import { db } from "@/db";
@@ -6,12 +7,16 @@ import { clarityMethodCanvases, clients } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 // Public endpoint - get portal data by access token
 export async function GET(
   req: NextRequest,
   { params }: { params: { token: string } }
 ) {
+  // Disable ALL caching - Vercel Data Cache was returning stale DB results
+  unstable_noStore();
+  
   try {
     const portal = await getPortalByToken(params.token);
 
