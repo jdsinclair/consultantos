@@ -48,9 +48,17 @@ async function ensureLogDir(): Promise<void> {
  * Append a log entry to the file
  */
 async function appendToFile(entry: AILogEntry): Promise<void> {
-  await ensureLogDir();
-  const line = JSON.stringify(entry) + "\n";
-  await fs.appendFile(LOG_FILE, line, "utf-8");
+  try {
+    await ensureLogDir();
+    const line = JSON.stringify(entry) + "\n";
+    await fs.appendFile(LOG_FILE, line, "utf-8");
+    console.log(`[AI Logger] Written to file: ${entry.operation} (${entry.status})`);
+  } catch (err) {
+    console.error("[AI Logger] FAILED to write to file:", err);
+    console.error("[AI Logger] Log dir:", LOG_DIR);
+    console.error("[AI Logger] Log file:", LOG_FILE);
+    console.error("[AI Logger] Entry:", JSON.stringify(entry).slice(0, 200));
+  }
 }
 
 /**
