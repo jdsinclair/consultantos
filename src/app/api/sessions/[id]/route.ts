@@ -14,6 +14,9 @@ import { createSource, updateSourceContent } from "@/lib/db/sources";
 import { processSourceEmbeddings } from "@/lib/rag";
 import { extractSessionInsights } from "@/lib/ai/extract-todos";
 import { z } from "zod";
+import { db } from "@/db";
+import { sources, sessions } from "@/db/schema";
+import { eq, and } from "drizzle-orm";
 
 // Prevent static caching - auth routes must be dynamic
 export const dynamic = "force-dynamic";
@@ -27,7 +30,24 @@ function sanitizeForDB(content: string): string {
 }
 
 /**
+ * Check if a source already exists for this session by type
+ */
+async function sessionSourceExists(sessionId: string, userId: string, sourceType: string): Promise<boolean> {
+  const allSources = await db.query.sources.findMany({
+    where: and(
+      eq(sources.userId, userId),
+      eq(sources.type, sourceType)
+    ),
+  });
+  return allSources.some(s => {
+    const meta = s.metadata as { sessionId?: string } | null;
+    return meta?.sessionId === sessionId;
+  });
+}
+
+/**
  * Process session transcript into RAG
+ * Returns early if a source already exists for this session (prevents duplicates)
  */
 async function processTranscriptToRAG(
   sessionId: string,
@@ -36,6 +56,13 @@ async function processTranscriptToRAG(
   sessionTitle: string,
   transcript: string
 ) {
+  // Check if transcript source already exists for this session
+  const alreadyExists = await sessionSourceExists(sessionId, userId, "session_transcript");
+  if (alreadyExists) {
+    console.log(`[Session RAG] Transcript source already exists for session: ${sessionTitle}, skipping`);
+    return null;
+  }
+
   console.log(`[Session RAG] Processing transcript for session: ${sessionTitle}`);
 
   const source = await createSource({
@@ -57,10 +84,6 @@ async function processTranscriptToRAG(
     sessionTitle,
   });
 
-  const { db } = await import("@/db");
-  const { sources } = await import("@/db/schema");
-  const { eq } = await import("drizzle-orm");
-
   await db.update(sources).set({ processingStatus: "completed" }).where(eq(sources.id, source.id));
   console.log(`[Session RAG] Successfully indexed transcript (source: ${source.id})`);
 
@@ -69,6 +92,7 @@ async function processTranscriptToRAG(
 
 /**
  * Process session notes into RAG
+ * Returns early if a source already exists for this session (prevents duplicates)
  */
 async function processNotesToRAG(
   sessionId: string,
@@ -77,6 +101,13 @@ async function processNotesToRAG(
   sessionTitle: string,
   notes: string
 ) {
+  // Check if notes source already exists for this session
+  const alreadyExists = await sessionSourceExists(sessionId, userId, "session_notes");
+  if (alreadyExists) {
+    console.log(`[Session RAG] Notes source already exists for session: ${sessionTitle}, skipping`);
+    return null;
+  }
+
   console.log(`[Session RAG] Processing notes for session: ${sessionTitle}`);
 
   const source = await createSource({
@@ -97,10 +128,6 @@ async function processNotesToRAG(
     sessionId,
     sessionTitle,
   });
-
-  const { db } = await import("@/db");
-  const { sources } = await import("@/db/schema");
-  const { eq } = await import("drizzle-orm");
 
   await db.update(sources).set({ processingStatus: "completed" }).where(eq(sources.id, source.id));
   console.log(`[Session RAG] Successfully indexed notes (source: ${source.id})`);
@@ -126,10 +153,6 @@ async function processSessionInsights(
     });
 
     // Store insights on session record
-    const { db } = await import("@/db");
-    const { sessions } = await import("@/db/schema");
-    const { eq, and } = await import("drizzle-orm");
-
     await db.update(sessions)
       .set({
         keyPoints: insights,
