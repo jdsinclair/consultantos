@@ -7,8 +7,9 @@ import path from "path";
 // Prevent static caching - auth routes must be dynamic
 export const dynamic = "force-dynamic";
 
-// Debug info about log file location
-const LOG_DIR = path.join(process.cwd(), "logs");
+// Debug info about log file location - must match logger.ts
+const isServerless = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.cwd().startsWith("/var/task");
+const LOG_DIR = isServerless ? "/tmp" : path.join(process.cwd(), "logs");
 const LOG_FILE = path.join(LOG_DIR, "aiu-calls.jsonl");
 
 export async function GET(req: NextRequest) {
