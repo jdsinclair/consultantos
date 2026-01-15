@@ -4,7 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { createSession, updateSession } from "@/lib/db/sessions";
 import { createSource, updateSourceContent } from "@/lib/db/sources";
 import { processSourceEmbeddings } from "@/lib/rag";
-import { extractTodosFromTranscript } from "@/lib/ai/extract-todos";
+import { extractSessionInsights } from "@/lib/ai/extract-todos";
 import { createDetectedActionItems } from "@/lib/db/action-items";
 import { extractImageContent, formatImageContentForRAG } from "@/lib/ai/vision";
 import { z } from "zod";
@@ -112,11 +112,9 @@ export async function POST(req: NextRequest) {
       ).catch(console.error);
     }
 
-    // Process transcript for:
-    // 1. Action item extraction
-    // 2. RAG indexing (create source from transcript)
+    // Process session content in background
+    // 1. Transcript → RAG + extract insights
     if (data.transcript && data.transcript.trim().length > 100) {
-      // Create source from transcript for RAG
       processTranscriptToRAG(
         session.id,
         data.clientId,
@@ -127,27 +125,29 @@ export async function POST(req: NextRequest) {
         console.error("Failed to process transcript to RAG:", err);
       });
 
-      // Extract action items
-      extractTodosFromTranscript(data.transcript)
-        .then(async (todos) => {
-          if (todos.length > 0) {
-            await createDetectedActionItems(
-              session.id,
-              data.clientId,
-              user.id,
-              todos.map((todo) => ({
-                title: todo.title,
-                owner: todo.owner || (todo.ownerType === "me" ? "me" : "client"),
-                ownerType: todo.ownerType,
-                timestamp: todo.timestamp,
-              }))
-            );
-            console.log(`Extracted ${todos.length} action items from historic session ${session.id}`);
-          }
-        })
-        .catch((err) => {
-          console.error("Failed to extract action items from historic session:", err);
-        });
+      // Extract comprehensive insights (action items, next steps, decisions)
+      processSessionInsights(
+        session.id,
+        data.clientId,
+        user.id,
+        data.title,
+        data.transcript
+      ).catch((err) => {
+        console.error("Failed to extract insights from historic session:", err);
+      });
+    }
+
+    // 2. Notes → RAG
+    if (data.notes && data.notes.trim().length > 50) {
+      processNotesToRAG(
+        session.id,
+        data.clientId,
+        user.id,
+        data.title,
+        data.notes
+      ).catch((err) => {
+        console.error("Failed to process notes to RAG:", err);
+      });
     }
 
     return NextResponse.json(session, { status: 201 });
@@ -346,4 +346,100 @@ function getFileType(filename: string): string {
     m4a: "m4a",
   };
   return typeMap[extension] || "unknown";
+}
+
+/**
+ * Process session notes into RAG
+ */
+async function processNotesToRAG(
+  sessionId: string,
+  clientId: string,
+  userId: string,
+  sessionTitle: string,
+  notes: string
+) {
+  console.log(`[Session RAG] Processing notes for session: ${sessionTitle}`);
+
+  const source = await createSource({
+    clientId,
+    userId,
+    type: "session_notes",
+    name: `Session Notes: ${sessionTitle}`,
+    metadata: { sessionId, contentType: "notes" },
+    processingStatus: "processing",
+  });
+
+  const cleanNotes = sanitizeForDB(notes);
+  const formattedContent = `# Session Notes: ${sessionTitle}\n\n${cleanNotes}`;
+
+  await updateSourceContent(source.id, userId, formattedContent);
+  await processSourceEmbeddings(source.id, clientId, userId, formattedContent, {
+    type: "session_notes",
+    sessionId,
+    sessionTitle,
+  });
+
+  const { db } = await import("@/db");
+  const { sources } = await import("@/db/schema");
+  const { eq } = await import("drizzle-orm");
+
+  await db.update(sources).set({ processingStatus: "completed" }).where(eq(sources.id, source.id));
+  console.log(`[Session RAG] Successfully indexed notes (source: ${source.id})`);
+
+  return source.id;
+}
+
+/**
+ * Extract and store comprehensive session insights
+ */
+async function processSessionInsights(
+  sessionId: string,
+  clientId: string,
+  userId: string,
+  sessionTitle: string,
+  transcript: string
+) {
+  console.log(`[Session Insights] Extracting insights for: ${sessionTitle}`);
+
+  try {
+    const insights = await extractSessionInsights(transcript, {
+      sessionTitle,
+    });
+
+    // Store insights on session record
+    const { db } = await import("@/db");
+    const { sessions } = await import("@/db/schema");
+    const { eq, and } = await import("drizzle-orm");
+
+    await db.update(sessions)
+      .set({
+        keyPoints: insights,
+        summary: insights.summary,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(sessions.id, sessionId), eq(sessions.userId, userId)));
+
+    // Create action items from extracted items
+    if (insights.actionItems && insights.actionItems.length > 0) {
+      await createDetectedActionItems(
+        sessionId,
+        clientId,
+        userId,
+        insights.actionItems.map((item) => ({
+          title: item.title,
+          description: item.description,
+          owner: item.owner || (item.ownerType === "me" ? "me" : "client"),
+          ownerType: item.ownerType,
+          priority: item.priority,
+        }))
+      );
+      console.log(`[Session Insights] Created ${insights.actionItems.length} action items`);
+    }
+
+    console.log(`[Session Insights] Stored insights: ${insights.nextSteps?.length || 0} next steps, ${insights.decisions?.length || 0} decisions`);
+    return insights;
+  } catch (error) {
+    console.error("[Session Insights] Failed to extract insights:", error);
+    return null;
+  }
 }
