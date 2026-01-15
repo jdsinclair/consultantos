@@ -80,11 +80,17 @@ interface PlanItem {
   assignee?: string;
   dueDate?: string;
   notes?: string;
+  priority?: 'now' | 'next' | 'later';
+  blockedBy?: string;
 }
 
 interface PlanSection {
   id: string;
   title: string;
+  why?: string;
+  what?: string;
+  notes?: string;
+  status?: 'not_started' | 'in_progress' | 'blocked' | 'done';
   items: PlanItem[];
   order: number;
   collapsed?: boolean;
