@@ -12,7 +12,7 @@ import {
 import { createDetectedActionItems } from "@/lib/db/action-items";
 import { createSource, updateSourceContent } from "@/lib/db/sources";
 import { processSourceEmbeddings } from "@/lib/rag";
-import { extractTodosFromTranscript } from "@/lib/ai/extract-todos";
+import { extractSessionInsights } from "@/lib/ai/extract-todos";
 import { z } from "zod";
 
 /**
@@ -60,6 +60,104 @@ async function processTranscriptToRAG(
 
   await db.update(sources).set({ processingStatus: "completed" }).where(eq(sources.id, source.id));
   console.log(`[Session RAG] Successfully indexed transcript (source: ${source.id})`);
+
+  return source.id;
+}
+
+/**
+ * Process session notes into RAG
+ */
+async function processNotesToRAG(
+  sessionId: string,
+  clientId: string,
+  userId: string,
+  sessionTitle: string,
+  notes: string
+) {
+  console.log(`[Session RAG] Processing notes for session: ${sessionTitle}`);
+
+  const source = await createSource({
+    clientId,
+    userId,
+    type: "session_notes",
+    name: `Session Notes: ${sessionTitle}`,
+    metadata: { sessionId, contentType: "notes" },
+    processingStatus: "processing",
+  });
+
+  const cleanNotes = sanitizeForDB(notes);
+  const formattedContent = `# Session Notes: ${sessionTitle}\n\n${cleanNotes}`;
+
+  await updateSourceContent(source.id, userId, formattedContent);
+  await processSourceEmbeddings(source.id, clientId, userId, formattedContent, {
+    type: "session_notes",
+    sessionId,
+    sessionTitle,
+  });
+
+  const { db } = await import("@/db");
+  const { sources } = await import("@/db/schema");
+  const { eq } = await import("drizzle-orm");
+
+  await db.update(sources).set({ processingStatus: "completed" }).where(eq(sources.id, source.id));
+  console.log(`[Session RAG] Successfully indexed notes (source: ${source.id})`);
+
+  return source.id;
+}
+
+/**
+ * Extract and store session insights (decisions, next steps, key learnings)
+ */
+async function processSessionInsights(
+  sessionId: string,
+  clientId: string,
+  userId: string,
+  sessionTitle: string,
+  transcript: string
+) {
+  console.log(`[Session Insights] Extracting insights for: ${sessionTitle}`);
+
+  try {
+    const insights = await extractSessionInsights(transcript, {
+      sessionTitle,
+    });
+
+    // Store insights on session record
+    const { db } = await import("@/db");
+    const { sessions } = await import("@/db/schema");
+    const { eq, and } = await import("drizzle-orm");
+
+    await db.update(sessions)
+      .set({
+        keyPoints: insights,
+        summary: insights.summary,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(sessions.id, sessionId), eq(sessions.userId, userId)));
+
+    // Create action items from extracted items
+    if (insights.actionItems && insights.actionItems.length > 0) {
+      await createDetectedActionItems(
+        sessionId,
+        clientId,
+        userId,
+        insights.actionItems.map((item) => ({
+          title: item.title,
+          description: item.description,
+          owner: item.owner || (item.ownerType === "me" ? "me" : "client"),
+          ownerType: item.ownerType,
+          priority: item.priority,
+        }))
+      );
+      console.log(`[Session Insights] Created ${insights.actionItems.length} action items`);
+    }
+
+    console.log(`[Session Insights] Stored insights: ${insights.nextSteps?.length || 0} next steps, ${insights.decisions?.length || 0} decisions`);
+    return insights;
+  } catch (error) {
+    console.error("[Session Insights] Failed to extract insights:", error);
+    return null;
+  }
 }
 
 const updateSessionSchema = z.object({
@@ -71,6 +169,12 @@ const updateSessionSchema = z.object({
     done: z.boolean(),
     order: z.number(),
   })).optional(),
+  // Historic session editable fields
+  transcript: z.string().optional(),
+  notes: z.string().optional(),
+  sessionDate: z.string().optional(), // ISO date string
+  duration: z.number().optional(), // in minutes
+  recordingUrl: z.string().url().optional().or(z.literal("")),
 });
 
 export async function GET(
@@ -100,10 +204,65 @@ export async function PATCH(
     const body = await req.json();
     const data = updateSessionSchema.parse(body);
 
-    const session = await updateSession(params.id, user.id, data);
+    // Get existing session first
+    const existingSession = await getSession(params.id, user.id);
+    if (!existingSession) {
+      return NextResponse.json({ error: "Session not found" }, { status: 404 });
+    }
+
+    // Transform sessionDate/duration if provided
+    const updateData: Record<string, unknown> = { ...data };
+    if (data.sessionDate) {
+      updateData.sessionDate = new Date(data.sessionDate);
+      updateData.startedAt = new Date(data.sessionDate);
+      if (data.duration) {
+        updateData.endedAt = new Date(new Date(data.sessionDate).getTime() + data.duration * 60000);
+        updateData.duration = data.duration * 60; // convert to seconds
+      }
+    }
+
+    const session = await updateSession(params.id, user.id, updateData);
 
     if (!session) {
       return NextResponse.json({ error: "Session not found" }, { status: 404 });
+    }
+
+    // If transcript was updated and it's substantial, reprocess RAG
+    if (data.transcript && data.transcript.trim().length > 100 && session.clientId) {
+      const transcriptChanged = data.transcript !== existingSession.transcript;
+      if (transcriptChanged) {
+        // Process transcript to RAG in background
+        processTranscriptToRAG(
+          params.id,
+          session.clientId,
+          user.id,
+          session.title,
+          data.transcript
+        ).catch((err) => console.error("Failed to reprocess transcript:", err));
+
+        // Re-extract insights
+        processSessionInsights(
+          params.id,
+          session.clientId,
+          user.id,
+          session.title,
+          data.transcript
+        ).catch((err) => console.error("Failed to reprocess insights:", err));
+      }
+    }
+
+    // If notes were updated and it's substantial, reprocess RAG
+    if (data.notes && data.notes.trim().length > 50 && session.clientId) {
+      const notesChanged = data.notes !== existingSession.notes;
+      if (notesChanged) {
+        processNotesToRAG(
+          params.id,
+          session.clientId,
+          user.id,
+          session.title,
+          data.notes
+        ).catch((err) => console.error("Failed to reprocess notes:", err));
+      }
     }
 
     return NextResponse.json(session);
@@ -132,42 +291,44 @@ export async function PUT(
     if (body.action === "end") {
       const session = await endSession(params.id, user.id);
 
-      // Process transcript in background (don't block response)
-      if (session?.transcript && session.transcript.length > 100 && session.clientId) {
-        // 1. Index transcript in RAG for searchability
-        processTranscriptToRAG(
-          params.id,
-          session.clientId,
-          user.id,
-          session.title,
-          session.transcript
-        ).catch((err) => {
-          console.error("Failed to process transcript to RAG:", err);
-        });
-
-        // 2. Extract action items from transcript
-        extractTodosFromTranscript(session.transcript)
-          .then(async (todos) => {
-            if (todos.length > 0) {
-              await createDetectedActionItems(
-                params.id,
-                session.clientId!,
-                user.id,
-                todos.map((todo) => ({
-                  title: todo.title,
-                  owner: todo.owner || (todo.ownerType === "me" ? "me" : "client"),
-                  ownerType: todo.ownerType,
-                  timestamp: todo.timestamp,
-                }))
-              );
-              console.log(
-                `Extracted ${todos.length} action items from session ${params.id}`
-              );
-            }
-          })
-          .catch((err) => {
-            console.error("Failed to extract action items:", err);
+      // Process session content in background (don't block response)
+      if (session?.clientId) {
+        // 1. Index transcript in RAG
+        if (session.transcript && session.transcript.length > 100) {
+          processTranscriptToRAG(
+            params.id,
+            session.clientId,
+            user.id,
+            session.title,
+            session.transcript
+          ).catch((err) => {
+            console.error("Failed to process transcript to RAG:", err);
           });
+
+          // 2. Extract comprehensive insights (action items, next steps, decisions)
+          processSessionInsights(
+            params.id,
+            session.clientId,
+            user.id,
+            session.title,
+            session.transcript
+          ).catch((err) => {
+            console.error("Failed to extract session insights:", err);
+          });
+        }
+
+        // 3. Index notes in RAG
+        if (session.notes && session.notes.length > 50) {
+          processNotesToRAG(
+            params.id,
+            session.clientId,
+            user.id,
+            session.title,
+            session.notes
+          ).catch((err) => {
+            console.error("Failed to process notes to RAG:", err);
+          });
+        }
       }
 
       return NextResponse.json(session);

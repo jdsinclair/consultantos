@@ -18,6 +18,9 @@ import {
   RefreshCw,
   Image as ImageIcon,
   Eye,
+  Video,
+  MessageSquare,
+  StickyNote,
 } from "lucide-react";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
@@ -37,6 +40,11 @@ interface Source {
   client: {
     id: string;
     name: string;
+  } | null;
+  metadata?: {
+    sessionId?: string;
+    contentType?: string;
+    sessionTitle?: string;
   } | null;
 }
 
@@ -116,10 +124,19 @@ export default function SourcesPage() {
         return <Github className="h-4 w-4" />;
       case "image":
         return <ImageIcon className="h-4 w-4" />;
+      case "session_transcript":
+        return <MessageSquare className="h-4 w-4" />;
+      case "session_notes":
+        return <StickyNote className="h-4 w-4" />;
+      case "recording":
+        return <Video className="h-4 w-4" />;
       default:
         return <FileText className="h-4 w-4" />;
     }
   };
+
+  const isSessionSource = (type: string) =>
+    type === "session_transcript" || type === "session_notes";
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -145,7 +162,12 @@ export default function SourcesPage() {
       source.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       source.client?.name.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesType = !typeFilter || source.type === typeFilter;
+    // Handle "session" filter which matches multiple types
+    const matchesType =
+      !typeFilter ||
+      (typeFilter === "session"
+        ? isSessionSource(source.type)
+        : source.type === typeFilter);
     const matchesClient = !clientFilter || source.client?.id === clientFilter;
 
     return matchesSearch && matchesType && matchesClient;
@@ -232,6 +254,15 @@ export default function SourcesPage() {
             <ImageIcon className="h-3 w-3" />
             Images
           </Button>
+          <Button
+            variant={typeFilter === "session" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setTypeFilter("session")}
+            className="gap-1"
+          >
+            <MessageSquare className="h-3 w-3" />
+            Sessions
+          </Button>
         </div>
 
         {/* Client Filter */}
@@ -299,6 +330,11 @@ export default function SourcesPage() {
                           {source.fileType}
                         </Badge>
                       )}
+                      {isSessionSource(source.type) && (
+                        <Badge variant="secondary" className="text-xs">
+                          {source.type === "session_transcript" ? "Transcript" : "Notes"}
+                        </Badge>
+                      )}
                     </div>
                     {source.originalName && source.originalName !== source.name && (
                       <p className="text-xs text-muted-foreground/70 truncate">
@@ -324,6 +360,18 @@ export default function SourcesPage() {
                         <>
                           <span>·</span>
                           <span>{formatFileSize(source.fileSize)}</span>
+                        </>
+                      )}
+                      {source.metadata?.sessionId && (
+                        <>
+                          <span>·</span>
+                          <Link
+                            href={`/sessions/${source.metadata.sessionId}`}
+                            className="hover:text-primary inline-flex items-center gap-1"
+                          >
+                            <MessageSquare className="h-3 w-3" />
+                            From Session
+                          </Link>
                         </>
                       )}
                     </div>
