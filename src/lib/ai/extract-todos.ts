@@ -168,3 +168,100 @@ ${email.body}`;
     isEmail: true,
   });
 }
+
+// Schema for comprehensive session insights
+const SessionInsightsSchema = z.object({
+  // Action items (individual tasks)
+  actionItems: z.array(ExtractedTodoSchema),
+
+  // Gameplan / Next Steps (more detailed multi-step plans)
+  nextSteps: z.array(z.object({
+    title: z.string().describe("Title of this phase or initiative"),
+    description: z.string().describe("Detailed description of what needs to happen"),
+    timeframe: z.string().optional().describe("When this should happen (e.g., 'next 30 days', 'Q1', 'week 1')"),
+    owner: z.enum(["me", "client", "both"]).describe("Who is primarily responsible"),
+    substeps: z.array(z.string()).optional().describe("Breakdown of smaller steps within this initiative"),
+  })).describe("Larger initiatives, phases, or multi-step plans discussed"),
+
+  // Key decisions made
+  decisions: z.array(z.object({
+    decision: z.string().describe("What was decided"),
+    context: z.string().optional().describe("Why or how this decision was reached"),
+    implications: z.array(z.string()).optional().describe("What this decision means for next steps"),
+  })).optional(),
+
+  // Important insights or realizations
+  insights: z.array(z.string()).optional().describe("Key insights, realizations, or strategic observations"),
+
+  // Summary
+  summary: z.string().describe("2-3 sentence summary of the session"),
+});
+
+export type SessionInsights = z.infer<typeof SessionInsightsSchema>;
+
+/**
+ * Extract comprehensive insights from a session transcript
+ * Includes action items, next steps/gameplan, decisions, and key insights
+ */
+export async function extractSessionInsights(
+  transcript: string,
+  context?: {
+    clientName?: string;
+    userName?: string;
+    sessionTitle?: string;
+  }
+): Promise<SessionInsights> {
+  const contextInfo = [];
+  if (context?.clientName) contextInfo.push(`Client: ${context.clientName}`);
+  if (context?.userName) contextInfo.push(`Consultant: ${context.userName}`);
+  if (context?.sessionTitle) contextInfo.push(`Session: ${context.sessionTitle}`);
+
+  const systemPrompt = `You are an expert consultant assistant analyzing a session transcript.
+
+Extract all valuable information from this consulting session:
+
+1. **ACTION ITEMS**: Individual tasks that someone committed to doing
+   - Look for: "I'll do", "Can you", "We need to", "Action item", commitments
+   - Identify owner: consultant ("me") or client
+   - Note any deadlines mentioned
+
+2. **NEXT STEPS / GAMEPLAN**: Larger initiatives or multi-step plans discussed
+   - These are more strategic than single action items
+   - Could be 30-day plans, quarterly initiatives, phased approaches
+   - Include any substeps or breakdown discussed
+   - Note the timeframe if mentioned
+
+3. **DECISIONS**: Key decisions made during the session
+   - What was agreed upon
+   - Why (if discussed)
+   - What it means for the work
+
+4. **INSIGHTS**: Important realizations, strategic observations, or "aha moments"
+   - Things that changed understanding
+   - Key learnings about the business
+   - Strategic observations
+
+${contextInfo.length > 0 ? `\nContext:\n${contextInfo.join("\n")}` : ""}
+
+Be thorough but don't make things up. Only extract what was actually discussed.
+Today's date: ${new Date().toISOString().split("T")[0]}`;
+
+  try {
+    const result = await generateObject({
+      model: anthropic("claude-3-5-sonnet-latest"),
+      schema: SessionInsightsSchema,
+      system: systemPrompt,
+      prompt: `Analyze this session transcript and extract all insights:\n\n${transcript}`,
+      temperature: 0.3,
+    });
+
+    return result.object;
+  } catch (error) {
+    console.error("Failed to extract session insights:", error);
+    return {
+      actionItems: [],
+      nextSteps: [],
+      summary: "Failed to analyze session",
+    };
+  }
+}
