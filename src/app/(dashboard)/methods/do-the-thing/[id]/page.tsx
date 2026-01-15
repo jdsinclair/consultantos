@@ -1060,7 +1060,7 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
                           } 
                         });
                       }}
-                      className="h-7 text-sm border-0 bg-transparent focus-visible:bg-background focus-visible:border px-1"
+                      className="h-7 text-sm border-0 bg-transparent focus-visible:bg-muted/50 focus-visible:border focus-visible:border-muted-foreground/20 selection:bg-orange-100 px-1"
                     />
                     <Button
                       variant="ghost"
@@ -1113,7 +1113,7 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
                           } 
                         });
                       }}
-                      className="h-7 text-sm border-0 bg-transparent focus-visible:bg-background focus-visible:border px-1"
+                      className="h-7 text-sm border-0 bg-transparent focus-visible:bg-muted/50 focus-visible:border focus-visible:border-muted-foreground/20 selection:bg-orange-100 px-1"
                     />
                     <Button
                       variant="ghost"
@@ -1387,7 +1387,7 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
                     newRules[i] = e.target.value;
                     updatePlan({ rules: newRules });
                   }}
-                  className="text-sm flex-1 h-7 border-0 bg-transparent focus-visible:bg-background focus-visible:border px-1"
+                  className="text-sm flex-1 h-7 border-0 bg-transparent focus-visible:bg-muted/50 focus-visible:border focus-visible:border-muted-foreground/20 selection:bg-orange-100 px-1"
                 />
                 <Button
                   variant="ghost"
@@ -1770,7 +1770,7 @@ function InitiativeCard({
                               } 
                             });
                           }}
-                          className="h-6 text-xs border-0 bg-transparent focus-visible:bg-background focus-visible:border px-1 flex-1"
+                          className="h-6 text-xs border-0 bg-transparent focus-visible:bg-muted/50 focus-visible:border focus-visible:border-muted-foreground/20 selection:bg-orange-100 px-1 flex-1"
                         />
                         <Button
                           variant="ghost"
@@ -1824,7 +1824,7 @@ function InitiativeCard({
                               } 
                             });
                           }}
-                          className="h-6 text-xs border-0 bg-transparent focus-visible:bg-background focus-visible:border px-1 flex-1"
+                          className="h-6 text-xs border-0 bg-transparent focus-visible:bg-muted/50 focus-visible:border focus-visible:border-muted-foreground/20 selection:bg-orange-100 px-1 flex-1"
                         />
                         <Button
                           variant="ghost"
@@ -1874,7 +1874,7 @@ function InitiativeCard({
                           newRules[i] = e.target.value;
                           onUpdate({ rules: newRules });
                         }}
-                        className="h-6 text-xs border-0 bg-transparent focus-visible:bg-background focus-visible:border px-1 flex-1"
+                        className="h-6 text-xs border-0 bg-transparent focus-visible:bg-muted/50 focus-visible:border focus-visible:border-muted-foreground/20 selection:bg-orange-100 px-1 flex-1"
                       />
                       <Button
                         variant="ghost"
@@ -2087,13 +2087,13 @@ function EnhancedPlanItemRow({
                 <MoveRight className="h-3 w-3" />
               </Button>
               {showMoveMenu && (
-                <div className="absolute right-0 top-full mt-1 bg-popover border rounded-lg shadow-lg z-50 min-w-[180px]">
-                  <div className="p-1">
-                    <p className="text-xs text-muted-foreground px-2 py-1">Move to:</p>
+                <div className="absolute right-0 top-full mt-1 bg-popover border rounded-lg shadow-xl z-[100] min-w-[200px]">
+                  <div className="p-2">
+                    <p className="text-xs text-muted-foreground px-2 py-1 font-medium">Move to:</p>
                     {otherSections.map((s) => (
                       <button
                         key={s.id}
-                        className="w-full text-left px-2 py-1.5 text-sm hover:bg-accent rounded"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-muted rounded-md transition-colors"
                         onClick={() => {
                           onMove(sectionId, item.id, s.id);
                           setShowMoveMenu(false);
