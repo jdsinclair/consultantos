@@ -4,7 +4,7 @@ import { generateText } from "ai";
 import { models } from "@/lib/ai";
 import { getExecutionPlan, updateExecutionPlan } from "@/lib/db/execution-plans";
 import { getClient } from "@/lib/db/clients";
-import { searchSourceChunks } from "@/lib/rag";
+import { searchRelevantChunks } from "@/lib/rag";
 import { ExecutionPlanSection, ExecutionPlanItem } from "@/db/schema";
 
 export const dynamic = "force-dynamic";
@@ -71,7 +71,7 @@ export async function POST(
     // Search for relevant source material
     let ragContext = "";
     try {
-      const chunks = await searchSourceChunks(
+      const chunks = await searchRelevantChunks(
         plan.objective || plan.title,
         plan.clientId,
         user.id,
