@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -18,7 +19,11 @@ import {
   RefreshCw,
   ChevronDown,
   ChevronRight,
+  List,
+  LayoutGrid,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { FocusViewReadonly } from "@/components/execution-plan/focus-view-readonly";
 import { cn } from "@/lib/utils";
 
 interface Client {
@@ -77,12 +82,16 @@ interface ExecutionPlan {
 // This is the SHARE VIEW - a clean, shareable view for screen sharing
 // NO NAVIGATION, NO SIDEBAR - just the plan content
 export default function PlanSharePage({ params }: { params: { id: string } }) {
+  const searchParams = useSearchParams();
+  const initialView = searchParams.get("view") === "focus" ? "focus" : "detail";
+
   const [loading, setLoading] = useState(true);
   const [plan, setPlan] = useState<ExecutionPlan | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set()
   );
+  const [viewMode, setViewMode] = useState<"detail" | "focus">(initialView);
 
   const fetchPlan = useCallback(async () => {
     try {
@@ -176,6 +185,27 @@ export default function PlanSharePage({ params }: { params: { id: string } }) {
               </div>
             </div>
             <div className="flex items-center gap-4 print:hidden">
+              {/* View Mode Toggle */}
+              <div className="flex items-center border rounded-lg p-0.5 bg-muted/50">
+                <Button
+                  variant={viewMode === "detail" ? "secondary" : "ghost"}
+                  size="sm"
+                  className="h-6 px-2 rounded-md"
+                  onClick={() => setViewMode("detail")}
+                  title="Detail View"
+                >
+                  <List className="h-3 w-3" />
+                </Button>
+                <Button
+                  variant={viewMode === "focus" ? "secondary" : "ghost"}
+                  size="sm"
+                  className="h-6 px-2 rounded-md"
+                  onClick={() => setViewMode("focus")}
+                  title="Focus View"
+                >
+                  <LayoutGrid className="h-3 w-3" />
+                </Button>
+              </div>
               <Badge
                 variant="outline"
                 className={cn(
@@ -309,115 +339,128 @@ export default function PlanSharePage({ params }: { params: { id: string } }) {
           <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
             <FileText className="h-5 w-5 text-orange-500" />
             The Plan
+            {viewMode === "focus" && (
+              <Badge variant="outline" className="ml-2 text-xs font-normal print:hidden">
+                Focus View
+              </Badge>
+            )}
           </h2>
 
-          <div className="space-y-4">
-            {plan.sections?.map((section) => (
-              <Card
-                key={section.id}
-                className="shadow-sm overflow-hidden print:shadow-none print:border-2 print:break-inside-avoid"
-              >
-                <CardHeader className="py-3 bg-muted/30 print:bg-gray-50">
-                  <div className="flex items-center gap-2">
-                    <button
-                      className="print:hidden"
-                      onClick={() => {
-                        setExpandedSections((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(section.id)) {
-                            next.delete(section.id);
-                          } else {
-                            next.add(section.id);
-                          }
-                          return next;
-                        });
-                      }}
-                    >
-                      {expandedSections.has(section.id) ? (
-                        <ChevronDown className="h-4 w-4" />
-                      ) : (
-                        <ChevronRight className="h-4 w-4" />
-                      )}
-                    </button>
-                    <span className="font-semibold">{section.title}</span>
-                    {section.status && (
-                      <Badge
-                        variant="outline"
-                        className={cn(
-                          "text-xs",
-                          section.status === "in_progress" &&
-                            "bg-blue-500/20 text-blue-500",
-                          section.status === "done" &&
-                            "bg-green-500/20 text-green-500",
-                          section.status === "blocked" &&
-                            "bg-red-500/20 text-red-500",
-                          section.status === "not_started" &&
-                            "bg-muted text-muted-foreground"
-                        )}
+          {/* Focus View (Table) */}
+          {viewMode === "focus" && plan.sections && plan.sections.length > 0 && (
+            <FocusViewReadonly sections={plan.sections} />
+          )}
+
+          {/* Detail View */}
+          {viewMode === "detail" && (
+            <div className="space-y-4">
+              {plan.sections?.map((section) => (
+                <Card
+                  key={section.id}
+                  className="shadow-sm overflow-hidden print:shadow-none print:border-2 print:break-inside-avoid"
+                >
+                  <CardHeader className="py-3 bg-muted/30 print:bg-gray-50">
+                    <div className="flex items-center gap-2">
+                      <button
+                        className="print:hidden"
+                        onClick={() => {
+                          setExpandedSections((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(section.id)) {
+                              next.delete(section.id);
+                            } else {
+                              next.add(section.id);
+                            }
+                            return next;
+                          });
+                        }}
                       >
-                        {section.status.replace("_", " ")}
+                        {expandedSections.has(section.id) ? (
+                          <ChevronDown className="h-4 w-4" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4" />
+                        )}
+                      </button>
+                      <span className="font-semibold">{section.title}</span>
+                      {section.status && (
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "text-xs",
+                            section.status === "in_progress" &&
+                              "bg-blue-500/20 text-blue-500",
+                            section.status === "done" &&
+                              "bg-green-500/20 text-green-500",
+                            section.status === "blocked" &&
+                              "bg-red-500/20 text-red-500",
+                            section.status === "not_started" &&
+                              "bg-muted text-muted-foreground"
+                          )}
+                        >
+                          {section.status.replace("_", " ")}
+                        </Badge>
+                      )}
+                      <Badge variant="outline" className="ml-auto">
+                        {section.items.length} items
                       </Badge>
-                    )}
-                    <Badge variant="outline" className="ml-auto">
-                      {section.items.length} items
-                    </Badge>
-                  </div>
-                </CardHeader>
-
-                {(expandedSections.has(section.id) || true) && (
-                  <CardContent
-                    className={cn(
-                      "pt-3 space-y-3",
-                      !expandedSections.has(section.id) && "hidden print:block"
-                    )}
-                  >
-                    {/* Section Context */}
-                    {(section.why || section.what || section.notes) && (
-                      <div className="grid gap-2 text-sm mb-4 p-3 bg-muted/50 rounded-lg print:bg-gray-50">
-                        {section.why && (
-                          <div>
-                            <span className="font-medium text-orange-500">
-                              Why:{" "}
-                            </span>
-                            <span className="text-muted-foreground">
-                              {section.why}
-                            </span>
-                          </div>
-                        )}
-                        {section.what && (
-                          <div>
-                            <span className="font-medium text-green-500">
-                              What:{" "}
-                            </span>
-                            <span className="text-muted-foreground">
-                              {section.what}
-                            </span>
-                          </div>
-                        )}
-                        {section.notes && (
-                          <div>
-                            <span className="font-medium text-yellow-500">
-                              Note:{" "}
-                            </span>
-                            <span className="text-muted-foreground">
-                              {section.notes}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Items */}
-                    <div className="space-y-1">
-                      {section.items.map((item) => (
-                        <SharePlanItemRow key={item.id} item={item} depth={0} />
-                      ))}
                     </div>
-                  </CardContent>
-                )}
-              </Card>
-            ))}
-          </div>
+                  </CardHeader>
+
+                  {(expandedSections.has(section.id) || true) && (
+                    <CardContent
+                      className={cn(
+                        "pt-3 space-y-3",
+                        !expandedSections.has(section.id) && "hidden print:block"
+                      )}
+                    >
+                      {/* Section Context */}
+                      {(section.why || section.what || section.notes) && (
+                        <div className="grid gap-2 text-sm mb-4 p-3 bg-muted/50 rounded-lg print:bg-gray-50">
+                          {section.why && (
+                            <div>
+                              <span className="font-medium text-orange-500">
+                                Why:{" "}
+                              </span>
+                              <span className="text-muted-foreground">
+                                {section.why}
+                              </span>
+                            </div>
+                          )}
+                          {section.what && (
+                            <div>
+                              <span className="font-medium text-green-500">
+                                What:{" "}
+                              </span>
+                              <span className="text-muted-foreground">
+                                {section.what}
+                              </span>
+                            </div>
+                          )}
+                          {section.notes && (
+                            <div>
+                              <span className="font-medium text-yellow-500">
+                                Note:{" "}
+                              </span>
+                              <span className="text-muted-foreground">
+                                {section.notes}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Items */}
+                      <div className="space-y-1">
+                        {section.items.map((item) => (
+                          <SharePlanItemRow key={item.id} item={item} depth={0} />
+                        ))}
+                      </div>
+                    </CardContent>
+                  )}
+                </Card>
+              ))}
+            </div>
+          )}
         </section>
 
         {/* Notes */}
