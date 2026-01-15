@@ -66,11 +66,15 @@ import {
   Layers,
   Settings2,
   MoreVertical,
+  LayoutGrid,
+  List,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { ChatComposer } from "@/components/chat";
+import { FocusView } from "@/components/execution-plan/focus-view";
+import { exportPlanToCSV, downloadCSV } from "@/components/execution-plan/focus-view-readonly";
 
 interface Client {
   id: string;
@@ -163,6 +167,7 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
   const [editingHeader, setEditingHeader] = useState(false);
   const [newRuleText, setNewRuleText] = useState("");
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+  const [viewMode, setViewMode] = useState<"detail" | "focus">("detail");
   const [pendingAdditions, setPendingAdditions] = useState<{
     sections: string[];
     items: { sectionTitle: string; items: string[] }[];
@@ -823,6 +828,28 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
           </div>
 
           <div className="flex items-center gap-2">
+            {/* View Mode Toggle */}
+            <div className="flex items-center border rounded-lg p-0.5 bg-muted/50">
+              <Button
+                variant={viewMode === "detail" ? "secondary" : "ghost"}
+                size="sm"
+                className="h-7 px-2.5 rounded-md"
+                onClick={() => setViewMode("detail")}
+                title="Detail View"
+              >
+                <List className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={viewMode === "focus" ? "secondary" : "ghost"}
+                size="sm"
+                className="h-7 px-2.5 rounded-md"
+                onClick={() => setViewMode("focus")}
+                title="Focus View (Table)"
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </Button>
+            </div>
+
             <Button
               variant="outline"
               onClick={() => setShowChat(!showChat)}
@@ -885,6 +912,38 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
                 >
                   <Link2 className="h-4 w-4 mr-2" />
                   Copy Link
+                </DropdownMenuItem>
+
+                <DropdownMenuSeparator />
+
+                <DropdownMenuItem
+                  onClick={() => {
+                    if (plan?.sections) {
+                      const csv = exportPlanToCSV(plan.sections, plan.title);
+                      const filename = `${plan.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_plan.csv`;
+                      downloadCSV(csv, filename);
+                    }
+                  }}
+                  disabled={!plan?.sections?.length}
+                >
+                  <Table2 className="h-4 w-4 mr-2" />
+                  Export to CSV
+                </DropdownMenuItem>
+
+                <DropdownMenuItem
+                  onClick={() => {
+                    // Open Focus View for printing
+                    const url = `/plan/${params.id}?view=focus&print=true`;
+                    const printWindow = window.open(url, '_blank');
+                    if (printWindow) {
+                      printWindow.onload = () => {
+                        setTimeout(() => printWindow.print(), 500);
+                      };
+                    }
+                  }}
+                >
+                  <LayoutGrid className="h-4 w-4 mr-2" />
+                  Print Focus View
                 </DropdownMenuItem>
 
                 <DropdownMenuSeparator />
@@ -1161,21 +1220,30 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
             <h2 className="text-lg font-semibold flex items-center gap-2">
               <Layers className="h-5 w-5 text-orange-500" />
               Initiatives
+              {viewMode === "focus" && (
+                <Badge variant="outline" className="ml-2 text-xs font-normal">
+                  Focus View
+                </Badge>
+              )}
             </h2>
             <div className="flex gap-2 flex-wrap">
-              <Button variant="outline" size="sm" onClick={() => addInitiative('active')}>
-                <Plus className="h-4 w-4 mr-1" />
-                Add Initiative
-              </Button>
-              {groupedSections.backlog.length === 0 && plan.sections && plan.sections.length > 0 && (
-                <Button variant="ghost" size="sm" onClick={() => addInitiative('backlog')}>
-                  <Plus className="h-4 w-4 mr-1" />
-                  Add Backlog
-                </Button>
+              {viewMode === "detail" && (
+                <>
+                  <Button variant="outline" size="sm" onClick={() => addInitiative('active')}>
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add Initiative
+                  </Button>
+                  {groupedSections.backlog.length === 0 && plan.sections && plan.sections.length > 0 && (
+                    <Button variant="ghost" size="sm" onClick={() => addInitiative('backlog')}>
+                      <Plus className="h-4 w-4 mr-1" />
+                      Add Backlog
+                    </Button>
+                  )}
+                </>
               )}
               {!plan.sections?.length && (
-                <Button 
-                  size="sm" 
+                <Button
+                  size="sm"
                   onClick={generatePlan}
                   disabled={generating}
                   className="bg-gradient-to-r from-orange-500 to-red-600"
@@ -1187,7 +1255,48 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
             </div>
           </div>
 
-          {(!plan.sections || plan.sections.length === 0) && (
+          {/* Focus View (Table) */}
+          {viewMode === "focus" && (
+            <>
+              {plan.sections && plan.sections.length > 0 ? (
+                <FocusView
+                  sections={plan.sections}
+                  onUpdateSection={updateSection}
+                  onDeleteSection={deleteSection}
+                  onAddSection={() => addInitiative('active')}
+                  onUpdateItem={updateItem}
+                  onDeleteItem={deleteItem}
+                  onAddItem={addItem}
+                />
+              ) : (
+                <Card className="border-dashed">
+                  <CardContent className="flex flex-col items-center justify-center py-8">
+                    <p className="text-muted-foreground text-sm mb-3">
+                      No initiatives yet. Add one or generate with AI.
+                    </p>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={() => addInitiative('active')}>
+                        <Plus className="h-4 w-4 mr-1" />
+                        Add Initiative
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={generatePlan}
+                        disabled={generating}
+                        className="bg-gradient-to-r from-orange-500 to-red-600"
+                      >
+                        <Wand2 className="h-4 w-4 mr-1" />
+                        Generate Plan
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </>
+          )}
+
+          {/* Detail View */}
+          {viewMode === "detail" && (!plan.sections || plan.sections.length === 0) && (
             <Card className="border-dashed">
               <CardContent className="flex flex-col items-center justify-center py-8">
                 <p className="text-muted-foreground text-sm mb-3">
@@ -1212,8 +1321,8 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
             </Card>
           )}
 
-          {/* Active Initiatives */}
-          {groupedSections.active.length > 0 && (
+          {/* Active Initiatives (Detail View) */}
+          {viewMode === "detail" && groupedSections.active.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-sm font-medium text-green-500">
                 <div className="h-2 w-2 rounded-full bg-green-500" />
@@ -1246,8 +1355,8 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
             </div>
           )}
 
-          {/* Draft Initiatives */}
-          {groupedSections.draft.length > 0 && (
+          {/* Draft Initiatives (Detail View) */}
+          {viewMode === "detail" && groupedSections.draft.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-sm font-medium text-yellow-500">
                 <div className="h-2 w-2 rounded-full bg-yellow-500" />
@@ -1280,8 +1389,8 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
             </div>
           )}
 
-          {/* Backlog */}
-          {groupedSections.backlog.length > 0 && (
+          {/* Backlog (Detail View) */}
+          {viewMode === "detail" && groupedSections.backlog.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                 <div className="h-2 w-2 rounded-full bg-muted-foreground" />
@@ -1314,8 +1423,8 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
             </div>
           )}
 
-          {/* Completed - collapsed by default */}
-          {groupedSections.completed.length > 0 && (
+          {/* Completed - collapsed by default (Detail View) */}
+          {viewMode === "detail" && groupedSections.completed.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-sm font-medium text-blue-500">
                 <CheckCircle2 className="h-3 w-3" />
