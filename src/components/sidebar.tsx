@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useDealMode } from "@/contexts/deal-mode";
 import { Logo } from "@/components/ui/logo";
+import { BulkClientsRevenueModal } from "@/components/bulk-clients-revenue-modal";
 import {
   Users,
   FileText,
@@ -22,6 +23,7 @@ import {
   Bug,
   Menu,
   X,
+  TrendingUp,
 } from "lucide-react";
 
 const navigation = [
@@ -46,6 +48,7 @@ interface SidebarProps {
 function SidebarContent({ mobile, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { dealModeEnabled, toggleDealMode } = useDealMode();
+  const [showRevenueModal, setShowRevenueModal] = useState(false);
 
   const handleLinkClick = () => {
     if (mobile && onClose) {
@@ -94,20 +97,40 @@ function SidebarContent({ mobile, onClose }: SidebarProps) {
 
       {/* Bottom section */}
       <div className="border-t border-border p-3 space-y-2">
-        {/* Deal Mode Toggle */}
-        <button
-          onClick={toggleDealMode}
-          className={cn(
-            "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors w-full",
-            dealModeEnabled
-              ? "bg-green-600 text-white hover:bg-green-700"
-              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-          )}
-          title={dealModeEnabled ? "Hide deal values" : "Show deal values"}
-        >
-          <DollarSign className="h-5 w-5" />
-          {dealModeEnabled ? "$ ON" : "$ OFF"}
-        </button>
+        {/* Deal Mode Toggle with Revenue Modal */}
+        <div className="flex items-center gap-1">
+          <button
+            onClick={toggleDealMode}
+            className={cn(
+              "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors flex-1",
+              dealModeEnabled
+                ? "bg-green-600 text-white hover:bg-green-700"
+                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            )}
+            title={dealModeEnabled ? "Hide deal values" : "Show deal values"}
+          >
+            <DollarSign className="h-5 w-5" />
+            {dealModeEnabled ? "$ ON" : "$ OFF"}
+          </button>
+          <button
+            onClick={() => setShowRevenueModal(true)}
+            className={cn(
+              "p-2 rounded-lg transition-colors",
+              dealModeEnabled
+                ? "bg-green-700 text-white hover:bg-green-800"
+                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            )}
+            title="View revenue overview"
+          >
+            <TrendingUp className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Revenue Modal */}
+        <BulkClientsRevenueModal
+          open={showRevenueModal}
+          onOpenChange={setShowRevenueModal}
+        />
 
         {/* Settings */}
         <Link
