@@ -130,7 +130,7 @@ export async function PATCH(
 
     // Generate Clarity Document insights from Strategic Truth (non-blocking)
     // This creates suggestions in the Clarity Document based on canvas work
-    if (updates.strategicTruth && canvasHasClarityContent(updated.strategicTruth)) {
+    if (updates.strategicTruth && updated.strategicTruth && canvasHasClarityContent(updated.strategicTruth)) {
       generateClarityInsightsFromCanvas(updated.strategicTruth, {
         canvasId: updated.id,
         clientId,
