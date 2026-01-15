@@ -22,6 +22,7 @@
     "@ai-sdk/anthropic": "^1.2.12",
     "@ai-sdk/openai": "^1.3.24",
     "@clerk/nextjs": "^5.0.0",
+    "@deepgram/sdk": "^4.11.3",
     "@neondatabase/serverless": "^0.9.0",
     "@radix-ui/react-avatar": "^1.0.4",
     "@radix-ui/react-checkbox": "^1.3.3",
@@ -100,16 +101,22 @@
       }
     ],
     "win": {
-      "target": ["nsis"],
+      "target": [
+        "nsis"
+      ],
       "icon": "public/icon.ico"
     },
     "mac": {
-      "target": ["dmg"],
+      "target": [
+        "dmg"
+      ],
       "icon": "public/icon.icns",
       "category": "public.app-category.productivity"
     },
     "linux": {
-      "target": ["AppImage"],
+      "target": [
+        "AppImage"
+      ],
       "icon": "public/icon.png"
     }
   }
