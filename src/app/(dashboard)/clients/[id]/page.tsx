@@ -37,6 +37,8 @@ import {
   StickyNote,
   AlertCircle,
   Compass,
+  Rocket,
+  ArrowRight,
 } from "lucide-react";
 import Link from "next/link";
 import { formatDistanceToNow, isPast } from "date-fns";
@@ -140,6 +142,14 @@ const sourceIcons: Record<string, React.ReactNode> = {
   email: <Mail className="h-3 w-3" />,
 };
 
+interface ExecutionPlan {
+  id: string;
+  title: string;
+  status: string;
+  timeframe?: string;
+  updatedAt: string;
+}
+
 export default function ClientDetailPage({ params }: { params: { id: string } }) {
   const [client, setClient] = useState<Client | null>(null);
   const [sources, setSources] = useState<Source[]>([]);
@@ -147,6 +157,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   const [actionItems, setActionItems] = useState<ActionItem[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
   const [clarityMethod, setClarityMethod] = useState<ClarityMethodStatus>({ exists: false });
+  const [executionPlans, setExecutionPlans] = useState<ExecutionPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddTodo, setShowAddTodo] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -190,13 +201,14 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [clientRes, sourcesRes, sessionsRes, actionsRes, notesRes, clarityMethodRes] = await Promise.all([
+        const [clientRes, sourcesRes, sessionsRes, actionsRes, notesRes, clarityMethodRes, plansRes] = await Promise.all([
           fetch(`/api/clients/${params.id}`),
           fetch(`/api/clients/${params.id}/sources`),
           fetch(`/api/sessions?clientId=${params.id}`),
           fetch(`/api/action-items?clientId=${params.id}&status=pending`),
           fetch(`/api/notes?clientId=${params.id}&limit=5`),
           fetch(`/api/clarity-method/${params.id}`),
+          fetch(`/api/execution-plans?clientId=${params.id}`),
         ]);
 
         if (clientRes.ok) setClient(await clientRes.json());
@@ -204,6 +216,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
         if (sessionsRes.ok) setSessions(await sessionsRes.json());
         if (actionsRes.ok) setActionItems(await actionsRes.json());
         if (notesRes.ok) setNotes(await notesRes.json());
+        if (plansRes.ok) setExecutionPlans(await plansRes.json());
         if (clarityMethodRes.ok) {
           const data = await clarityMethodRes.json();
           const canvas = data.canvas;
@@ -490,6 +503,84 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                   setSources((prev) => [source as Source, ...prev]);
                 }}
               />
+            </CardContent>
+          </Card>
+
+          {/* Methods / Plans */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Rocket className="h-5 w-5 text-orange-500" />
+                Methods & Plans
+              </CardTitle>
+              <Link href={`/methods/do-the-thing?client=${client.id}`}>
+                <Button size="sm" variant="outline" className="gap-1">
+                  <Plus className="h-3 w-3" />
+                  New Plan
+                </Button>
+              </Link>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Clarity Method */}
+              <Link
+                href={`/methods/clarity/${client.id}`}
+                className="flex items-center gap-3 p-3 rounded-lg bg-gradient-to-r from-primary/5 to-purple-500/5 border border-primary/20 hover:border-primary/40 transition-colors"
+              >
+                <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center">
+                  <Compass className="h-4 w-4 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium">Clarity Method™</p>
+                  <p className="text-xs text-muted-foreground">
+                    {clarityMethod.exists 
+                      ? `${clarityMethod.phase} · ${clarityMethod.hasStrategicTruth ? "Strategic truth defined" : "In progress"}`
+                      : "Not started"
+                    }
+                  </p>
+                </div>
+                <ArrowRight className="h-4 w-4 text-muted-foreground" />
+              </Link>
+
+              {/* Execution Plans */}
+              {executionPlans.length > 0 ? (
+                <div className="space-y-2">
+                  {executionPlans.map((plan) => (
+                    <Link
+                      key={plan.id}
+                      href={`/methods/do-the-thing/${plan.id}`}
+                      className="flex items-center gap-3 p-3 rounded-lg hover:bg-accent/50 transition-colors"
+                    >
+                      <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center">
+                        <Rocket className="h-4 w-4 text-white" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{plan.title}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {plan.timeframe && `${plan.timeframe} · `}
+                          {formatDistanceToNow(new Date(plan.updatedAt), { addSuffix: true })}
+                        </p>
+                      </div>
+                      <Badge variant="outline" className={cn(
+                        "text-xs",
+                        plan.status === "active" && "bg-green-500/20 text-green-500",
+                        plan.status === "draft" && "bg-yellow-500/20 text-yellow-500",
+                        plan.status === "completed" && "bg-blue-500/20 text-blue-500"
+                      )}>
+                        {plan.status}
+                      </Badge>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-4 text-sm text-muted-foreground">
+                  <p>No execution plans yet</p>
+                  <Link href={`/methods/do-the-thing`}>
+                    <Button size="sm" variant="link" className="mt-1">
+                      Create a "Do The Thing" plan
+                    </Button>
+                  </Link>
+                </div>
+              )}
             </CardContent>
           </Card>
 

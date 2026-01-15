@@ -122,6 +122,12 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
   const [editingHeader, setEditingHeader] = useState(false);
   const [newRuleText, setNewRuleText] = useState("");
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+  const [pendingAdditions, setPendingAdditions] = useState<{
+    sections: string[];
+    items: { sectionTitle: string; items: string[] }[];
+    rules: string[];
+    metrics: { type: 'quant' | 'qual'; text: string }[];
+  }>({ sections: [], items: [], rules: [], metrics: [] });
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Chat context
@@ -307,6 +313,52 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
       content: enhancedMessage,
     });
   }, [append, setMessages, selectedPersona, chatStorageKey, sources, plan?.clientId]);
+
+  // Quick add functions for AI suggestions
+  const quickAddSection = (title: string) => {
+    const sections = plan?.sections || [];
+    const newSection: PlanSection = {
+      id: crypto.randomUUID(),
+      title,
+      items: [],
+      order: sections.length,
+    };
+    updatePlan({ sections: [...sections, newSection] });
+    setExpandedSections((prev) => new Set([...Array.from(prev), newSection.id]));
+  };
+
+  const quickAddItem = (sectionId: string, text: string) => {
+    const sections = plan?.sections?.map((s) => {
+      if (s.id === sectionId) {
+        return {
+          ...s,
+          items: [
+            ...s.items,
+            { id: crypto.randomUUID(), text, done: false, order: s.items.length },
+          ],
+        };
+      }
+      return s;
+    });
+    updatePlan({ sections });
+  };
+
+  const quickAddRule = (text: string) => {
+    const rules = [...(plan?.rules || []), text];
+    updatePlan({ rules });
+  };
+
+  const quickAddMetric = (type: 'quantitative' | 'qualitative', text: string) => {
+    const metrics = {
+      quantitative: type === 'quantitative' 
+        ? [...(plan?.successMetrics?.quantitative || []), text]
+        : (plan?.successMetrics?.quantitative || []),
+      qualitative: type === 'qualitative'
+        ? [...(plan?.successMetrics?.qualitative || []), text]
+        : (plan?.successMetrics?.qualitative || []),
+    };
+    updatePlan({ successMetrics: metrics });
+  };
 
   // Auto-save with debounce
   const autoSave = useCallback((updates: Partial<ExecutionPlan>) => {
@@ -1108,19 +1160,87 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
                 </div>
               </div>
             )}
-            {messages.map((m) => (
-              <div
-                key={m.id}
-                className={cn(
-                  "rounded-lg p-3 text-sm whitespace-pre-wrap",
-                  m.role === "user"
-                    ? "bg-primary text-primary-foreground ml-8"
-                    : "bg-muted mr-8"
-                )}
-              >
-                {m.content}
-              </div>
-            ))}
+            {messages.map((m) => {
+              // Parse AI response for actionable suggestions
+              const suggestions: { type: string; content: string; sectionId?: string }[] = [];
+              
+              if (m.role === "assistant") {
+                // Look for ADD SECTION patterns
+                const sectionMatches = m.content.matchAll(/📂\s*ADD SECTION:\s*["']?([^"'\n]+)["']?/gi);
+                for (const match of sectionMatches) {
+                  suggestions.push({ type: "section", content: match[1].trim() });
+                }
+                
+                // Look for ADD TO [section] patterns
+                const itemMatches = m.content.matchAll(/➕\s*ADD TO\s*[\[(]?([^\]:\n]+)[\])]?:\s*\n?((?:[-•*]\s*.+\n?)+)/gi);
+                for (const match of itemMatches) {
+                  const sectionTitle = match[1].trim();
+                  const items = match[2].split('\n')
+                    .map(line => line.replace(/^[-•*]\s*/, '').trim())
+                    .filter(line => line.length > 0);
+                  const section = plan?.sections?.find(s => 
+                    s.title.toLowerCase().includes(sectionTitle.toLowerCase())
+                  );
+                  if (section) {
+                    items.forEach(item => {
+                      suggestions.push({ type: "item", content: item, sectionId: section.id });
+                    });
+                  }
+                }
+
+                // Look for RULE patterns
+                const ruleMatches = m.content.matchAll(/🛡️?\s*RULE:\s*["']?([^"'\n]+)["']?/gi);
+                for (const match of ruleMatches) {
+                  suggestions.push({ type: "rule", content: match[1].trim() });
+                }
+              }
+
+              return (
+                <div key={m.id} className="space-y-2">
+                  <div
+                    className={cn(
+                      "rounded-lg p-3 text-sm whitespace-pre-wrap",
+                      m.role === "user"
+                        ? "bg-primary text-primary-foreground ml-8"
+                        : "bg-muted mr-8"
+                    )}
+                  >
+                    {m.content}
+                  </div>
+                  
+                  {/* Quick-add buttons for AI suggestions */}
+                  {suggestions.length > 0 && (
+                    <div className="flex flex-wrap gap-1 ml-4">
+                      {suggestions.slice(0, 5).map((suggestion, idx) => (
+                        <Button
+                          key={idx}
+                          size="sm"
+                          variant="outline"
+                          className="h-6 text-xs gap-1 bg-green-500/10 hover:bg-green-500/20 text-green-600 border-green-500/30"
+                          onClick={() => {
+                            if (suggestion.type === "section") {
+                              quickAddSection(suggestion.content);
+                            } else if (suggestion.type === "item" && suggestion.sectionId) {
+                              quickAddItem(suggestion.sectionId, suggestion.content);
+                            } else if (suggestion.type === "rule") {
+                              quickAddRule(suggestion.content);
+                            }
+                          }}
+                        >
+                          <Plus className="h-3 w-3" />
+                          Add {suggestion.type === "section" ? "Section" : suggestion.type === "rule" ? "Rule" : "Item"}
+                        </Button>
+                      ))}
+                      {suggestions.length > 5 && (
+                        <span className="text-xs text-muted-foreground self-center">
+                          +{suggestions.length - 5} more
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
             {chatLoading && (
               <div className="flex items-center gap-2 text-muted-foreground text-sm">
                 <Loader2 className="h-4 w-4 animate-spin" />
