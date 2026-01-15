@@ -23,10 +23,11 @@ export const SWIMLANE_CATEGORIES = {
   mobile: { label: 'Mobile', color: '#a855f7', icon: 'smartphone' },
 } as const;
 
-export type SwimlaneKey = keyof typeof SWIMLANE_CATEGORIES | `custom_${string}`;
+// SwimlaneKey can be a predefined category or custom_* for custom lanes
+export type SwimlaneKey = string;
 
 export interface RoadmapSwimlane {
-  key: SwimlaneKey;
+  key: string;
   label: string;
   color: string;
   icon?: string;
@@ -55,7 +56,7 @@ export interface RoadmapItem {
   description?: string;
 
   // Positioning
-  swimlaneKey: SwimlaneKey;
+  swimlaneKey: string;
   timeframe: RoadmapTimeframe;
   order: number;
 
@@ -92,7 +93,7 @@ export interface RoadmapBacklogItem {
   notes?: string;
 
   // Suggested placement (can be overridden when moving to board)
-  suggestedSwimlane?: SwimlaneKey;
+  suggestedSwimlane?: string;
   suggestedTimeframe?: RoadmapTimeframe;
   suggestedSize?: RoadmapItemSize;
   suggestedImpact?: RoadmapItemImpact;
