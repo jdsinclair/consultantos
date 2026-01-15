@@ -147,12 +147,18 @@ export default function ChatPage() {
 
   // Close dropdowns when clicking outside
   useEffect(() => {
-    const handleClickOutside = () => {
+    const handleClickOutside = (e: MouseEvent) => {
+      // Check if click target is inside a dropdown
+      const target = e.target as HTMLElement;
+      if (target.closest("[data-dropdown]")) {
+        return; // Don't close if clicking inside a dropdown
+      }
       setShowClientDropdown(false);
       setShowPersonaDropdown(false);
     };
-    document.addEventListener("click", handleClickOutside);
-    return () => document.removeEventListener("click", handleClickOutside);
+    // Use mousedown to fire before click handlers
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const selectedClientName = clients.find((c) => c.id === selectedClient)?.name;
@@ -181,7 +187,7 @@ export default function ChatPage() {
               <h1 className="text-lg sm:text-xl font-semibold text-foreground flex-shrink-0">Chat</h1>
               <div className="flex items-center gap-2 overflow-x-auto">
                 {/* Client Selector */}
-                <div className="relative flex-shrink-0">
+                <div className="relative flex-shrink-0" data-dropdown>
                   <Button
                     variant="outline"
                     size="sm"
@@ -197,7 +203,6 @@ export default function ChatPage() {
                   {showClientDropdown && (
                     <div
                       className="absolute top-full left-0 mt-2 w-52 bg-card border-2 border-border rounded-xl shadow-corporate-lg z-50 overflow-hidden animate-fade-in"
-                      onClick={(e) => e.stopPropagation()}
                     >
                       <div
                         className={cn(
@@ -233,7 +238,7 @@ export default function ChatPage() {
                 </div>
 
                 {/* Persona Selector */}
-                <div className="relative flex-shrink-0">
+                <div className="relative flex-shrink-0" data-dropdown>
                   <Button
                     variant="outline"
                     size="sm"
@@ -249,7 +254,6 @@ export default function ChatPage() {
                   {showPersonaDropdown && (
                     <div
                       className="absolute top-full left-0 mt-2 w-52 bg-card border-2 border-border rounded-xl shadow-corporate-lg z-50 overflow-hidden animate-fade-in"
-                      onClick={(e) => e.stopPropagation()}
                     >
                       <div
                         className={cn(

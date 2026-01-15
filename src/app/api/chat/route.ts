@@ -296,9 +296,32 @@ Reference the canvas data when answering questions.`;
         model: models.default,
         system: fullSystemPrompt,
         messages,
+        onFinish: ({ text, usage }) => {
+          console.log("[Chat] Completed:", {
+            textLength: text.length,
+            usage
+          });
+        },
       });
 
-      return result.toDataStreamResponse();
+      return result.toDataStreamResponse({
+        getErrorMessage: (error) => {
+          console.error("[Chat] Stream error during response:", error);
+          if (error instanceof Error) {
+            if (error.message.includes("API key")) {
+              return "Invalid API key. Please check your configuration.";
+            }
+            if (error.message.includes("rate limit") || error.message.includes("429")) {
+              return "Rate limited. Please try again in a moment.";
+            }
+            if (error.message.includes("credit") || error.message.includes("billing")) {
+              return "Billing issue with AI provider. Please check your account.";
+            }
+            return `AI Error: ${error.message}`;
+          }
+          return "An unexpected error occurred while generating response.";
+        },
+      });
     } catch (streamError) {
       console.error("[Chat] Stream error:", streamError);
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useChat } from "ai/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -44,6 +44,7 @@ import { SourceAdder } from "@/components/source-adder";
 import { TodoQuickAdd } from "@/components/todo-quick-add";
 import { DealBadge } from "@/components/deal-badge";
 import { NoteDialog } from "@/components/note-dialog";
+import { ChatComposer } from "@/components/chat";
 import { cn } from "@/lib/utils";
 
 interface Client {
@@ -140,10 +141,21 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   const [editForm, setEditForm] = useState<Partial<Client>>({});
   const [saving, setSaving] = useState(false);
 
-  const { messages, input, handleInputChange, handleSubmit, isLoading: chatLoading } = useChat({
+  const { messages, append, setMessages, isLoading: chatLoading } = useChat({
     api: "/api/chat",
     body: { clientId: params.id },
   });
+
+  const handleChatSubmit = useCallback((
+    message: string,
+    options: { personaId?: string; sourceIds?: string[]; attachments?: File[] }
+  ) => {
+    if (message === "/clear") {
+      setMessages([]);
+      return;
+    }
+    append({ role: "user", content: message });
+  }, [append, setMessages]);
 
   const fetchActionItems = async () => {
     try {
@@ -710,41 +722,15 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                     )}
                   </div>
                 )}
-                <form onSubmit={handleSubmit} className="flex gap-2">
-                  <Input
-                    placeholder="Ask anything about this client..."
-                    value={input}
-                    onChange={handleInputChange}
-                    disabled={chatLoading}
-                  />
-                  <Button type="submit" size="icon" disabled={chatLoading || !input.trim()}>
-                    <Send className="h-4 w-4" />
-                  </Button>
-                </form>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    type="button"
-                    onClick={() => {
-                      const fakeEvent = { target: { value: "What was our last discussion about?" } };
-                      handleInputChange(fakeEvent as React.ChangeEvent<HTMLInputElement>);
-                    }}
-                  >
-                    Last discussion?
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    type="button"
-                    onClick={() => {
-                      const fakeEvent = { target: { value: "Summarize all open items and commitments" } };
-                      handleInputChange(fakeEvent as React.ChangeEvent<HTMLInputElement>);
-                    }}
-                  >
-                    Open items
-                  </Button>
-                </div>
+                <ChatComposer
+                  onSubmit={handleChatSubmit}
+                  sources={sources.map(s => ({ id: s.id, name: s.name, type: s.type }))}
+                  selectedClient={params.id}
+                  isLoading={chatLoading}
+                  placeholder="Ask about this client... Use @ # /"
+                  compact
+                  showAttachments={false}
+                />
               </div>
             </CardContent>
           </Card>

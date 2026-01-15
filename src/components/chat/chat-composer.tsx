@@ -57,8 +57,8 @@ interface ChatComposerProps {
     sourceIds?: string[];
     attachments?: File[];
   }) => void;
-  personas: Persona[];
-  clients: Client[];
+  personas?: Persona[];
+  clients?: Client[];
   sources?: Source[];
   selectedPersona?: string | null;
   selectedClient?: string | null;
@@ -67,6 +67,10 @@ interface ChatComposerProps {
   isLoading?: boolean;
   placeholder?: string;
   className?: string;
+  /** Compact mode hides quick action buttons and shows minimal UI */
+  compact?: boolean;
+  /** Show/hide attachment button */
+  showAttachments?: boolean;
 }
 
 const COMMANDS = [
@@ -80,8 +84,8 @@ const COMMANDS = [
 export const ChatComposer = forwardRef<HTMLTextAreaElement, ChatComposerProps>(
   ({
     onSubmit,
-    personas,
-    clients,
+    personas = [],
+    clients = [],
     sources = [],
     selectedPersona,
     selectedClient,
@@ -90,6 +94,8 @@ export const ChatComposer = forwardRef<HTMLTextAreaElement, ChatComposerProps>(
     isLoading = false,
     placeholder = "Type a message... Use @ for personas, / for commands",
     className,
+    compact = false,
+    showAttachments = true,
   }, ref) => {
     const [value, setValue] = useState("");
     const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -285,21 +291,25 @@ export const ChatComposer = forwardRef<HTMLTextAreaElement, ChatComposerProps>(
           onSubmit("/help", {});
           break;
         case "persona":
-          setSuggestionType("persona");
-          setSuggestions(buildSuggestions("persona", ""));
-          setShowSuggestions(true);
+          openSuggestions("persona");
           break;
         case "client":
-          setSuggestionType("client");
-          setSuggestions(buildSuggestions("client", ""));
-          setShowSuggestions(true);
+          openSuggestions("client");
           break;
         case "source":
-          setSuggestionType("source");
-          setSuggestions(buildSuggestions("source", ""));
-          setShowSuggestions(true);
+          openSuggestions("source");
           break;
       }
+    };
+
+    // Open suggestions panel directly (for quick action buttons)
+    const openSuggestions = (type: MentionType) => {
+      setSuggestionType(type);
+      setSuggestions(buildSuggestions(type, ""));
+      setShowSuggestions(true);
+      setSelectedIndex(0);
+      setMentionStart(value.length); // Set to end of current value
+      textareaRef.current?.focus();
     };
 
     // Handle keyboard navigation
@@ -503,16 +513,18 @@ export const ChatComposer = forwardRef<HTMLTextAreaElement, ChatComposerProps>(
             onChange={handleFileSelect}
             className="hidden"
           />
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-10 w-10 p-0 flex-shrink-0"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isLoading}
-          >
-            <Paperclip className="h-5 w-5" />
-          </Button>
+          {showAttachments && !compact && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-10 w-10 p-0 flex-shrink-0"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isLoading}
+            >
+              <Paperclip className="h-5 w-5" />
+            </Button>
+          )}
 
           {/* Textarea */}
           <div className="flex-1 relative">
@@ -529,7 +541,7 @@ export const ChatComposer = forwardRef<HTMLTextAreaElement, ChatComposerProps>(
                 "placeholder:text-muted-foreground",
                 "focus-visible:outline-none focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent/20",
                 "disabled:cursor-not-allowed disabled:opacity-50",
-                "min-h-[44px] max-h-[200px]"
+                compact ? "min-h-[40px] max-h-[120px]" : "min-h-[44px] max-h-[200px]"
               )}
             />
           </div>
@@ -539,7 +551,8 @@ export const ChatComposer = forwardRef<HTMLTextAreaElement, ChatComposerProps>(
             type="button"
             onClick={handleSubmit}
             disabled={isLoading || (!value.trim() && attachments.length === 0)}
-            className="h-10 px-4 flex-shrink-0"
+            size={compact ? "icon" : "default"}
+            className={compact ? "h-10 w-10 flex-shrink-0" : "h-10 px-4 flex-shrink-0"}
           >
             {isLoading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -549,21 +562,49 @@ export const ChatComposer = forwardRef<HTMLTextAreaElement, ChatComposerProps>(
           </Button>
         </div>
 
-        {/* Hint */}
-        <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1">
-            <AtSign className="h-3 w-3" /> persona
-          </span>
-          <span className="flex items-center gap-1">
-            <Hash className="h-3 w-3" /> source
-          </span>
-          <span className="flex items-center gap-1">
-            <Command className="h-3 w-3" /> /command
-          </span>
-          <span className="flex items-center gap-1">
-            <Paperclip className="h-3 w-3" /> attach
-          </span>
-        </div>
+        {/* Quick Action Buttons - only show in non-compact mode */}
+        {!compact && (
+          <div className="flex items-center gap-2 mt-2">
+            <button
+              type="button"
+              onClick={() => openSuggestions("persona")}
+              disabled={isLoading || personas.length === 0}
+              className="flex items-center gap-1.5 px-2 py-1 text-xs rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground disabled:opacity-50"
+            >
+              <AtSign className="h-3 w-3 text-warning" />
+              <span>persona</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => openSuggestions("source")}
+              disabled={isLoading || sources.length === 0}
+              className="flex items-center gap-1.5 px-2 py-1 text-xs rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground disabled:opacity-50"
+            >
+              <Hash className="h-3 w-3 text-primary" />
+              <span>source</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => openSuggestions("command")}
+              disabled={isLoading}
+              className="flex items-center gap-1.5 px-2 py-1 text-xs rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground disabled:opacity-50"
+            >
+              <Command className="h-3 w-3" />
+              <span>/cmd</span>
+            </button>
+            {showAttachments && (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isLoading}
+                className="flex items-center gap-1.5 px-2 py-1 text-xs rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground disabled:opacity-50"
+              >
+                <Paperclip className="h-3 w-3" />
+                <span>attach</span>
+              </button>
+            )}
+          </div>
+        )}
       </div>
     );
   }
