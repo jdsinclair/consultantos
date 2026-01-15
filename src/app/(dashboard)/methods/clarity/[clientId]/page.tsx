@@ -1022,7 +1022,7 @@ Ask me anything about ${client?.name}'s strategy.`,
                                     />
                                   </td>
                                 );
-                              ))}
+                              })}
                             </tr>
                           );
                         })}
