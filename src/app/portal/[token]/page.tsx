@@ -10,11 +10,18 @@ import {
   Target,
   FileText,
   ChevronRight,
-  ExternalLink,
+  ChevronDown,
+  Maximize2,
+  Minimize2,
   Building2,
   Calendar,
   CheckCircle2,
+  AlertTriangle,
+  BarChart3,
+  Shield,
+  StickyNote,
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 
@@ -56,6 +63,7 @@ export default function ClientPortalPage({
   const [portalData, setPortalData] = useState<PortalData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<SharedItem | null>(null);
+  const [expandedView, setExpandedView] = useState(false);
 
   useEffect(() => {
     async function fetchPortal() {
@@ -241,28 +249,33 @@ export default function ClientPortalPage({
                         </p>
                       </div>
                     </div>
-                    {selectedItem.deepLinkToken && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          const url =
-                            selectedItem.itemType === "execution_plan"
-                              ? `/share/plan/${selectedItem.itemId}`
-                              : `/share/clarity/${selectedItem.itemId}`;
-                          window.open(url, "_blank");
-                        }}
-                      >
-                        <ExternalLink className="h-4 w-4 mr-2" />
-                        Open Full View
-                      </Button>
-                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setExpandedView(!expandedView)}
+                    >
+                      {expandedView ? (
+                        <>
+                          <Minimize2 className="h-4 w-4 mr-2" />
+                          Collapse
+                        </>
+                      ) : (
+                        <>
+                          <Maximize2 className="h-4 w-4 mr-2" />
+                          Expand
+                        </>
+                      )}
+                    </Button>
                   </div>
                 </CardHeader>
                 <CardContent className="pt-6">
                   {selectedItem.itemType === "execution_plan" &&
                     selectedItem.data && (
-                      <ExecutionPlanPreview plan={selectedItem.data} brandColor={brandColor} />
+                      expandedView ? (
+                        <ExecutionPlanFullView plan={selectedItem.data} brandColor={brandColor} />
+                      ) : (
+                        <ExecutionPlanPreview plan={selectedItem.data} brandColor={brandColor} />
+                      )
                     )}
                   {selectedItem.itemType === "clarity_canvas" &&
                     selectedItem.data && (
@@ -529,6 +542,289 @@ function ClarityCanvasPreview({
               </li>
             )}
           </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Full view component for execution plans - shows all sections and items
+function ExecutionPlanFullView({
+  plan,
+  brandColor,
+}: {
+  plan: any;
+  brandColor: string;
+}) {
+  // Calculate progress
+  const getProgress = () => {
+    if (!plan?.sections) return { done: 0, total: 0 };
+    let done = 0,
+      total = 0;
+
+    const countItems = (items: any[]) => {
+      items?.forEach((item) => {
+        total++;
+        if (item.done) done++;
+        if (item.children) countItems(item.children);
+      });
+    };
+
+    plan.sections.forEach((s: any) => countItems(s.items));
+    return { done, total };
+  };
+
+  const progress = getProgress();
+  const progressPercent =
+    progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0;
+
+  return (
+    <div className="space-y-6">
+      {/* Overview */}
+      <div className="grid gap-4 md:grid-cols-2">
+        {plan.objective && (
+          <div>
+            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
+              Objective
+            </p>
+            <p className="text-sm">{plan.objective}</p>
+          </div>
+        )}
+        {plan.goal && (
+          <div>
+            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
+              Goal
+            </p>
+            <p className="text-sm">{plan.goal}</p>
+          </div>
+        )}
+        {plan.timeframe && (
+          <div>
+            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
+              Timeframe
+            </p>
+            <p className="text-sm flex items-center gap-1">
+              <Calendar className="h-3 w-3" />
+              {plan.timeframe}
+            </p>
+          </div>
+        )}
+        <div>
+          <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
+            Status
+          </p>
+          <Badge
+            variant="outline"
+            className={cn(
+              plan.status === "active" && "bg-green-500/20 text-green-500",
+              plan.status === "completed" && "bg-blue-500/20 text-blue-500",
+              plan.status === "draft" && "bg-yellow-500/20 text-yellow-500"
+            )}
+          >
+            {plan.status}
+          </Badge>
+        </div>
+      </div>
+
+      {/* Progress */}
+      {progress.total > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">Progress</span>
+            <span className="font-medium">
+              {progress.done} of {progress.total} items ({progressPercent}%)
+            </span>
+          </div>
+          <div className="h-3 bg-muted rounded-full overflow-hidden">
+            <div
+              className="h-full transition-all duration-500"
+              style={{
+                width: `${progressPercent}%`,
+                backgroundColor: brandColor,
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Success Metrics */}
+      {(plan.successMetrics?.quantitative?.length > 0 ||
+        plan.successMetrics?.qualitative?.length > 0) && (
+        <div className="p-4 rounded-lg bg-muted/30 border">
+          <p className="text-sm font-medium flex items-center gap-2 mb-3">
+            <BarChart3 className="h-4 w-4" style={{ color: brandColor }} />
+            How Do We Know It Works?
+          </p>
+          <div className="grid gap-4 md:grid-cols-2">
+            {plan.successMetrics?.quantitative?.length > 0 && (
+              <div>
+                <p className="text-xs text-muted-foreground uppercase mb-2">Quantitative</p>
+                <ul className="space-y-1">
+                  {plan.successMetrics.quantitative.map((m: string, i: number) => (
+                    <li key={i} className="flex items-center gap-2 text-sm">
+                      <CheckCircle2 className="h-3 w-3 text-green-500 flex-shrink-0" />
+                      {m}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {plan.successMetrics?.qualitative?.length > 0 && (
+              <div>
+                <p className="text-xs text-muted-foreground uppercase mb-2">Qualitative</p>
+                <ul className="space-y-1">
+                  {plan.successMetrics.qualitative.map((m: string, i: number) => (
+                    <li key={i} className="flex items-center gap-2 text-sm">
+                      <CheckCircle2 className="h-3 w-3 text-blue-500 flex-shrink-0" />
+                      {m}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Full Sections with Items */}
+      {plan.sections?.length > 0 && (
+        <div className="space-y-4">
+          <p className="text-sm font-medium flex items-center gap-2">
+            <FileText className="h-4 w-4" style={{ color: brandColor }} />
+            The Plan
+          </p>
+          {plan.sections.map((section: any) => (
+            <div key={section.id} className="border rounded-lg overflow-hidden">
+              <div className="p-3 bg-muted/30 border-b">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-sm">{section.title}</span>
+                  <div className="flex items-center gap-2">
+                    {section.status && (
+                      <Badge variant="outline" className={cn(
+                        "text-xs",
+                        section.status === "in_progress" && "bg-blue-500/20 text-blue-500",
+                        section.status === "done" && "bg-green-500/20 text-green-500",
+                        section.status === "blocked" && "bg-red-500/20 text-red-500"
+                      )}>
+                        {section.status.replace("_", " ")}
+                      </Badge>
+                    )}
+                    <Badge variant="outline" className="text-xs">
+                      {section.items?.length || 0} items
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section Context */}
+              {(section.why || section.what || section.notes) && (
+                <div className="p-3 bg-muted/20 border-b text-sm space-y-1">
+                  {section.why && (
+                    <p><span className="font-medium" style={{ color: brandColor }}>Why:</span> {section.why}</p>
+                  )}
+                  {section.what && (
+                    <p><span className="font-medium text-green-600">What:</span> {section.what}</p>
+                  )}
+                  {section.notes && (
+                    <p><span className="font-medium text-yellow-600">Note:</span> {section.notes}</p>
+                  )}
+                </div>
+              )}
+
+              {/* Items */}
+              <div className="p-3 space-y-1">
+                {section.items?.map((item: any) => (
+                  <PortalPlanItem key={item.id} item={item} depth={0} brandColor={brandColor} />
+                ))}
+                {(!section.items || section.items.length === 0) && (
+                  <p className="text-sm text-muted-foreground italic">No items yet</p>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Notes */}
+      {plan.notes && (
+        <div className="p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+          <p className="text-sm font-medium flex items-center gap-2 mb-2">
+            <StickyNote className="h-4 w-4 text-yellow-600" />
+            Notes
+          </p>
+          <p className="text-sm whitespace-pre-wrap">{plan.notes}</p>
+        </div>
+      )}
+
+      {/* Rules */}
+      {plan.rules?.length > 0 && (
+        <div className="p-4 rounded-lg bg-red-500/5 border border-red-500/20">
+          <p className="text-sm font-medium flex items-center gap-2 mb-2">
+            <Shield className="h-4 w-4 text-red-500" />
+            Rules & Constraints
+          </p>
+          <ul className="space-y-2">
+            {plan.rules.map((rule: string, i: number) => (
+              <li key={i} className="flex items-start gap-2 text-sm">
+                <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
+                {rule}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Recursive item component for portal view
+function PortalPlanItem({
+  item,
+  depth,
+  brandColor,
+}: {
+  item: any;
+  depth: number;
+  brandColor: string;
+}) {
+  const hasChildren = item.children && item.children.length > 0;
+
+  return (
+    <div style={{ marginLeft: depth * 20 }}>
+      <div className="flex items-center gap-2 py-1">
+        <div className="w-4 flex-shrink-0">
+          {hasChildren && <ChevronDown className="h-3 w-3 text-muted-foreground" />}
+        </div>
+        <Checkbox checked={item.done} disabled className="cursor-default" />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className={cn("text-sm", item.done && "line-through text-muted-foreground")}>
+              {item.text || "(Empty item)"}
+            </span>
+            {item.priority && (
+              <Badge
+                variant="outline"
+                className={cn(
+                  "text-[10px] px-1.5 py-0 h-4 flex-shrink-0",
+                  item.priority === "now" && "bg-red-500/20 text-red-500 border-red-500/30",
+                  item.priority === "next" && "bg-yellow-500/20 text-yellow-500 border-yellow-500/30",
+                  item.priority === "later" && "bg-muted text-muted-foreground"
+                )}
+              >
+                {item.priority}
+              </Badge>
+            )}
+          </div>
+          {item.notes && (
+            <p className="text-xs text-muted-foreground mt-0.5 italic">{item.notes}</p>
+          )}
+        </div>
+      </div>
+      {hasChildren && (
+        <div>
+          {item.children.map((child: any) => (
+            <PortalPlanItem key={child.id} item={child} depth={depth + 1} brandColor={brandColor} />
+          ))}
         </div>
       )}
     </div>
