@@ -139,7 +139,7 @@ export async function processSourceEmbeddings(
     console.log(`[Embeddings] Created ${chunks.length} chunks from content`);
 
     if (chunks.length === 0) {
-      updateAILog(logId, {
+      await updateAILog(logId, {
         status: "success",
         duration: Date.now() - startTime,
         metadata: { sourceId, contentLength: content.length, chunks: 0 },
@@ -179,7 +179,7 @@ export async function processSourceEmbeddings(
       await db.insert(sourceChunks).values(allChunkData);
     }
 
-    updateAILog(logId, {
+    await updateAILog(logId, {
       status: "success",
       duration: Date.now() - startTime,
       metadata: { sourceId, contentLength: content.length, chunks: allChunkData.length },
@@ -193,7 +193,7 @@ export async function processSourceEmbeddings(
     if (error instanceof Error && error.stack) {
       console.error(`[Embeddings] Stack:`, error.stack);
     }
-    updateAILog(logId, {
+    await updateAILog(logId, {
       status: "error",
       duration: Date.now() - startTime,
       error: error instanceof Error ? error.message : String(error),
