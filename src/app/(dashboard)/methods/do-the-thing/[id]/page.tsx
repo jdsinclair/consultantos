@@ -308,7 +308,34 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
     });
   }, [append, setMessages, selectedPersona, chatStorageKey, sources, plan?.clientId]);
 
-  // Apply AI suggestion to plan
+  // Auto-save with debounce
+  const autoSave = useCallback((updates: Partial<ExecutionPlan>) => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    
+    saveTimeoutRef.current = setTimeout(async () => {
+      setSaving(true);
+      try {
+        await fetch(`/api/execution-plans/${params.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updates),
+        });
+      } catch (e) {
+        console.error("Auto-save failed:", e);
+      } finally {
+        setSaving(false);
+      }
+    }, 1000);
+  }, [params.id]);
+
+  const updatePlan = (updates: Partial<ExecutionPlan>) => {
+    setPlan((prev) => prev ? { ...prev, ...updates } : prev);
+    autoSave(updates);
+  };
+
+  // Apply AI suggestion to plan (for future auto-apply feature)
   const applyAISuggestion = useCallback((suggestion: {
     type: "addSection" | "addItem" | "updateItem";
     sectionTitle?: string;
@@ -351,34 +378,7 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
       });
       updatePlan({ sections });
     }
-  }, [plan, updatePlan]);
-
-  // Auto-save with debounce
-  const autoSave = useCallback((updates: Partial<ExecutionPlan>) => {
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current);
-    }
-    
-    saveTimeoutRef.current = setTimeout(async () => {
-      setSaving(true);
-      try {
-        await fetch(`/api/execution-plans/${params.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(updates),
-        });
-      } catch (e) {
-        console.error("Auto-save failed:", e);
-      } finally {
-        setSaving(false);
-      }
-    }, 1000);
-  }, [params.id]);
-
-  const updatePlan = (updates: Partial<ExecutionPlan>) => {
-    setPlan((prev) => prev ? { ...prev, ...updates } : prev);
-    autoSave(updates);
-  };
+  }, [plan]);
 
   const generatePlan = async () => {
     setGenerating(true);
