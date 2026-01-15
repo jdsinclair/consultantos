@@ -118,10 +118,10 @@ function drawBars(
     const x = i * (barWidth + 2);
     const y = (height - barHeight) / 2;
 
-    // Create gradient for each bar
+    // Create gradient for each bar - use actual colors (Canvas doesn't support CSS variables)
     const gradient = ctx.createLinearGradient(x, y + barHeight, x, y);
-    gradient.addColorStop(0, "hsl(var(--primary) / 0.6)");
-    gradient.addColorStop(1, "hsl(var(--primary))");
+    gradient.addColorStop(0, "rgba(59, 130, 246, 0.6)"); // blue-500 at 60%
+    gradient.addColorStop(1, "rgb(59, 130, 246)"); // blue-500
 
     ctx.fillStyle = gradient;
     ctx.beginPath();
@@ -137,7 +137,7 @@ function drawWaveform(
   height: number
 ) {
   ctx.beginPath();
-  ctx.strokeStyle = "hsl(var(--primary))";
+  ctx.strokeStyle = "rgb(59, 130, 246)"; // blue-500
   ctx.lineWidth = 2;
 
   const sliceWidth = width / dataArray.length;
@@ -176,7 +176,7 @@ function drawDots(
     const y = height / 2;
 
     const alpha = 0.4 + (value / 255) * 0.6;
-    ctx.fillStyle = `hsl(var(--primary) / ${alpha})`;
+    ctx.fillStyle = `rgba(59, 130, 246, ${alpha})`; // blue-500 with dynamic alpha
     ctx.beginPath();
     ctx.arc(x, y, radius, 0, Math.PI * 2);
     ctx.fill();
