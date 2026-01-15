@@ -21,6 +21,10 @@ import {
   BarChart3,
   Shield,
   StickyNote,
+  Star,
+  Zap,
+  TrendingUp,
+  ArrowRight,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
@@ -325,7 +329,11 @@ export default function ClientPortalPage({
                     )}
                   {selectedItem.itemType === "clarity_canvas" &&
                     selectedItem.data && (
-                      <ClarityCanvasPreview canvas={selectedItem.data} brandColor={brandColor} />
+                      expandedView ? (
+                        <ClarityCanvasFullView canvas={selectedItem.data} brandColor={brandColor} />
+                      ) : (
+                        <ClarityCanvasPreview canvas={selectedItem.data} brandColor={brandColor} />
+                      )
                     )}
                   {!selectedItem.data && (
                     <p className="text-muted-foreground text-sm">
@@ -588,6 +596,290 @@ function ClarityCanvasPreview({
               </li>
             )}
           </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Full view component for clarity canvas - shows all sections
+function ClarityCanvasFullView({
+  canvas,
+  brandColor,
+}: {
+  canvas: any;
+  brandColor: string;
+}) {
+  const strategicTruth = canvas.strategicTruth || {};
+  const northStar = canvas.northStar || {};
+  const coreEngine = canvas.coreEngine || {};
+  const valueExpansion = canvas.valueExpansion || {};
+  const serviceProductFilter = canvas.serviceProductFilter || {};
+  const paranoiaMap = canvas.paranoiaMap || {};
+  const strategy = canvas.strategy || {};
+  const swimlanes = canvas.swimlanes || {};
+
+  return (
+    <div className="space-y-8">
+      {/* Strategic Truth - All boxes */}
+      <div>
+        <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
+          <Target className="h-4 w-4" style={{ color: brandColor }} />
+          Strategic Truth
+        </h3>
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          {Object.entries(strategicTruth).map(([key, box]: [string, any]) => (
+            <div
+              key={key}
+              className={cn(
+                "p-4 rounded-lg border",
+                box?.status === "locked"
+                  ? "border-primary/50 bg-primary/5"
+                  : "bg-muted/30"
+              )}
+            >
+              <p className="text-xs text-muted-foreground capitalize mb-1 font-medium">
+                {key.replace(/([A-Z])/g, " $1").trim()}
+              </p>
+              <p className="text-sm">
+                {box?.value || (
+                  <span className="text-muted-foreground italic">Not yet defined</span>
+                )}
+              </p>
+              {box?.status === "locked" && (
+                <Badge
+                  variant="outline"
+                  className="mt-2 text-xs"
+                  style={{ backgroundColor: `${brandColor}20`, color: brandColor, borderColor: brandColor }}
+                >
+                  Locked
+                </Badge>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* North Star */}
+      {(northStar.primaryConstraint || northStar.nonNegotiables?.length > 0) && (
+        <div>
+          <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
+            <Star className="h-4 w-4 text-warning" />
+            North Star Constraints
+          </h3>
+          {northStar.primaryConstraint && (
+            <div className="p-4 rounded-lg border mb-3" style={{ backgroundColor: `${brandColor}10`, borderColor: `${brandColor}40` }}>
+              <p className="text-xs text-muted-foreground mb-1">Primary Constraint</p>
+              <p className="text-sm font-medium">{northStar.primaryConstraint}</p>
+            </div>
+          )}
+          {northStar.nonNegotiables?.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">Non-Negotiables</p>
+              <ul className="space-y-1">
+                {northStar.nonNegotiables.map((item: string, i: number) => (
+                  <li key={i} className="flex items-center gap-2 text-sm">
+                    <Shield className="h-3 w-3 text-warning flex-shrink-0" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Core Engine */}
+      {(coreEngine.primaryConstraint || coreEngine.currentReality || coreEngine.rootCause) && (
+        <div>
+          <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
+            <Zap className="h-4 w-4 text-primary" />
+            Core Engine (Reality Diagnosis)
+          </h3>
+          <div className="grid gap-3 md:grid-cols-2">
+            {coreEngine.primaryConstraint && (
+              <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
+                <p className="text-xs text-primary font-medium mb-1">Primary Constraint</p>
+                <p className="text-sm">{coreEngine.primaryConstraint}</p>
+              </div>
+            )}
+            {coreEngine.currentReality && (
+              <div className="p-4 rounded-lg bg-muted/30 border border-border/50">
+                <p className="text-xs text-muted-foreground font-medium mb-1">Current Reality</p>
+                <p className="text-sm">{coreEngine.currentReality}</p>
+              </div>
+            )}
+            {coreEngine.rootCause && (
+              <div className="p-4 rounded-lg bg-destructive/5 border border-destructive/20">
+                <p className="text-xs text-destructive font-medium mb-1">Root Cause</p>
+                <p className="text-sm">{coreEngine.rootCause}</p>
+              </div>
+            )}
+            {coreEngine.leverage && (
+              <div className="p-4 rounded-lg bg-success/5 border border-success/20">
+                <p className="text-xs text-success font-medium mb-1">Leverage Point</p>
+                <p className="text-sm">{coreEngine.leverage}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Value Expansion */}
+      {(valueExpansion.currentValue || valueExpansion.expansionOpportunities?.length > 0) && (
+        <div>
+          <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-success" />
+            Value Expansion Map
+          </h3>
+          {valueExpansion.currentValue && (
+            <div className="p-4 rounded-lg bg-muted/30 border border-border/50 mb-3">
+              <p className="text-xs text-muted-foreground mb-1">Current Value</p>
+              <p className="text-sm">{valueExpansion.currentValue}</p>
+            </div>
+          )}
+          {valueExpansion.expansionOpportunities?.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">Expansion Opportunities</p>
+              <div className="grid gap-2 md:grid-cols-2">
+                {valueExpansion.expansionOpportunities.map((opp: string, i: number) => (
+                  <div key={i} className="flex items-center gap-2 p-2 rounded-lg bg-success/5 border border-success/20 text-sm">
+                    <ArrowRight className="h-3 w-3 text-success flex-shrink-0" />
+                    {opp}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Kill List - Full */}
+      {canvas.killList?.length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
+            <span className="text-destructive font-bold">✕</span>
+            Kill List
+          </h3>
+          <div className="grid gap-2 md:grid-cols-2">
+            {canvas.killList.map((item: string, i: number) => (
+              <div key={i} className="flex items-start gap-2 p-3 rounded-lg bg-destructive/5 border border-destructive/20 text-sm">
+                <span className="text-destructive font-bold flex-shrink-0">✕</span>
+                {item}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Paranoia Map */}
+      {(paranoiaMap.threats?.length > 0 || paranoiaMap.blindSpots?.length > 0) && (
+        <div>
+          <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-warning" />
+            Paranoia Map
+          </h3>
+          <div className="grid gap-4 md:grid-cols-2">
+            {paranoiaMap.threats?.length > 0 && (
+              <div>
+                <p className="text-xs text-warning font-medium mb-2">Threats</p>
+                <ul className="space-y-2">
+                  {paranoiaMap.threats.map((threat: string, i: number) => (
+                    <li key={i} className="flex items-start gap-2 p-2 rounded-lg bg-warning/5 border border-warning/20 text-sm">
+                      <AlertTriangle className="h-3 w-3 text-warning flex-shrink-0 mt-0.5" />
+                      {threat}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {paranoiaMap.blindSpots?.length > 0 && (
+              <div>
+                <p className="text-xs text-muted-foreground font-medium mb-2">Blind Spots</p>
+                <ul className="space-y-2">
+                  {paranoiaMap.blindSpots.map((spot: string, i: number) => (
+                    <li key={i} className="flex items-start gap-2 p-2 rounded-lg bg-muted/30 border border-border/50 text-sm">
+                      <span className="text-muted-foreground">?</span>
+                      {spot}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Strategy */}
+      {(strategy.oneLiner || strategy.keyMoves?.length > 0) && (
+        <div>
+          <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
+            <Target className="h-4 w-4" style={{ color: brandColor }} />
+            Strategy
+          </h3>
+          {strategy.oneLiner && (
+            <div className="p-4 rounded-lg border-2 mb-4" style={{ backgroundColor: `${brandColor}10`, borderColor: `${brandColor}40` }}>
+              <p className="text-xs text-muted-foreground mb-1">One-Liner</p>
+              <p className="text-base font-medium">{strategy.oneLiner}</p>
+            </div>
+          )}
+          {strategy.keyMoves?.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">Key Moves</p>
+              <div className="space-y-2">
+                {strategy.keyMoves.map((move: string, i: number) => (
+                  <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 border border-border/50 text-sm">
+                    <span className="w-6 h-6 rounded-full bg-primary/20 text-primary text-xs font-bold flex items-center justify-center flex-shrink-0">
+                      {i + 1}
+                    </span>
+                    {move}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Execution Swimlanes */}
+      {(swimlanes.short?.length > 0 || swimlanes.mid?.length > 0 || swimlanes.long?.length > 0) && (
+        <div>
+          <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
+            <BarChart3 className="h-4 w-4 text-primary" />
+            Execution Swimlanes
+          </h3>
+          <div className="grid gap-4 md:grid-cols-3">
+            {swimlanes.short?.length > 0 && (
+              <div className="p-4 rounded-lg bg-success/5 border border-success/20">
+                <p className="text-xs text-success font-medium mb-3">Short-term (30 days)</p>
+                <ul className="space-y-2">
+                  {swimlanes.short.map((item: any, i: number) => (
+                    <li key={i} className="text-sm">{typeof item === 'string' ? item : item.text || item.title}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {swimlanes.mid?.length > 0 && (
+              <div className="p-4 rounded-lg bg-warning/5 border border-warning/20">
+                <p className="text-xs text-warning font-medium mb-3">Mid-term (90 days)</p>
+                <ul className="space-y-2">
+                  {swimlanes.mid.map((item: any, i: number) => (
+                    <li key={i} className="text-sm">{typeof item === 'string' ? item : item.text || item.title}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {swimlanes.long?.length > 0 && (
+              <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
+                <p className="text-xs text-primary font-medium mb-3">Long-term (12 months)</p>
+                <ul className="space-y-2">
+                  {swimlanes.long.map((item: any, i: number) => (
+                    <li key={i} className="text-sm">{typeof item === 'string' ? item : item.text || item.title}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
