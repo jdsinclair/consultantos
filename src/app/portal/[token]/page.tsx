@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -66,53 +66,69 @@ export default function ClientPortalPage({
   const [error, setError] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<SharedItem | null>(null);
   const [expandedView, setExpandedView] = useState(false);
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
 
   // Get item ID from query param for deep linking
   const deepLinkItemId = searchParams.get("item");
 
-  useEffect(() => {
-    async function fetchPortal() {
-      try {
-        const res = await fetch(`/api/share/portal/${params.token}`);
-        if (!res.ok) {
-          if (res.status === 404) {
-            setError("This portal link is invalid or has expired.");
-          } else {
-            setError("Failed to load portal.");
-          }
-          return;
+  const fetchPortal = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/share/portal/${params.token}`);
+      if (!res.ok) {
+        if (res.status === 404) {
+          setError("This portal link is invalid or has expired.");
+        } else {
+          setError("Failed to load portal.");
         }
-        const data = await res.json();
-        setPortalData(data);
+        return;
+      }
+      const data = await res.json();
+      setPortalData(data);
 
-        // Auto-select item: prioritize deep link item, fallback to first item
-        if (data.items?.length > 0) {
-          if (deepLinkItemId) {
-            // Find the item matching the deep link
-            const deepLinkedItem = data.items.find(
-              (item: SharedItem) => item.itemId === deepLinkItemId
-            );
-            if (deepLinkedItem) {
-              setSelectedItem(deepLinkedItem);
-              // Auto-expand when deep linking to a specific item
-              setExpandedView(true);
-            } else {
-              // Fallback to first item if deep link item not found
-              setSelectedItem(data.items[0]);
-            }
+      // Only auto-select on initial load, not on poll updates
+      if (!initialLoadDone && data.items?.length > 0) {
+        if (deepLinkItemId) {
+          // Find the item matching the deep link
+          const deepLinkedItem = data.items.find(
+            (item: SharedItem) => item.itemId === deepLinkItemId
+          );
+          if (deepLinkedItem) {
+            setSelectedItem(deepLinkedItem);
+            // Auto-expand when deep linking to a specific item
+            setExpandedView(true);
           } else {
+            // Fallback to first item if deep link item not found
             setSelectedItem(data.items[0]);
           }
+        } else {
+          setSelectedItem(data.items[0]);
         }
-      } catch (e) {
-        console.error("Failed to fetch portal:", e);
-        setError("Failed to load portal.");
-      } finally {
-        setLoading(false);
+        setInitialLoadDone(true);
+      } else if (initialLoadDone && selectedItem) {
+        // Update selected item data on poll (keep same selection)
+        const updatedItem = data.items.find(
+          (item: SharedItem) => item.id === selectedItem.id
+        );
+        if (updatedItem) {
+          setSelectedItem(updatedItem);
+        }
       }
+    } catch (e) {
+      console.error("Failed to fetch portal:", e);
+      if (!initialLoadDone) {
+        setError("Failed to load portal.");
+      }
+    } finally {
+      setLoading(false);
     }
+  }, [params.token, deepLinkItemId, initialLoadDone, selectedItem]);
+
+  useEffect(() => {
     fetchPortal();
-  }, [params.token, deepLinkItemId]);
+    // Poll for updates every 3 seconds (live updates from consultant)
+    const interval = setInterval(fetchPortal, 3000);
+    return () => clearInterval(interval);
+  }, [fetchPortal]);
 
   if (loading) {
     return (
