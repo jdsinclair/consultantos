@@ -73,12 +73,33 @@ export const clients = pgTable('clients', {
   sourceType: text('source_type'), // email, referral, inbound, outreach
   sourceNotes: text('source_notes'),
   metadata: jsonb('metadata'), // flexible storage for client-specific data
+  // "At Some Point" - dumping ground for future ideas/thoughts
+  atSomePoint: jsonb('at_some_point').$type<AtSomePointItem[]>(),
+  // "Links" - reference links (competitors, people, resources)
+  links: jsonb('links').$type<ClientLink[]>(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => ({
   userIdx: index('clients_user_idx').on(table.userId),
   statusIdx: index('clients_status_idx').on(table.status),
 }));
+
+// Type definitions for new client fields
+export interface AtSomePointItem {
+  id: string;
+  title: string;
+  text?: string;
+  createdAt: string;
+}
+
+export interface ClientLink {
+  id: string;
+  title: string;
+  url: string;
+  type?: 'competitor' | 'person' | 'resource' | 'reference' | 'other';
+  notes?: string;
+  createdAt: string;
+}
 
 // Clarity Documents - the evolving business definition for each client
 export const clarityDocuments = pgTable('clarity_documents', {
