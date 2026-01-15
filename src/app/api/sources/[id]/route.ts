@@ -7,6 +7,9 @@ import { sources, sourceChunks } from "@/db/schema";
 import { eq, and, asc } from "drizzle-orm";
 import { z } from "zod";
 
+// Prevent static caching - auth routes must be dynamic
+export const dynamic = "force-dynamic";
+
 export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }

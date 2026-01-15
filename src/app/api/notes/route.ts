@@ -6,6 +6,9 @@ import { createActionItem } from "@/lib/db/action-items";
 import { generateNoteTitle } from "@/lib/ai/source-summary";
 import { z } from "zod";
 
+// Prevent static caching - auth routes must be dynamic
+export const dynamic = "force-dynamic";
+
 const NOTE_TYPES = ["general", "future", "competitor", "partner", "idea", "reference"] as const;
 
 const createNoteSchema = z.object({

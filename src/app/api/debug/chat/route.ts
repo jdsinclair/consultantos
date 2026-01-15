@@ -3,6 +3,9 @@ import { requireUser } from "@/lib/auth";
 import { generateText } from "ai";
 import { models } from "@/lib/ai";
 
+// Prevent static caching - auth routes must be dynamic
+export const dynamic = "force-dynamic";
+
 interface DiagnosticResult {
   check: string;
   status: "pass" | "fail" | "warning";

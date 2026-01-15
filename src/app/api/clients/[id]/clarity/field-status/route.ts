@@ -3,6 +3,9 @@ import { requireUser } from "@/lib/auth";
 import { updateFieldStatus } from "@/lib/db/clarity";
 import { z } from "zod";
 
+// Prevent static caching - auth routes must be dynamic
+export const dynamic = "force-dynamic";
+
 const updateSchema = z.object({
   fieldName: z.string().min(1),
   status: z.enum(["draft", "confirmed", "locked"]),

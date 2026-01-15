@@ -10,6 +10,9 @@ import {
 } from "@/lib/db/clarity";
 import { z } from "zod";
 
+// Prevent static caching - auth routes must be dynamic
+export const dynamic = "force-dynamic";
+
 // Get all pending insights (or all insights with ?all=true)
 export async function GET(
   req: NextRequest,

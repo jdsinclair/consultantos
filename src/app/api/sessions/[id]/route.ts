@@ -15,6 +15,9 @@ import { processSourceEmbeddings } from "@/lib/rag";
 import { extractSessionInsights } from "@/lib/ai/extract-todos";
 import { z } from "zod";
 
+// Prevent static caching - auth routes must be dynamic
+export const dynamic = "force-dynamic";
+
 /**
  * Sanitize content for PostgreSQL - removes null bytes and invalid UTF8
  */

@@ -3,6 +3,9 @@ import { requireUser } from "@/lib/auth";
 import { getSessions, createSession, getUpcomingSessions, getLiveSession } from "@/lib/db/sessions";
 import { z } from "zod";
 
+// Prevent static caching - auth routes must be dynamic
+export const dynamic = "force-dynamic";
+
 const createSessionSchema = z.object({
   clientId: z.string().uuid(),
   methodId: z.string().uuid().optional(),

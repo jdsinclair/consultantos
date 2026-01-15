@@ -3,6 +3,9 @@ import { requireUser } from "@/lib/auth";
 import { getClients, createClient } from "@/lib/db/clients";
 import { z } from "zod";
 
+// Prevent static caching - auth routes must be dynamic
+export const dynamic = "force-dynamic";
+
 const createClientSchema = z.object({
   name: z.string().min(1),
   firstName: z.string().optional(),
