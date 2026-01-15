@@ -1172,13 +1172,13 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
               
               if (m.role === "assistant") {
                 // Look for ADD SECTION patterns
-                const sectionMatches = m.content.matchAll(/📂\s*ADD SECTION:\s*["']?([^"'\n]+)["']?/gi);
+                const sectionMatches = Array.from(m.content.matchAll(/📂\s*ADD SECTION:\s*["']?([^"'\n]+)["']?/gi));
                 for (const match of sectionMatches) {
                   suggestions.push({ type: "section", content: match[1].trim() });
                 }
                 
                 // Look for ADD TO [section] patterns
-                const itemMatches = m.content.matchAll(/➕\s*ADD TO\s*[\[(]?([^\]:\n]+)[\])]?:\s*\n?((?:[-•*]\s*.+\n?)+)/gi);
+                const itemMatches = Array.from(m.content.matchAll(/➕\s*ADD TO\s*[\[(]?([^\]:\n]+)[\])]?:\s*\n?((?:[-•*]\s*.+\n?)+)/gi));
                 for (const match of itemMatches) {
                   const sectionTitle = match[1].trim();
                   const items = match[2].split('\n')
@@ -1195,7 +1195,7 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
                 }
 
                 // Look for RULE patterns
-                const ruleMatches = m.content.matchAll(/🛡️?\s*RULE:\s*["']?([^"'\n]+)["']?/gi);
+                const ruleMatches = Array.from(m.content.matchAll(/🛡️?\s*RULE:\s*["']?([^"'\n]+)["']?/gi));
                 for (const match of ruleMatches) {
                   suggestions.push({ type: "rule", content: match[1].trim() });
                 }
