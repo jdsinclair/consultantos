@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useChat } from "ai/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { ChatComposer } from "@/components/chat";
 import {
-  Send,
   Sparkles,
   Users,
   BookOpen,
@@ -14,9 +13,11 @@ import {
   Loader2,
   Check,
   MessageCircle,
-  Zap,
   Info,
   X,
+  Hash,
+  AtSign,
+  Command,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -28,11 +29,19 @@ interface Client {
 interface Persona {
   id: string;
   name: string;
+  description?: string;
+}
+
+interface Source {
+  id: string;
+  name: string;
+  type: string;
 }
 
 export default function ChatPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [personas, setPersonas] = useState<Persona[]>([]);
+  const [sources, setSources] = useState<Source[]>([]);
   const [selectedClient, setSelectedClient] = useState<string | null>(null);
   const [selectedPersona, setSelectedPersona] = useState<string | null>(null);
   const [showClientDropdown, setShowClientDropdown] = useState(false);
@@ -40,7 +49,7 @@ export default function ChatPage() {
   const [showMobileContext, setShowMobileContext] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
+  const { messages, append, setMessages, isLoading } = useChat({
     api: "/api/chat",
     body: {
       clientId: selectedClient,
@@ -48,8 +57,8 @@ export default function ChatPage() {
     },
   });
 
+  // Fetch clients and personas on mount
   useEffect(() => {
-    // Fetch clients and personas
     const fetchData = async () => {
       const [clientsRes, personasRes] = await Promise.all([
         fetch("/api/clients"),
@@ -66,6 +75,70 @@ export default function ChatPage() {
     };
     fetchData();
   }, []);
+
+  // Fetch sources when client changes
+  useEffect(() => {
+    const fetchSources = async () => {
+      if (!selectedClient) {
+        setSources([]);
+        return;
+      }
+      try {
+        const res = await fetch(`/api/clients/${selectedClient}/sources`);
+        if (res.ok) {
+          const data = await res.json();
+          setSources(data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch sources:", err);
+      }
+    };
+    fetchSources();
+  }, [selectedClient]);
+
+  // Handle message submission from ChatComposer
+  const handleMessageSubmit = useCallback((
+    message: string,
+    options: {
+      personaId?: string;
+      clientId?: string;
+      sourceIds?: string[];
+      attachments?: File[];
+    }
+  ) => {
+    // Handle special commands
+    if (message === "/clear") {
+      setMessages([]);
+      return;
+    }
+
+    if (message === "/help") {
+      const helpMessage = `**Available Commands:**
+- \`@persona-name\` - Switch to a specific persona
+- \`@@client-name\` - Switch client context
+- \`#source-name\` - Add a source to context
+- \`/clear\` - Clear conversation history
+- \`/help\` - Show this help message
+
+**Tips:**
+- Start typing \`@\` to see persona suggestions
+- Start typing \`#\` to see source suggestions
+- Use the paperclip icon to attach files`;
+
+      setMessages([
+        ...messages,
+        { id: Date.now().toString(), role: "assistant", content: helpMessage },
+      ]);
+      return;
+    }
+
+    // TODO: Handle file attachments - would need multipart form data
+    // For now, just append the message
+    append({
+      role: "user",
+      content: message,
+    });
+  }, [append, messages, setMessages]);
 
   useEffect(() => {
     // Scroll to bottom on new messages
@@ -283,41 +356,20 @@ export default function ChatPage() {
 
         {/* Input */}
         <div className="border-t border-border bg-background/80 backdrop-blur-sm p-3 sm:p-4 flex-shrink-0">
-          <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
-            <div className="flex gap-2 sm:gap-3">
-              <Input
-                placeholder="Ask anything..."
-                value={input}
-                onChange={handleInputChange}
-                className="flex-1 h-10 sm:h-11 text-sm sm:text-base"
-                disabled={isLoading}
-              />
-              <Button type="submit" disabled={isLoading || !input.trim()} className="h-10 sm:h-11 px-3 sm:px-4">
-                {isLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
-            {personas.length > 0 && (
-              <div className="flex gap-2 mt-2 sm:mt-3 overflow-x-auto pb-1">
-                {personas.slice(0, 3).map((persona) => (
-                  <Button
-                    key={persona.id}
-                    type="button"
-                    variant={selectedPersona === persona.id ? "default" : "ghost"}
-                    size="sm"
-                    className="text-xs gap-1.5 flex-shrink-0 h-8"
-                    onClick={() => setSelectedPersona(persona.id === selectedPersona ? null : persona.id)}
-                  >
-                    <Zap className={cn("h-3 w-3", selectedPersona !== persona.id && "text-warning")} />
-                    @{persona.name.toLowerCase().replace(/\s+/g, "-")}
-                  </Button>
-                ))}
-              </div>
-            )}
-          </form>
+          <div className="max-w-3xl mx-auto">
+            <ChatComposer
+              onSubmit={handleMessageSubmit}
+              personas={personas}
+              clients={clients}
+              sources={sources}
+              selectedPersona={selectedPersona}
+              selectedClient={selectedClient}
+              onPersonaChange={setSelectedPersona}
+              onClientChange={setSelectedClient}
+              isLoading={isLoading}
+              placeholder="Type @ for personas, # for sources, / for commands..."
+            />
+          </div>
         </div>
       </div>
 
@@ -354,22 +406,25 @@ export default function ChatPage() {
             <Card className="mb-4">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-warning" />
-                  How to Use
+                  <Command className="h-4 w-4 text-muted-foreground" />
+                  Shortcuts
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2.5 text-sm text-muted-foreground">
-                <p className="flex items-start gap-2">
-                  <span className="text-primary font-bold">•</span>
-                  Select a client for context-aware responses
+                <p className="flex items-center gap-2">
+                  <AtSign className="h-3.5 w-3.5 text-warning" />
+                  <code className="text-xs bg-muted px-1.5 py-0.5 rounded">@persona</code>
+                  <span>Switch persona</span>
                 </p>
-                <p className="flex items-start gap-2">
-                  <span className="text-warning font-bold">•</span>
-                  Choose a persona for different advice styles
+                <p className="flex items-center gap-2">
+                  <Hash className="h-3.5 w-3.5 text-primary" />
+                  <code className="text-xs bg-muted px-1.5 py-0.5 rounded">#source</code>
+                  <span>Add source</span>
                 </p>
-                <p className="flex items-start gap-2">
-                  <span className="text-success font-bold">•</span>
-                  Ask about strategy, sales, content, or anything
+                <p className="flex items-center gap-2">
+                  <Command className="h-3.5 w-3.5 text-muted-foreground" />
+                  <code className="text-xs bg-muted px-1.5 py-0.5 rounded">/cmd</code>
+                  <span>Command</span>
                 </p>
               </CardContent>
             </Card>
@@ -414,22 +469,25 @@ export default function ChatPage() {
         <Card className="mb-4">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-warning" />
-              How to Use
+              <Command className="h-4 w-4 text-muted-foreground" />
+              Shortcuts
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2.5 text-sm text-muted-foreground">
-            <p className="flex items-start gap-2">
-              <span className="text-primary font-bold">•</span>
-              Select a client for context-aware responses
+            <p className="flex items-center gap-2">
+              <AtSign className="h-3.5 w-3.5 text-warning" />
+              <code className="text-xs bg-muted px-1.5 py-0.5 rounded">@persona</code>
+              <span>Switch persona</span>
             </p>
-            <p className="flex items-start gap-2">
-              <span className="text-warning font-bold">•</span>
-              Choose a persona for different advice styles
+            <p className="flex items-center gap-2">
+              <Hash className="h-3.5 w-3.5 text-primary" />
+              <code className="text-xs bg-muted px-1.5 py-0.5 rounded">#source</code>
+              <span>Add source context</span>
             </p>
-            <p className="flex items-start gap-2">
-              <span className="text-success font-bold">•</span>
-              Ask about strategy, sales, content, or anything
+            <p className="flex items-center gap-2">
+              <Command className="h-3.5 w-3.5 text-muted-foreground" />
+              <code className="text-xs bg-muted px-1.5 py-0.5 rounded">/command</code>
+              <span>Run command</span>
             </p>
           </CardContent>
         </Card>
@@ -445,6 +503,27 @@ export default function ChatPage() {
             <CardContent>
               <p className="font-semibold text-foreground">{selectedPersonaName}</p>
               <p className="text-xs text-muted-foreground mt-1">Custom AI personality active</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {selectedClient && sources.length > 0 && (
+          <Card className="mt-4">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Hash className="h-4 w-4 text-primary" />
+                Available Sources
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-1 text-xs text-muted-foreground max-h-32 overflow-y-auto">
+                {sources.slice(0, 8).map(source => (
+                  <p key={source.id} className="truncate">#{source.name.toLowerCase().replace(/\s+/g, "-")}</p>
+                ))}
+                {sources.length > 8 && (
+                  <p className="text-muted-foreground/60">+{sources.length - 8} more...</p>
+                )}
+              </div>
             </CardContent>
           </Card>
         )}
