@@ -346,7 +346,7 @@ export default function RoadmapPage({ params }: { params: { id: string } }) {
       isCustom: true,
     };
     updateRoadmap({ swimlanes: [...(roadmap?.swimlanes || []), newSwimlane] });
-    setExpandedSwimlanes(prev => new Set([...prev, key]));
+    setExpandedSwimlanes(prev => new Set([...Array.from(prev), key]));
   };
 
   const deleteSwimlane = (key: string) => {
