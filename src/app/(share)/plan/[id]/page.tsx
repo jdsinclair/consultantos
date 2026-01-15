@@ -86,8 +86,8 @@ export default function PlanSharePage({ params }: { params: { id: string } }) {
 
   const fetchPlan = useCallback(async () => {
     try {
-      // Use public share API (no auth required)
-      const res = await fetch(`/api/share/plan/${params.id}`);
+      // Use authenticated API - works when user is logged in (for screen sharing)
+      const res = await fetch(`/api/execution-plans/${params.id}`);
       if (!res.ok) throw new Error("Failed to fetch plan");
       const data = await res.json();
       setPlan(data);
