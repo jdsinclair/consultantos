@@ -2,13 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
 import { requireUser } from "@/lib/auth";
 import { createSession, updateSession } from "@/lib/db/sessions";
-import { createSource, updateSourceContent } from "@/lib/db/sources";
+import { createSource, updateSourceContent, updateSourceSummary, setSourceError } from "@/lib/db/sources";
 import { processSourceEmbeddings } from "@/lib/rag";
 import { extractSessionInsights } from "@/lib/ai/extract-todos";
 import { createDetectedActionItems } from "@/lib/db/action-items";
 import { extractImageContent, formatImageContentForRAG } from "@/lib/ai/vision";
+import { generateSourceSummary } from "@/lib/ai/source-summary";
 import { z } from "zod";
 import type { SessionAttachment } from "@/db/schema";
+import { clients } from "@/db/schema";
+import { db } from "@/db";
+import { eq } from "drizzle-orm";
 import pdf from "pdf-parse";
 
 // Prevent static caching - auth routes must be dynamic
@@ -104,6 +108,12 @@ export async function POST(req: NextRequest) {
       attachments: attachments.length > 0 ? attachments : undefined,
     });
 
+    // Get client name for AI context
+    const client = await db.query.clients.findFirst({
+      where: eq(clients.id, data.clientId),
+    });
+    const clientName = client?.name;
+
     // Process attachments -> create sources (async, don't block response)
     if (filesToProcess.length > 0) {
       processAttachmentsToSources(
@@ -111,8 +121,11 @@ export async function POST(req: NextRequest) {
         data.clientId,
         user.id,
         filesToProcess,
-        attachments
-      ).catch(console.error);
+        attachments,
+        clientName
+      ).catch((err) => {
+        console.error("Failed to process attachments to sources:", err);
+      });
     }
 
     // Process session content in background
@@ -123,7 +136,8 @@ export async function POST(req: NextRequest) {
         data.clientId,
         user.id,
         data.title,
-        data.transcript
+        data.transcript,
+        clientName
       ).catch((err) => {
         console.error("Failed to process transcript to RAG:", err);
       });
@@ -147,7 +161,8 @@ export async function POST(req: NextRequest) {
         data.clientId,
         user.id,
         data.title,
-        data.notes
+        data.notes,
+        clientName
       ).catch((err) => {
         console.error("Failed to process notes to RAG:", err);
       });
@@ -165,14 +180,15 @@ export async function POST(req: NextRequest) {
 
 /**
  * Process session transcript into RAG
- * Creates a source record and generates embeddings
+ * Creates a source record, generates embeddings, and AI summary
  */
 async function processTranscriptToRAG(
   sessionId: string,
   clientId: string,
   userId: string,
   sessionTitle: string,
-  transcript: string
+  transcript: string,
+  clientName?: string
 ) {
   console.log(`[Session RAG] Processing transcript for session: ${sessionTitle}`);
 
@@ -189,31 +205,54 @@ async function processTranscriptToRAG(
     processingStatus: "processing",
   });
 
-  // Sanitize and format transcript
-  const cleanTranscript = sanitizeForDB(transcript);
-  const formattedContent = `# Session Transcript: ${sessionTitle}\n\n${cleanTranscript}`;
+  try {
+    // Sanitize and format transcript
+    const cleanTranscript = sanitizeForDB(transcript);
+    const formattedContent = `# Session Transcript: ${sessionTitle}\n\n${cleanTranscript}`;
 
-  // Update source with content
-  await updateSourceContent(source.id, userId, formattedContent);
+    // Update source with content
+    await updateSourceContent(source.id, userId, formattedContent);
 
-  // Generate embeddings for RAG
-  await processSourceEmbeddings(source.id, clientId, userId, formattedContent, {
-    type: "session_transcript",
-    sessionId,
-    sessionTitle,
-  });
+    // Generate AI summary
+    console.log(`[Session RAG] Generating AI summary for transcript: ${sessionTitle}`);
+    try {
+      const summary = await generateSourceSummary(formattedContent, {
+        fileName: `${sessionTitle} - Transcript`,
+        fileType: "transcript",
+        clientName,
+        sourceType: "session_transcript",
+      });
+      await updateSourceSummary(source.id, userId, summary);
+      console.log(`[Session RAG] AI summary generated for: ${sessionTitle}`);
+    } catch (summaryError) {
+      console.error(`[Session RAG] Failed to generate AI summary:`, summaryError);
+      // Continue without summary - not a fatal error
+    }
 
-  // Mark as completed
-  const { db } = await import("@/db");
-  const { sources } = await import("@/db/schema");
-  const { eq } = await import("drizzle-orm");
+    // Generate embeddings for RAG
+    console.log(`[Session RAG] Generating embeddings for: ${sessionTitle}`);
+    await processSourceEmbeddings(source.id, clientId, userId, formattedContent, {
+      type: "session_transcript",
+      sessionId,
+      sessionTitle,
+    });
 
-  await db
-    .update(sources)
-    .set({ processingStatus: "completed" })
-    .where(eq(sources.id, source.id));
+    // Mark as completed
+    const { db } = await import("@/db");
+    const { sources } = await import("@/db/schema");
+    const { eq } = await import("drizzle-orm");
 
-  console.log(`[Session RAG] Successfully indexed transcript for: ${sessionTitle} (source: ${source.id})`);
+    await db
+      .update(sources)
+      .set({ processingStatus: "completed" })
+      .where(eq(sources.id, source.id));
+
+    console.log(`[Session RAG] Successfully indexed transcript for: ${sessionTitle} (source: ${source.id})`);
+  } catch (error) {
+    console.error(`[Session RAG] Failed to process transcript:`, error);
+    await setSourceError(source.id, userId, String(error));
+    throw error;
+  }
 }
 
 async function processAttachmentsToSources(
@@ -221,37 +260,38 @@ async function processAttachmentsToSources(
   clientId: string,
   userId: string,
   filesToProcess: Array<{ file: File; attachment: SessionAttachment }>,
-  allAttachments: SessionAttachment[]
+  allAttachments: SessionAttachment[],
+  clientName?: string
 ) {
   for (const { file, attachment } of filesToProcess) {
+    // Determine source type based on attachment type
+    const fileType = getFileType(file.name);
+    const isImage = attachment.type === "whiteboard" || ["png", "jpg", "jpeg", "gif", "webp"].includes(fileType);
+    const sourceType = attachment.type === "recording" ? "recording" : isImage ? "image" : "document";
+
+    // Create source record
+    const source = await createSource({
+      clientId,
+      userId,
+      type: sourceType,
+      name: `[Session] ${file.name}`,
+      blobUrl: attachment.blobUrl,
+      fileType,
+      fileSize: file.size,
+      metadata: {
+        sessionId,
+        attachmentId: attachment.id,
+        attachmentType: attachment.type,
+        description: attachment.description,
+      },
+      processingStatus: "processing",
+    });
+
+    // Update attachment with source reference
+    attachment.addedToSources = true;
+    attachment.sourceId = source.id;
+
     try {
-      // Determine source type based on attachment type
-      const fileType = getFileType(file.name);
-      const isImage = attachment.type === "whiteboard" || ["png", "jpg", "jpeg", "gif", "webp"].includes(fileType);
-      const sourceType = attachment.type === "recording" ? "recording" : isImage ? "image" : "document";
-
-      // Create source record
-      const source = await createSource({
-        clientId,
-        userId,
-        type: sourceType,
-        name: `[Session] ${file.name}`,
-        blobUrl: attachment.blobUrl,
-        fileType,
-        fileSize: file.size,
-        metadata: {
-          sessionId,
-          attachmentId: attachment.id,
-          attachmentType: attachment.type,
-          description: attachment.description,
-        },
-        processingStatus: "processing",
-      });
-
-      // Update attachment with source reference
-      attachment.addedToSources = true;
-      attachment.sourceId = source.id;
-
       // Extract content based on file type
       let content = "";
 
@@ -262,7 +302,8 @@ async function processAttachmentsToSources(
           const data = await pdf(buffer);
           content = data.text || "";
           content = content.replace(/\r\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
-        } catch {
+        } catch (pdfError) {
+          console.error(`[Session Attachment] PDF extraction failed for ${file.name}:`, pdfError);
           content = "[Error extracting PDF content]";
         }
       } else if (["txt", "md"].includes(fileType)) {
@@ -273,6 +314,7 @@ async function processAttachmentsToSources(
           console.log(`[Session Attachment] Extracting content from image: ${file.name}`);
           const extraction = await extractImageContent(attachment.blobUrl, {
             fileName: file.name,
+            clientName,
           });
           content = formatImageContentForRAG({
             ...extraction,
@@ -297,8 +339,27 @@ async function processAttachmentsToSources(
       // Update source with content
       await updateSourceContent(source.id, userId, content);
 
+      // Generate AI summary (if we have meaningful content)
+      if (content && content.length > 50 && !content.startsWith("[Error")) {
+        console.log(`[Session Attachment] Generating AI summary for: ${file.name}`);
+        try {
+          const summary = await generateSourceSummary(content, {
+            fileName: file.name,
+            fileType,
+            clientName,
+            sourceType,
+          });
+          await updateSourceSummary(source.id, userId, summary);
+          console.log(`[Session Attachment] AI summary generated for: ${file.name}`);
+        } catch (summaryError) {
+          console.error(`[Session Attachment] Failed to generate AI summary for ${file.name}:`, summaryError);
+          // Continue without summary - not a fatal error
+        }
+      }
+
       // Generate embeddings for RAG (if we have meaningful text)
       if (content && content.length > 50 && !content.startsWith("[Error")) {
+        console.log(`[Session Attachment] Generating embeddings for: ${file.name}`);
         await processSourceEmbeddings(source.id, clientId, userId, content, {
           type: sourceType,
           fileType,
@@ -317,7 +378,8 @@ async function processAttachmentsToSources(
           .where(eq(sources.id, source.id));
       }
     } catch (error) {
-      console.error(`Failed to process attachment ${attachment.filename}:`, error);
+      console.error(`[Session Attachment] Failed to process ${attachment.filename}:`, error);
+      await setSourceError(source.id, userId, String(error));
     }
   }
 
@@ -353,13 +415,15 @@ function getFileType(filename: string): string {
 
 /**
  * Process session notes into RAG
+ * Creates a source record, generates embeddings, and AI summary
  */
 async function processNotesToRAG(
   sessionId: string,
   clientId: string,
   userId: string,
   sessionTitle: string,
-  notes: string
+  notes: string,
+  clientName?: string
 ) {
   console.log(`[Session RAG] Processing notes for session: ${sessionTitle}`);
 
@@ -372,24 +436,49 @@ async function processNotesToRAG(
     processingStatus: "processing",
   });
 
-  const cleanNotes = sanitizeForDB(notes);
-  const formattedContent = `# Session Notes: ${sessionTitle}\n\n${cleanNotes}`;
+  try {
+    const cleanNotes = sanitizeForDB(notes);
+    const formattedContent = `# Session Notes: ${sessionTitle}\n\n${cleanNotes}`;
 
-  await updateSourceContent(source.id, userId, formattedContent);
-  await processSourceEmbeddings(source.id, clientId, userId, formattedContent, {
-    type: "session_notes",
-    sessionId,
-    sessionTitle,
-  });
+    await updateSourceContent(source.id, userId, formattedContent);
 
-  const { db } = await import("@/db");
-  const { sources } = await import("@/db/schema");
-  const { eq } = await import("drizzle-orm");
+    // Generate AI summary
+    console.log(`[Session RAG] Generating AI summary for notes: ${sessionTitle}`);
+    try {
+      const summary = await generateSourceSummary(formattedContent, {
+        fileName: `${sessionTitle} - Notes`,
+        fileType: "notes",
+        clientName,
+        sourceType: "session_notes",
+      });
+      await updateSourceSummary(source.id, userId, summary);
+      console.log(`[Session RAG] AI summary generated for notes: ${sessionTitle}`);
+    } catch (summaryError) {
+      console.error(`[Session RAG] Failed to generate AI summary for notes:`, summaryError);
+      // Continue without summary - not a fatal error
+    }
 
-  await db.update(sources).set({ processingStatus: "completed" }).where(eq(sources.id, source.id));
-  console.log(`[Session RAG] Successfully indexed notes (source: ${source.id})`);
+    // Generate embeddings for RAG
+    console.log(`[Session RAG] Generating embeddings for notes: ${sessionTitle}`);
+    await processSourceEmbeddings(source.id, clientId, userId, formattedContent, {
+      type: "session_notes",
+      sessionId,
+      sessionTitle,
+    });
 
-  return source.id;
+    const { db } = await import("@/db");
+    const { sources } = await import("@/db/schema");
+    const { eq } = await import("drizzle-orm");
+
+    await db.update(sources).set({ processingStatus: "completed" }).where(eq(sources.id, source.id));
+    console.log(`[Session RAG] Successfully indexed notes (source: ${source.id})`);
+
+    return source.id;
+  } catch (error) {
+    console.error(`[Session RAG] Failed to process notes:`, error);
+    await setSourceError(source.id, userId, String(error));
+    throw error;
+  }
 }
 
 /**
