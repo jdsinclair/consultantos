@@ -112,9 +112,12 @@ export async function createDetectedActionItems(
   userId: string,
   items: Array<{
     title: string;
+    description?: string;
     owner: string;
     ownerType: "me" | "client";
+    priority?: string;
     timestamp?: string;
+    sourceContext?: string;
   }>
 ) {
   if (items.length === 0) return [];
@@ -124,9 +127,12 @@ export async function createDetectedActionItems(
     sessionId,
     clientId,
     title: item.title,
+    description: item.description,
     owner: item.owner,
     ownerType: item.ownerType,
+    priority: item.priority || "medium",
     source: "detected" as const,
+    sourceContext: item.sourceContext,
     transcriptTimestamp: item.timestamp,
   }));
 
