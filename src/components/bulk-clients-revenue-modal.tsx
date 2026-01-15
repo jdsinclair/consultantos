@@ -10,16 +10,15 @@ import {
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
-import { TrendingUp, Clock, Users, DollarSign, Loader2 } from "lucide-react";
+import { TrendingUp, Clock, Users, Loader2 } from "lucide-react";
 
 interface Client {
   id: string;
   name: string;
   company?: string;
   status: string;
-  dealValue?: number | null;
+  dealValue?: number | null; // Monthly retainer in cents
   dealStatus?: string | null;
-  hourlyRate?: number | null;
 }
 
 interface BulkClientsRevenueModalProps {
@@ -33,7 +32,7 @@ export function BulkClientsRevenueModal({
 }: BulkClientsRevenueModalProps) {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(false);
-  const [useWorkweekMode, setUseWorkweekMode] = useState(true); // true = Workweek 40hrs, false = 2hrs per client
+  const [useWorkweekMode, setUseWorkweekMode] = useState(false); // false = 2hrs per client (default), true = 40hr workweek
 
   const fetchClients = useCallback(async () => {
     setLoading(true);
@@ -55,53 +54,35 @@ export function BulkClientsRevenueModal({
     }
   }, [open, fetchClients]);
 
-  // Filter to only active clients
+  // Filter to only active clients with deal values
   const activeClients = clients.filter((c) => c.status === "active");
-  const clientsWithRates = activeClients.filter((c) => c.hourlyRate && c.hourlyRate > 0);
+  const clientsWithDeals = activeClients.filter((c) => c.dealValue && c.dealValue > 0);
 
-  // Calculate average hourly rate (in cents)
-  const totalHourlyRate = clientsWithRates.reduce(
-    (sum, c) => sum + (c.hourlyRate || 0),
-    0
-  );
-  const avgHourlyRate =
-    clientsWithRates.length > 0 ? totalHourlyRate / clientsWithRates.length : 0;
+  // MRR = Sum of all monthly retainers (dealValue is monthly)
+  const mrr = clientsWithDeals.reduce((sum, c) => sum + (c.dealValue || 0), 0);
 
-  // Calculate hours per week based on mode
-  const hoursPerWeek = useWorkweekMode ? 40 : 2 * clientsWithRates.length;
+  // Calculate hours per month based on mode
+  const numClients = clientsWithDeals.length;
+  const hoursPerMonth = useWorkweekMode
+    ? 160 // 40 hrs/week × 4 weeks
+    : 8 * numClients; // 2 hrs/week × 4 weeks × numClients
 
-  // Revenue calculations (all in cents, convert to dollars for display)
-  const weeklyRevenue = useWorkweekMode
-    ? avgHourlyRate * 40 // Workweek: average rate * 40 hours
-    : totalHourlyRate * 2; // Per client: sum of rates * 2 hours each
+  // Revenue calculations (all in cents)
+  const hrr = hoursPerMonth > 0 ? mrr / hoursPerMonth : 0; // Hourly = Monthly / hours
+  const wrr = mrr / 4.33; // Weekly = Monthly / weeks per month
+  const drr = wrr / 5; // Daily = Weekly / 5 work days
+  const arr = mrr * 12; // Annual = Monthly × 12
 
-  const hrr = avgHourlyRate; // Hourly Recurring Revenue
-  const drr = weeklyRevenue / 5; // Daily (5 work days)
-  const wrr = weeklyRevenue; // Weekly
-  const mrr = weeklyRevenue * 4.33; // Monthly (avg weeks per month)
-  const arr = weeklyRevenue * 52; // Annual
+  // Deal status aggregations (for prospects/pipeline - not active clients)
+  const pendingDeals = clients.filter(
+    (c) => c.status !== "active" && (c.dealStatus === "placeholder" || c.dealStatus === "none")
+  );
+  const presentedDeals = clients.filter(
+    (c) => c.status !== "active" && c.dealStatus === "presented"
+  );
 
-  // Deal status aggregations
-  const pendingDeals = activeClients.filter(
-    (c) => c.dealStatus === "placeholder" || c.dealStatus === "none"
-  );
-  const presentedDeals = activeClients.filter(
-    (c) => c.dealStatus === "presented"
-  );
-  const activeDeals = activeClients.filter((c) => c.dealStatus === "active");
-
-  const pendingValue = pendingDeals.reduce(
-    (sum, c) => sum + (c.dealValue || 0),
-    0
-  );
-  const presentedValue = presentedDeals.reduce(
-    (sum, c) => sum + (c.dealValue || 0),
-    0
-  );
-  const activeValue = activeDeals.reduce(
-    (sum, c) => sum + (c.dealValue || 0),
-    0
-  );
+  const pendingValue = pendingDeals.reduce((sum, c) => sum + (c.dealValue || 0), 0);
+  const presentedValue = presentedDeals.reduce((sum, c) => sum + (c.dealValue || 0), 0);
 
   // Format currency (cents to dollars)
   const formatCurrency = (cents: number) => {
@@ -109,6 +90,14 @@ export function BulkClientsRevenueModal({
     if (dollars >= 1000000) {
       return `$${(dollars / 1000000).toFixed(2)}M`;
     }
+    if (dollars >= 1000) {
+      return `$${(dollars / 1000).toFixed(1)}K`;
+    }
+    return `$${dollars.toFixed(2)}`;
+  };
+
+  const formatCurrencyCompact = (cents: number) => {
+    const dollars = cents / 100;
     if (dollars >= 1000) {
       return `$${(dollars / 1000).toFixed(1)}K`;
     }
@@ -127,19 +116,14 @@ export function BulkClientsRevenueModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-green-600" />
             Revenue Overview
           </DialogTitle>
           <DialogDescription>
-            {activeClients.length} active client{activeClients.length !== 1 ? "s" : ""}{" "}
-            {clientsWithRates.length > 0 && (
-              <span className="text-muted-foreground">
-                ({clientsWithRates.length} with hourly rates)
-              </span>
-            )}
+            {activeClients.length} active client{activeClients.length !== 1 ? "s" : ""}
           </DialogDescription>
         </DialogHeader>
 
@@ -149,11 +133,38 @@ export function BulkClientsRevenueModal({
           </div>
         ) : (
           <div className="space-y-4">
+            {/* Client List with Monthly Values */}
+            {clientsWithDeals.length > 0 && (
+              <div className="space-y-1">
+                <div className="text-xs text-muted-foreground font-medium mb-2">Active Clients</div>
+                <div className="space-y-1 max-h-32 overflow-y-auto">
+                  {clientsWithDeals.map((client) => (
+                    <div
+                      key={client.id}
+                      className="flex items-center justify-between py-1.5 px-2 bg-muted/30 rounded text-sm"
+                    >
+                      <span className="truncate flex-1 mr-2">
+                        {client.name}
+                        {client.company && (
+                          <span className="text-muted-foreground text-xs ml-1">
+                            ({client.company})
+                          </span>
+                        )}
+                      </span>
+                      <span className="font-medium text-green-600 whitespace-nowrap">
+                        {formatCurrencyFull(client.dealValue || 0)}/mo
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Mode Toggle */}
             <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
               <div className="flex items-center gap-2">
                 <Clock className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium">Calculation Mode</span>
+                <span className="text-sm font-medium">HRR Mode</span>
               </div>
               <div className="flex items-center gap-2">
                 <span
@@ -181,14 +192,14 @@ export function BulkClientsRevenueModal({
 
             {/* Hours Info */}
             <div className="text-center text-xs text-muted-foreground">
-              Based on {hoursPerWeek} billable hours/week
-              {!useWorkweekMode && clientsWithRates.length > 0 && (
-                <span> (2 hrs × {clientsWithRates.length} clients)</span>
-              )}
+              {useWorkweekMode
+                ? "Assuming 160 hrs/month (40hr weeks)"
+                : `Assuming ${hoursPerMonth} hrs/month (2 hrs/week × ${numClients} clients)`
+              }
             </div>
 
             {/* Revenue Metrics Grid */}
-            {clientsWithRates.length > 0 ? (
+            {clientsWithDeals.length > 0 ? (
               <div className="grid grid-cols-2 gap-2">
                 {/* HRR */}
                 <div className="p-3 bg-gradient-to-br from-green-500/10 to-green-600/5 rounded-lg border border-green-500/20">
@@ -232,7 +243,7 @@ export function BulkClientsRevenueModal({
                     <div>
                       <div className="text-xs text-muted-foreground font-medium">ARR</div>
                       <div className="text-2xl font-bold text-emerald-600">
-                        {formatCurrency(arr)}
+                        {formatCurrencyCompact(arr)}
                       </div>
                       <div className="text-[10px] text-muted-foreground">annual recurring revenue</div>
                     </div>
@@ -242,59 +253,48 @@ export function BulkClientsRevenueModal({
               </div>
             ) : (
               <div className="text-center py-6 text-muted-foreground">
-                <DollarSign className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">No clients with hourly rates set</p>
-                <p className="text-xs mt-1">Add hourly rates to your clients to see revenue projections</p>
+                <TrendingUp className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">No active clients with deal values</p>
+                <p className="text-xs mt-1">Add monthly values to your clients to see revenue</p>
               </div>
             )}
 
-            {/* Deal Pipeline */}
-            <div className="border-t pt-4 mt-4">
-              <div className="flex items-center gap-2 mb-3">
-                <Users className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium">Deal Pipeline</span>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                {/* Pending */}
-                <div className="p-2 bg-muted/30 rounded-lg text-center">
-                  <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                    Pending
-                  </div>
-                  <div className="text-sm font-semibold">
-                    {formatCurrencyFull(pendingValue)}
-                  </div>
-                  <div className="text-[10px] text-muted-foreground">
-                    {pendingDeals.length} deal{pendingDeals.length !== 1 ? "s" : ""}
-                  </div>
+            {/* Pipeline - Pending & Presented */}
+            {(pendingValue > 0 || presentedValue > 0) && (
+              <div className="border-t pt-4 mt-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">Pipeline</span>
                 </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {/* Pending */}
+                  <div className="p-2 bg-muted/30 rounded-lg text-center">
+                    <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                      Pending
+                    </div>
+                    <div className="text-sm font-semibold">
+                      {formatCurrencyFull(pendingValue)}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {pendingDeals.length} prospect{pendingDeals.length !== 1 ? "s" : ""}
+                    </div>
+                  </div>
 
-                {/* Presented */}
-                <div className="p-2 bg-yellow-500/10 rounded-lg text-center border border-yellow-500/20">
-                  <div className="text-[10px] text-yellow-600 uppercase tracking-wider font-medium">
-                    Presented
-                  </div>
-                  <div className="text-sm font-semibold text-yellow-600">
-                    {formatCurrencyFull(presentedValue)}
-                  </div>
-                  <div className="text-[10px] text-muted-foreground">
-                    {presentedDeals.length} deal{presentedDeals.length !== 1 ? "s" : ""}
-                  </div>
-                </div>
-
-                {/* Active */}
-                <div className="p-2 bg-green-500/10 rounded-lg text-center border border-green-500/20">
-                  <div className="text-[10px] text-green-600 uppercase tracking-wider font-medium">
-                    Active
-                  </div>
-                  <div className="text-sm font-semibold text-green-600">
-                    {formatCurrencyFull(activeValue)}
-                  </div>
-                  <div className="text-[10px] text-muted-foreground">
-                    {activeDeals.length} deal{activeDeals.length !== 1 ? "s" : ""}
+                  {/* Presented */}
+                  <div className="p-2 bg-yellow-500/10 rounded-lg text-center border border-yellow-500/20">
+                    <div className="text-[10px] text-yellow-600 uppercase tracking-wider font-medium">
+                      Presented
+                    </div>
+                    <div className="text-sm font-semibold text-yellow-600">
+                      {formatCurrencyFull(presentedValue)}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {presentedDeals.length} proposal{presentedDeals.length !== 1 ? "s" : ""}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
         )}
       </DialogContent>
