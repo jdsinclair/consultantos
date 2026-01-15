@@ -27,6 +27,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# AI Call Logs
+logs/
+
 # Vercel
 .vercel
 

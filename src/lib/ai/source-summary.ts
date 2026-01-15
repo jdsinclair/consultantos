@@ -24,33 +24,29 @@ export async function generateSourceSummary(
 ): Promise<SourceAISummary> {
   const model = "claude-sonnet-4-20250514";
 
-  return withAILogging(
-    "source-summary",
-    model,
-    async () => {
-      // Truncate content if too long (keep first and last parts for context)
-      const maxContentLength = 15000;
-      let truncatedContent = content;
-      if (content.length > maxContentLength) {
-        const half = Math.floor(maxContentLength / 2);
-        truncatedContent = content.slice(0, half) + "\n\n[...content truncated...]\n\n" + content.slice(-half);
-      }
+  // Truncate content if too long (keep first and last parts for context)
+  const maxContentLength = 15000;
+  let truncatedContent = content;
+  if (content.length > maxContentLength) {
+    const half = Math.floor(maxContentLength / 2);
+    truncatedContent = content.slice(0, half) + "\n\n[...content truncated...]\n\n" + content.slice(-half);
+  }
 
-      // Build user context section
-      let userContextSection = "";
-      if (context.userProfile) {
-        const { name, nickname, bio, specialties, businessName } = context.userProfile;
-        const parts: string[] = [];
-        if (nickname || name) parts.push(`Consultant: ${nickname || name}`);
-        if (businessName) parts.push(`Business: ${businessName}`);
-        if (bio) parts.push(`Background: ${bio}`);
-        if (specialties?.length) parts.push(`Specialties: ${specialties.join(", ")}`);
-        if (parts.length > 0) {
-          userContextSection = `\n\nCONSULTANT CONTEXT (tailor insights to this perspective):\n${parts.join("\n")}`;
-        }
-      }
+  // Build user context section
+  let userContextSection = "";
+  if (context.userProfile) {
+    const { name, nickname, bio, specialties, businessName } = context.userProfile;
+    const parts: string[] = [];
+    if (nickname || name) parts.push(`Consultant: ${nickname || name}`);
+    if (businessName) parts.push(`Business: ${businessName}`);
+    if (bio) parts.push(`Background: ${bio}`);
+    if (specialties?.length) parts.push(`Specialties: ${specialties.join(", ")}`);
+    if (parts.length > 0) {
+      userContextSection = `\n\nCONSULTANT CONTEXT (tailor insights to this perspective):\n${parts.join("\n")}`;
+    }
+  }
 
-      const prompt = `Analyze this ${context.sourceType || "document"}${context.clientName ? ` for client "${context.clientName}"` : ""}:${userContextSection}
+  const prompt = `Analyze this ${context.sourceType || "document"}${context.clientName ? ` for client "${context.clientName}"` : ""}:${userContextSection}
 
 ${context.fileName ? `File: ${context.fileName}` : ""}
 ${context.fileType ? `Type: ${context.fileType}` : ""}
@@ -68,6 +64,10 @@ Provide a consulting-focused analysis in JSON format:
 
 Focus on actionable insights for a consultant. Return ONLY valid JSON.`;
 
+  return withAILogging(
+    "source-summary",
+    model,
+    async () => {
       console.log(`[Summary] Generating for: ${context.fileName || 'document'}`);
 
       const { text } = await generateText({
@@ -92,7 +92,8 @@ Focus on actionable insights for a consultant. Return ONLY valid JSON.`;
         generatedAt: new Date().toISOString(),
       };
     },
-    { fileName: context.fileName, contentLength: content.length }
+    { fileName: context.fileName, contentLength: content.length },
+    { prompt }
   ).catch((error) => {
     console.error("Source summary generation error:", error);
     return {
@@ -111,23 +112,26 @@ Focus on actionable insights for a consultant. Return ONLY valid JSON.`;
 export async function generateNoteTitle(content: string): Promise<string> {
   const model = "claude-3-5-haiku-20241022";
 
+  const prompt = `Generate a concise, descriptive title (5-10 words max) for this note:
+
+${content.slice(0, 1000)}
+
+Return ONLY the title, nothing else.`;
+
   return withAILogging(
     "note-title",
     model,
     async () => {
       const { text } = await generateText({
         model: anthropic(model),
-        prompt: `Generate a concise, descriptive title (5-10 words max) for this note:
-
-${content.slice(0, 1000)}
-
-Return ONLY the title, nothing else.`,
+        prompt,
         maxTokens: 100,
       });
 
       return text.trim().replace(/^["']|["']$/g, "");
     },
-    { contentLength: content.length }
+    { contentLength: content.length },
+    { prompt }
   ).catch((error) => {
     console.error("Note title generation error:", error);
     return "Untitled Note";
@@ -147,13 +151,7 @@ export async function generateSourceName(
 ): Promise<string> {
   const model = "claude-3-5-haiku-20241022";
 
-  return withAILogging(
-    "source-name",
-    model,
-    async () => {
-      const { text } = await generateText({
-        model: anthropic(model),
-        prompt: `Generate a clear, descriptive name (3-8 words) for this uploaded document.
+  const prompt = `Generate a clear, descriptive name (3-8 words) for this uploaded document.
 
 Original filename: ${context.originalFileName}
 ${context.fileType ? `File type: ${context.fileType}` : ""}
@@ -164,13 +162,22 @@ ${content.slice(0, 2000)}
 
 Create a name that describes WHAT this document is (e.g., "Q3 2024 Financial Report", "Product Roadmap Overview", "Brand Guidelines Document", "Competitor Analysis - Acme Corp").
 
-Return ONLY the name, nothing else. Do not include file extensions.`,
+Return ONLY the name, nothing else. Do not include file extensions.`;
+
+  return withAILogging(
+    "source-name",
+    model,
+    async () => {
+      const { text } = await generateText({
+        model: anthropic(model),
+        prompt,
         maxTokens: 100,
       });
 
       return text.trim().replace(/^["']|["']$/g, "");
     },
-    { originalFileName: context.originalFileName }
+    { originalFileName: context.originalFileName },
+    { prompt }
   ).catch((error) => {
     console.error("Source name generation error:", error);
     // Fall back to original filename without extension
