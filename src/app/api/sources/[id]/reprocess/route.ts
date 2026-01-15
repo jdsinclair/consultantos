@@ -37,8 +37,11 @@ export async function POST(
       businessName: user.businessName,
     };
 
-    // Start async reprocessing
-    reprocessSource(params.id, source.clientId, user.id, source, userProfile, client?.name).catch(console.error);
+    // Start async reprocessing - include existing content for sources without blobUrl
+    reprocessSource(params.id, source.clientId, user.id, {
+      ...source,
+      existingContent: source.content, // Pass existing content for session transcripts, notes, etc.
+    }, userProfile, client?.name).catch(console.error);
 
     return NextResponse.json({ success: true, message: "Reprocessing started" });
   } catch (error) {
@@ -57,6 +60,7 @@ async function reprocessSource(
     blobUrl: string | null;
     fileType: string | null;
     clientId: string;
+    existingContent?: string | null; // For sources stored directly in DB (session transcripts, notes)
   },
   userProfile: {
     name?: string | null;
@@ -85,14 +89,18 @@ async function reprocessSource(
 
       console.log(`Image content extracted: ${content.slice(0, 200)}...`);
     } else if (source.blobUrl) {
-      // For documents, we need to re-fetch the file from blob storage
+      // For documents, re-fetch from blob storage
       const response = await fetch(source.blobUrl);
       const text = await response.text();
       content = text;
+    } else if (source.existingContent) {
+      // For sources without blobUrl (session transcripts, notes), use existing content
+      console.log(`Using existing content for: ${source.name} (${source.existingContent.length} chars)`);
+      content = source.existingContent;
     }
 
     if (!content) {
-      throw new Error("No content could be extracted");
+      throw new Error("No content could be extracted - source has no blobUrl and no stored content");
     }
 
     // Update source with extracted content
