@@ -9,7 +9,7 @@ import { z } from "zod";
 // Prevent static caching - auth routes must be dynamic
 export const dynamic = "force-dynamic";
 
-const NOTE_TYPES = ["general", "future", "competitor", "partner", "idea", "reference"] as const;
+const NOTE_TYPES = ["general", "discussion", "future", "competitor", "partner", "idea", "reference"] as const;
 
 const createNoteSchema = z.object({
   clientId: z.string().uuid(),
@@ -29,11 +29,13 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const clientId = searchParams.get("clientId");
     const sessionId = searchParams.get("sessionId");
+    const noteType = searchParams.get("noteType");
     const limit = searchParams.get("limit");
 
     const notes = await getNotes(user.id, {
       clientId: clientId || undefined,
       sessionId: sessionId || undefined,
+      noteType: noteType || undefined,
       limit: limit ? parseInt(limit) : undefined,
     });
 

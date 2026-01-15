@@ -18,6 +18,7 @@ export async function getNotes(
   options?: {
     clientId?: string;
     sessionId?: string;
+    noteType?: string;
     limit?: number;
   }
 ) {
@@ -28,6 +29,9 @@ export async function getNotes(
   }
   if (options?.sessionId) {
     conditions.push(eq(notes.sessionId, options.sessionId));
+  }
+  if (options?.noteType) {
+    conditions.push(eq(notes.noteType, options.noteType));
   }
 
   return db.query.notes.findMany({

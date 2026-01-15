@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Mic, Users, CheckCircle, Clock, ArrowRight, Loader2, Plus } from "lucide-react";
+import { Mic, Users, CheckCircle, Clock, ArrowRight, Loader2, Plus, Compass } from "lucide-react";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 
@@ -33,19 +33,29 @@ interface ActionItem {
   client: { name: string } | null;
 }
 
+interface StrategicCanvas {
+  clientId: string;
+  clientName: string;
+  phase: string;
+  updatedAt: string;
+  hasStrategicTruth: boolean;
+}
+
 export default function Dashboard() {
   const [clients, setClients] = useState<Client[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [actionItems, setActionItems] = useState<ActionItem[]>([]);
+  const [strategicCanvases, setStrategicCanvases] = useState<StrategicCanvas[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [clientsRes, sessionsRes, actionsRes] = await Promise.all([
+        const [clientsRes, sessionsRes, actionsRes, canvasesRes] = await Promise.all([
           fetch("/api/clients"),
           fetch("/api/sessions?status=scheduled&limit=5"),
           fetch("/api/action-items?status=pending&limit=5"),
+          fetch("/api/clarity-method?limit=5"),
         ]);
 
         if (clientsRes.ok) {
@@ -59,6 +69,12 @@ export default function Dashboard() {
         if (actionsRes.ok) {
           const data = await actionsRes.json();
           setActionItems(data);
+        }
+        if (canvasesRes.ok) {
+          const data = await canvasesRes.json();
+          // Only show canvases that have some content
+          const activeCanvases = data.filter((c: StrategicCanvas) => c.hasStrategicTruth);
+          setStrategicCanvases(activeCanvases);
         }
       } catch (error) {
         console.error("Failed to fetch dashboard data:", error);
@@ -252,6 +268,46 @@ export default function Dashboard() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Strategic Planning */}
+        {strategicCanvases.length > 0 && (
+          <Card className="bg-gradient-to-br from-indigo-50/50 to-purple-50/50 dark:from-indigo-950/20 dark:to-purple-950/20 border-indigo-200/50 dark:border-indigo-800/50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Compass className="h-5 w-5 text-indigo-600" />
+                Strategic Planning
+              </CardTitle>
+              <CardDescription>Clarity Method canvases in progress</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {strategicCanvases.map((canvas) => (
+                  <Link
+                    key={canvas.clientId}
+                    href={`/methods/clarity/${canvas.clientId}`}
+                    className="flex items-center justify-between hover:bg-white/50 dark:hover:bg-gray-900/50 rounded-lg p-2 -mx-2 transition-colors"
+                  >
+                    <div>
+                      <p className="font-medium">{canvas.clientName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatDistanceToNow(new Date(canvas.updatedAt), { addSuffix: true })}
+                      </p>
+                    </div>
+                    <Badge variant="secondary" className="capitalize">
+                      {canvas.phase}
+                    </Badge>
+                  </Link>
+                ))}
+                <Link
+                  href="/methods/clarity"
+                  className="block text-center text-sm text-muted-foreground hover:text-foreground pt-2"
+                >
+                  View all →
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );

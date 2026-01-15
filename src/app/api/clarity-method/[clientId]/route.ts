@@ -5,6 +5,7 @@ import { clarityMethodCanvases, clients } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { DEFAULT_CANVAS } from "@/lib/clarity-method/types";
 import { pushCanvasToRAG } from "@/lib/clarity-method/rag-integration";
+import { generateClarityInsightsFromCanvas, canvasHasClarityContent } from "@/lib/ai/clarity-insights";
 
 // Prevent static caching - auth routes must be dynamic
 export const dynamic = "force-dynamic";
@@ -126,6 +127,19 @@ export async function PATCH(
     pushCanvasToRAG(clientId, user.id).catch((err) => {
       console.error("[ClarityMethod] Background RAG sync failed:", err);
     });
+
+    // Generate Clarity Document insights from Strategic Truth (non-blocking)
+    // This creates suggestions in the Clarity Document based on canvas work
+    if (updates.strategicTruth && canvasHasClarityContent(updated.strategicTruth)) {
+      generateClarityInsightsFromCanvas(updated.strategicTruth, {
+        canvasId: updated.id,
+        clientId,
+        userId: user.id,
+        clientName: client.name,
+      }).catch((err) => {
+        console.error("[ClarityMethod] Background clarity insights failed:", err);
+      });
+    }
 
     return NextResponse.json({ canvas: updated });
   } catch (error) {
