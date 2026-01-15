@@ -703,7 +703,8 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
                 <DropdownMenuItem
                   onClick={() => {
                     // Open in new window without nav for screen sharing
-                    const url = `/share/plan/${params.id}`;
+                    // Uses (share) route group: /plan/[id]
+                    const url = `/plan/${params.id}`;
                     window.open(
                       url,
                       'plan-share',
@@ -721,7 +722,7 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
                 <DropdownMenuItem
                   onClick={() => {
                     // PDF export - trigger print dialog
-                    const url = `/share/plan/${params.id}?print=true`;
+                    const url = `/plan/${params.id}?print=true`;
                     const printWindow = window.open(url, '_blank');
                     if (printWindow) {
                       printWindow.onload = () => {
@@ -736,8 +737,8 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
 
                 <DropdownMenuItem
                   onClick={async () => {
-                    // Copy shareable link
-                    const url = `${window.location.origin}/share/plan/${params.id}`;
+                    // Copy link to current page (dashboard URL)
+                    const url = `${window.location.origin}/methods/do-the-thing/${params.id}`;
                     await navigator.clipboard.writeText(url);
                     // TODO: Show toast notification
                   }}
