@@ -433,6 +433,10 @@ export const sources = pgTable('sources', {
   processingStatus: text('processing_status').default('pending'), // pending, processing, completed, failed
   processingError: text('processing_error'),
   lastSyncedAt: timestamp('last_synced_at'),
+  // RAG control - exclude certain sources from being used in AI context (e.g., competitor decks)
+  excludeFromRag: boolean('exclude_from_rag').default(false),
+  sourceCategory: text('source_category'), // competitor_info, client_docs, internal, reference, etc.
+  excludeReason: text('exclude_reason'), // notes on why excluded from RAG
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => ({
@@ -482,6 +486,10 @@ export const inboundEmails = pgTable('inbound_emails', {
   messageId: text('message_id'), // email message ID for threading
   inReplyTo: text('in_reply_to'), // for threading
   status: text('status').default('inbox'), // inbox, processed, archived
+  // Context for when adding to sources - helps decide RAG inclusion
+  sourceCategory: text('source_category'), // competitor_info, client_docs, internal, reference, etc.
+  excludeFromRag: boolean('exclude_from_rag').default(false), // flag to exclude attachments/content from RAG
+  contextNotes: text('context_notes'), // user notes about the email content type
   processedAt: timestamp('processed_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (table) => ({
