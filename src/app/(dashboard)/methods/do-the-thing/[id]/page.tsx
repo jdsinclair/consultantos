@@ -194,7 +194,7 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
       order: sections.length,
     };
     updatePlan({ sections: [...sections, newSection] });
-    setExpandedSections((prev) => new Set([...prev, newSection.id]));
+    setExpandedSections((prev) => new Set([...Array.from(prev), newSection.id]));
   };
 
   const updateSection = (sectionId: string, updates: Partial<PlanSection>) => {
