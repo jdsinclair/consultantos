@@ -1,27 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
+import { Resend } from "resend";
 import { db } from "@/db";
 import { users, inboundEmails, clients } from "@/db/schema";
 import { eq, ilike } from "drizzle-orm";
 import { extractTodosFromEmail } from "@/lib/ai/extract-todos";
 import { createActionItem } from "@/lib/db/action-items";
 
-// Resend API helper functions for INBOUND emails (receiving API not yet in SDK)
-async function fetchResendEmail(emailId: string) {
-  const res = await fetch(`https://api.resend.com/inbound/emails/${emailId}`, {
-    headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}` },
-  });
-  if (!res.ok) return { data: null, error: await res.text() };
-  return { data: await res.json(), error: null };
-}
-
-async function fetchResendAttachments(emailId: string) {
-  const res = await fetch(`https://api.resend.com/inbound/emails/${emailId}/attachments`, {
-    headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}` },
-  });
-  if (!res.ok) return { data: null, error: await res.text() };
-  return { data: await res.json(), error: null };
-}
+// Initialize Resend client for fetching email content
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 // Webhook endpoint for receiving emails
 // Supports both Resend and Cloudflare Email Worker formats
@@ -69,12 +56,12 @@ export async function POST(req: NextRequest) {
     };
 
     // Detect format and normalize
-    if (payload.type === "email.received" && payload.data?.email_id && process.env.RESEND_API_KEY) {
-      // Resend webhook format - fetch full email content via REST API
+    if (payload.type === "email.received" && payload.data?.email_id && resend) {
+      // Resend webhook format - fetch full email content via SDK
       const emailId = payload.data.email_id;
 
       // Fetch full email content (body, headers)
-      const { data: fullEmail, error: emailError } = await fetchResendEmail(emailId);
+      const { data: fullEmail, error: emailError } = await resend.emails.receiving.get(emailId);
 
       if (emailError || !fullEmail) {
         console.error("Failed to fetch email from Resend:", emailError);
@@ -82,7 +69,7 @@ export async function POST(req: NextRequest) {
       }
 
       // Fetch attachments list
-      const { data: attachmentsList, error: attachmentsError } = await fetchResendAttachments(emailId);
+      const { data: attachmentsList, error: attachmentsError } = await resend.emails.receiving.attachments.list({ emailId });
 
       if (attachmentsError) {
         console.error("Failed to fetch attachments from Resend:", attachmentsError);
