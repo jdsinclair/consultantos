@@ -23,8 +23,9 @@ export interface AILogEntry {
   response?: string;
 }
 
-// Log file path - stored in project root logs folder
-const LOG_DIR = path.join(process.cwd(), "logs");
+// Log file path - use /tmp for serverless (Vercel), local logs/ for development
+const isServerless = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.cwd().startsWith("/var/task");
+const LOG_DIR = isServerless ? "/tmp" : path.join(process.cwd(), "logs");
 const LOG_FILE = path.join(LOG_DIR, "aiu-calls.jsonl");
 
 // Max age for auto-cleanup (7 days)
