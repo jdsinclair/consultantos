@@ -57,6 +57,7 @@ import { ChatComposer } from "@/components/chat";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { ClientSignals } from "@/components/client-signals";
 import { SharePortalCard } from "@/components/share-portal-card";
+import { TranscriptSearch } from "@/components/transcript-search";
 import { cn } from "@/lib/utils";
 
 interface AtSomePointItem {
@@ -772,6 +773,12 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
               )}
             </CardContent>
           </Card>
+
+          {/* Search Transcripts */}
+          <TranscriptSearch
+            clientId={client.id}
+            placeholder="Search past sessions and transcripts..."
+          />
 
           {/* Action Items */}
           <Card>

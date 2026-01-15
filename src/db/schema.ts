@@ -498,6 +498,33 @@ export const inboundEmails = pgTable('inbound_emails', {
   statusIdx: index('inbound_emails_status_idx').on(table.status),
 }));
 
+// Transcript Uploads - pasted/uploaded transcripts waiting to be assigned
+export const transcriptUploads = pgTable('transcript_uploads', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: text('user_id').references(() => users.id).notNull(),
+  clientId: uuid('client_id').references(() => clients.id, { onDelete: 'set null' }), // can be assigned later
+  // Transcript content
+  title: text('title'), // AI-generated or user-provided title
+  content: text('content').notNull(), // the raw transcript text
+  // Optional metadata for when it becomes a session
+  sessionDate: timestamp('session_date'), // when the session happened
+  duration: integer('duration'), // in minutes
+  notes: text('notes'), // any additional notes
+  // Source info
+  sourceType: text('source_type').default('paste'), // paste, upload, import
+  originalFilename: text('original_filename'), // if uploaded as file
+  // Processing
+  status: text('status').default('inbox'), // inbox, assigned, archived
+  sessionId: uuid('session_id').references(() => sessions.id, { onDelete: 'set null' }), // when assigned, the created session
+  processedAt: timestamp('processed_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  userIdx: index('transcript_uploads_user_idx').on(table.userId),
+  clientIdx: index('transcript_uploads_client_idx').on(table.clientId),
+  statusIdx: index('transcript_uploads_status_idx').on(table.status),
+}));
+
 // Methods - consulting frameworks/playbooks (user's own or templates)
 export const methods = pgTable('methods', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -663,6 +690,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   personas: many(personas),
   sessions: many(sessions),
   inboundEmails: many(inboundEmails),
+  transcriptUploads: many(transcriptUploads),
 }));
 
 export const clientsRelations = relations(clients, ({ one, many }) => ({
@@ -674,6 +702,7 @@ export const clientsRelations = relations(clients, ({ one, many }) => ({
   notes: many(notes),
   contacts: many(contacts),
   inboundEmails: many(inboundEmails),
+  transcriptUploads: many(transcriptUploads),
   clarityDocument: one(clarityDocuments, { fields: [clients.id], references: [clarityDocuments.clientId] }),
   clarityInsights: many(clarityInsights),
   clarityMethodCanvas: one(clarityMethodCanvases, { fields: [clients.id], references: [clarityMethodCanvases.clientId] }),
@@ -726,6 +755,12 @@ export const sessionsRelations = relations(sessions, ({ one, many }) => ({
 export const inboundEmailsRelations = relations(inboundEmails, ({ one }) => ({
   user: one(users, { fields: [inboundEmails.userId], references: [users.id] }),
   client: one(clients, { fields: [inboundEmails.clientId], references: [clients.id] }),
+}));
+
+export const transcriptUploadsRelations = relations(transcriptUploads, ({ one }) => ({
+  user: one(users, { fields: [transcriptUploads.userId], references: [users.id] }),
+  client: one(clients, { fields: [transcriptUploads.clientId], references: [clients.id] }),
+  session: one(sessions, { fields: [transcriptUploads.sessionId], references: [sessions.id] }),
 }));
 
 export const actionItemsRelations = relations(actionItems, ({ one }) => ({
@@ -1125,3 +1160,5 @@ export type ExecutionPlan = typeof executionPlans.$inferSelect;
 export type NewExecutionPlan = typeof executionPlans.$inferInsert;
 export type Roadmap = typeof roadmaps.$inferSelect;
 export type NewRoadmap = typeof roadmaps.$inferInsert;
+export type TranscriptUpload = typeof transcriptUploads.$inferSelect;
+export type NewTranscriptUpload = typeof transcriptUploads.$inferInsert;
