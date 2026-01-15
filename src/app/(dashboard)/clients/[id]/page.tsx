@@ -50,6 +50,7 @@ import { NoteDialog } from "@/components/note-dialog";
 import { ChatComposer } from "@/components/chat";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { ClientSignals } from "@/components/client-signals";
+import { SharePortalCard } from "@/components/share-portal-card";
 import { cn } from "@/lib/utils";
 
 interface Client {
@@ -825,6 +826,32 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
           <div className="lg:col-span-2">
             <ClientSignals clientId={params.id} clientName={client.name} />
           </div>
+
+          {/* Client Portal - External Sharing */}
+          <SharePortalCard
+            clientId={params.id}
+            clientName={client.name}
+            shareableItems={[
+              // Add Clarity Canvas if exists
+              ...(clarityMethod.exists
+                ? [
+                    {
+                      id: params.id,
+                      type: "clarity_canvas" as const,
+                      title: "Clarity Method Canvas",
+                      status: clarityMethod.phase,
+                    },
+                  ]
+                : []),
+              // Add execution plans
+              ...executionPlans.map((plan) => ({
+                id: plan.id,
+                type: "execution_plan" as const,
+                title: plan.title,
+                status: plan.status,
+              })),
+            ]}
+          />
 
           {/* Quick Chat */}
           <Card className="lg:col-span-2">

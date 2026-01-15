@@ -30,6 +30,43 @@ export async function getExecutionPlan(id: string, userId: string) {
   });
 }
 
+// Public getter - for share pages (no user verification)
+// Returns limited data for security
+export async function getExecutionPlanPublic(id: string) {
+  const plan = await db.query.executionPlans.findFirst({
+    where: eq(executionPlans.id, id),
+    with: {
+      client: {
+        columns: {
+          id: true,
+          name: true,
+          company: true,
+        },
+      },
+    },
+  });
+
+  if (!plan) return null;
+
+  // Return only necessary fields for display (no sensitive data)
+  return {
+    id: plan.id,
+    clientId: plan.clientId,
+    title: plan.title,
+    objective: plan.objective,
+    timeframe: plan.timeframe,
+    startDate: plan.startDate,
+    targetDate: plan.targetDate,
+    goal: plan.goal,
+    successMetrics: plan.successMetrics,
+    sections: plan.sections,
+    notes: plan.notes,
+    rules: plan.rules,
+    status: plan.status,
+    client: plan.client,
+  };
+}
+
 export async function createExecutionPlan(data: NewExecutionPlan) {
   const [plan] = await db.insert(executionPlans).values(data).returning();
   return plan;

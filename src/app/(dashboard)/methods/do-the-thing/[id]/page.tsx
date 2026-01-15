@@ -23,6 +23,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Rocket,
   Target,
   Calendar,
@@ -47,6 +54,11 @@ import {
   Shield,
   Wand2,
   Copy,
+  Share2,
+  ExternalLink,
+  Download,
+  Link2,
+  Table2,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -677,8 +689,73 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
               className={cn(showChat && "bg-primary/10")}
             >
               <MessageSquare className="h-4 w-4 mr-2" />
-              AI Assistant
+              AI Asst.
             </Button>
+
+            {/* Share Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon">
+                  <Share2 className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem
+                  onClick={() => {
+                    // Open in new window without nav for screen sharing
+                    const url = `/share/plan/${params.id}`;
+                    window.open(
+                      url,
+                      'plan-share',
+                      'width=1200,height=900,menubar=no,toolbar=no,location=no,status=no'
+                    );
+                  }}
+                >
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Open in New Window
+                  <span className="ml-auto text-xs text-muted-foreground">Screen share</span>
+                </DropdownMenuItem>
+
+                <DropdownMenuSeparator />
+
+                <DropdownMenuItem
+                  onClick={() => {
+                    // PDF export - trigger print dialog
+                    const url = `/share/plan/${params.id}?print=true`;
+                    const printWindow = window.open(url, '_blank');
+                    if (printWindow) {
+                      printWindow.onload = () => {
+                        setTimeout(() => printWindow.print(), 500);
+                      };
+                    }
+                  }}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Save as PDF
+                </DropdownMenuItem>
+
+                <DropdownMenuItem
+                  onClick={async () => {
+                    // Copy shareable link
+                    const url = `${window.location.origin}/share/plan/${params.id}`;
+                    await navigator.clipboard.writeText(url);
+                    // TODO: Show toast notification
+                  }}
+                >
+                  <Link2 className="h-4 w-4 mr-2" />
+                  Copy Link
+                </DropdownMenuItem>
+
+                <DropdownMenuSeparator />
+
+                <DropdownMenuItem disabled>
+                  <Table2 className="h-4 w-4 mr-2" />
+                  Export to Google Sheets
+                  <span className="ml-auto text-xs text-muted-foreground">Coming soon</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             <Button
               onClick={generatePlan}
               disabled={generating}
