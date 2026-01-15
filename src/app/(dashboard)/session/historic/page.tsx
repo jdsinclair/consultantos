@@ -66,6 +66,7 @@ export default function AddHistoricSessionPage() {
     recordingUrl: "",
     summary: "",
   });
+  const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
     fetch("/api/clients")
@@ -74,10 +75,7 @@ export default function AddHistoricSessionPage() {
       .catch(console.error);
   }, []);
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-
+  const processFiles = (files: FileList | File[]) => {
     const newAttachments: AttachmentFile[] = [];
     for (const file of Array.from(files)) {
       const type = guessFileType(file);
@@ -90,12 +88,39 @@ export default function AddHistoricSessionPage() {
       };
       newAttachments.push(attachment);
     }
+    setAttachments((prev) => [...prev, ...newAttachments]);
+  };
 
-    setAttachments([...attachments, ...newAttachments]);
-
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    processFiles(files);
     // Reset input
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      processFiles(files);
     }
   };
 
@@ -346,12 +371,20 @@ export default function AddHistoricSessionPage() {
           <CardContent className="space-y-4">
             {/* Upload Zone */}
             <div
-              className="border-2 border-dashed rounded-lg p-8 text-center hover:border-primary/50 transition-colors cursor-pointer"
+              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${
+                isDragging
+                  ? "border-primary bg-primary/5"
+                  : "hover:border-primary/50"
+              }`}
               onClick={() => fileInputRef.current?.click()}
+              onDragOver={handleDragOver}
+              onDragEnter={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
             >
-              <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-              <p className="text-sm text-muted-foreground">
-                Click to upload or drag and drop
+              <Upload className={`h-8 w-8 mx-auto mb-2 ${isDragging ? "text-primary" : "text-muted-foreground"}`} />
+              <p className={`text-sm ${isDragging ? "text-primary" : "text-muted-foreground"}`}>
+                {isDragging ? "Drop files here..." : "Click to upload or drag and drop"}
               </p>
               <p className="text-xs text-muted-foreground mt-1">
                 Images, PDFs, documents, recordings

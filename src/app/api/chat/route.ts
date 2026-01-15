@@ -295,6 +295,7 @@ Reference the canvas data when answering questions.`;
     }
 
     try {
+      console.log("[Chat] Starting stream with model: claude-sonnet-4-20250514");
       const result = await streamText({
         model: models.default,
         system: fullSystemPrompt,
@@ -310,15 +311,25 @@ Reference the canvas data when answering questions.`;
       return result.toDataStreamResponse({
         getErrorMessage: (error) => {
           console.error("[Chat] Stream error during response:", error);
+          // Log full error details for debugging
           if (error instanceof Error) {
-            if (error.message.includes("API key")) {
-              return "Invalid API key. Please check your configuration.";
+            console.error("[Chat] Error name:", error.name);
+            console.error("[Chat] Error message:", error.message);
+            console.error("[Chat] Error stack:", error.stack);
+
+            // Check for common error patterns
+            const msg = error.message.toLowerCase();
+            if (msg.includes("api key") || msg.includes("authentication") || msg.includes("unauthorized")) {
+              return "Invalid API key. Please check your ANTHROPIC_API_KEY configuration.";
             }
-            if (error.message.includes("rate limit") || error.message.includes("429")) {
+            if (msg.includes("rate limit") || msg.includes("429") || msg.includes("too many requests")) {
               return "Rate limited. Please try again in a moment.";
             }
-            if (error.message.includes("credit") || error.message.includes("billing")) {
+            if (msg.includes("credit") || msg.includes("billing") || msg.includes("payment")) {
               return "Billing issue with AI provider. Please check your account.";
+            }
+            if (msg.includes("model") || msg.includes("not found") || msg.includes("invalid")) {
+              return `Model error: ${error.message}. The AI model may be temporarily unavailable.`;
             }
             return `AI Error: ${error.message}`;
           }
@@ -326,29 +337,49 @@ Reference the canvas data when answering questions.`;
         },
       });
     } catch (streamError) {
-      console.error("[Chat] Stream error:", streamError);
+      // Log full error details for debugging
+      console.error("[Chat] Stream setup error:", streamError);
+      if (streamError instanceof Error) {
+        console.error("[Chat] Error name:", streamError.name);
+        console.error("[Chat] Error message:", streamError.message);
+        console.error("[Chat] Error stack:", streamError.stack);
+        // Log any additional error properties
+        console.error("[Chat] Error details:", JSON.stringify(streamError, Object.getOwnPropertyNames(streamError)));
+      }
 
-      // Check for specific API errors
       const errorMessage = streamError instanceof Error ? streamError.message : "Unknown error";
+      const errorLower = errorMessage.toLowerCase();
 
-      if (errorMessage.includes("API key")) {
+      if (errorLower.includes("api key") || errorLower.includes("authentication") || errorLower.includes("unauthorized")) {
         return new Response(
-          JSON.stringify({ error: "Invalid API key", details: errorMessage }),
+          JSON.stringify({ error: "Invalid API key", details: "Please check your ANTHROPIC_API_KEY configuration" }),
           { status: 401, headers: { "Content-Type": "application/json" } }
         );
       }
 
-      if (errorMessage.includes("rate limit") || errorMessage.includes("429")) {
+      if (errorLower.includes("rate limit") || errorLower.includes("429") || errorLower.includes("too many requests")) {
         return new Response(
           JSON.stringify({ error: "Rate limited", details: "Too many requests, please try again later" }),
           { status: 429, headers: { "Content-Type": "application/json" } }
         );
       }
 
-      if (errorMessage.includes("credit") || errorMessage.includes("billing")) {
+      if (errorLower.includes("credit") || errorLower.includes("billing") || errorLower.includes("payment")) {
         return new Response(
           JSON.stringify({ error: "Billing issue", details: "Check your AI provider account" }),
           { status: 402, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      // For model-related errors, provide more context
+      if (errorLower.includes("model") || errorLower.includes("not found")) {
+        return new Response(
+          JSON.stringify({
+            error: "Model unavailable",
+            details: errorMessage,
+            suggestion: "The AI model may be temporarily unavailable. Please try again."
+          }),
+          { status: 503, headers: { "Content-Type": "application/json" } }
         );
       }
 

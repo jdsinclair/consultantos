@@ -15,22 +15,39 @@ const CHUNK_OVERLAP = 200; // overlap between chunks
  * Generate embedding for a single text
  */
 export async function generateEmbedding(text: string): Promise<number[]> {
-  const { embedding } = await embed({
-    model: EMBEDDING_MODEL,
-    value: text,
-  });
-  return embedding;
+  try {
+    const { embedding } = await embed({
+      model: EMBEDDING_MODEL,
+      value: text,
+    });
+    return embedding;
+  } catch (error) {
+    console.error("[RAG] Failed to generate embedding:", error);
+    console.error("[RAG] Text length:", text.length);
+    console.error("[RAG] OpenAI API key configured:", !!process.env.OPENAI_API_KEY);
+    throw error;
+  }
 }
 
 /**
  * Generate embeddings for multiple texts in batch
  */
 export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
-  const { embeddings } = await embedMany({
-    model: EMBEDDING_MODEL,
-    values: texts,
-  });
-  return embeddings;
+  try {
+    console.log(`[RAG] Generating embeddings for ${texts.length} chunks...`);
+    const { embeddings } = await embedMany({
+      model: EMBEDDING_MODEL,
+      values: texts,
+    });
+    console.log(`[RAG] Successfully generated ${embeddings.length} embeddings`);
+    return embeddings;
+  } catch (error) {
+    console.error("[RAG] Failed to generate batch embeddings:", error);
+    console.error("[RAG] Number of texts:", texts.length);
+    console.error("[RAG] Total characters:", texts.reduce((sum, t) => sum + t.length, 0));
+    console.error("[RAG] OpenAI API key configured:", !!process.env.OPENAI_API_KEY);
+    throw error;
+  }
 }
 
 /**
@@ -101,6 +118,9 @@ export async function processSourceEmbeddings(
   content: string,
   metadata?: Record<string, unknown>
 ): Promise<void> {
+  console.log(`[Embeddings] Starting embedding process for source ${sourceId}`);
+  console.log(`[Embeddings] Content length: ${content.length} characters`);
+
   const startTime = Date.now();
   const logId = logAICall({
     operation: "embeddings",
@@ -111,10 +131,12 @@ export async function processSourceEmbeddings(
 
   try {
     // Delete existing chunks for this source
+    console.log(`[Embeddings] Deleting existing chunks for source ${sourceId}`);
     await db.delete(sourceChunks).where(eq(sourceChunks.sourceId, sourceId));
 
     // Chunk the content
     const chunks = chunkContent(content);
+    console.log(`[Embeddings] Created ${chunks.length} chunks from content`);
 
     if (chunks.length === 0) {
       updateAILog(logId, {
@@ -165,6 +187,12 @@ export async function processSourceEmbeddings(
 
     console.log(`[Embeddings] Generated ${allChunkData.length} chunks for source ${sourceId}`);
   } catch (error) {
+    console.error(`[Embeddings] FAILED for source ${sourceId}:`, error);
+    console.error(`[Embeddings] Error type:`, error instanceof Error ? error.name : typeof error);
+    console.error(`[Embeddings] Error message:`, error instanceof Error ? error.message : String(error));
+    if (error instanceof Error && error.stack) {
+      console.error(`[Embeddings] Stack:`, error.stack);
+    }
     updateAILog(logId, {
       status: "error",
       duration: Date.now() - startTime,

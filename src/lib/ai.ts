@@ -2,12 +2,13 @@ import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 
 // AI Provider configuration
+// Using latest stable model aliases
 export const models = {
-  // Default for most tasks
-  default: anthropic("claude-3-5-sonnet-20241022"),
+  // Default for most tasks - using claude-sonnet-4 for stability
+  default: anthropic("claude-sonnet-4-20250514"),
 
   // For complex reasoning
-  advanced: anthropic("claude-3-5-sonnet-20241022"),
+  advanced: anthropic("claude-sonnet-4-20250514"),
 
   // For quick tasks
   fast: anthropic("claude-3-5-haiku-20241022"),
