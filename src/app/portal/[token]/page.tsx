@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -71,6 +71,14 @@ export default function ClientPortalPage({
   // Get item ID from query param for deep linking
   const deepLinkItemId = searchParams.get("item");
 
+  // Use ref to track selected item ID without causing callback recreation
+  const selectedItemIdRef = useRef<string | null>(null);
+  
+  // Update ref when selectedItem changes
+  useEffect(() => {
+    selectedItemIdRef.current = selectedItem?.id || null;
+  }, [selectedItem]);
+
   const fetchPortal = useCallback(async () => {
     try {
       const res = await fetch(`/api/share/portal/${params.token}`, {
@@ -97,20 +105,18 @@ export default function ClientPortalPage({
           );
           if (deepLinkedItem) {
             setSelectedItem(deepLinkedItem);
-            // Auto-expand when deep linking to a specific item
             setExpandedView(true);
           } else {
-            // Fallback to first item if deep link item not found
             setSelectedItem(data.items[0]);
           }
         } else {
           setSelectedItem(data.items[0]);
         }
         setInitialLoadDone(true);
-      } else if (initialLoadDone && selectedItem) {
-        // Update selected item data on poll (keep same selection)
+      } else if (initialLoadDone && selectedItemIdRef.current) {
+        // Update selected item data on poll (keep same selection) - use ref to avoid dependency
         const updatedItem = data.items.find(
-          (item: SharedItem) => item.id === selectedItem.id
+          (item: SharedItem) => item.id === selectedItemIdRef.current
         );
         if (updatedItem) {
           setSelectedItem(updatedItem);
@@ -124,7 +130,7 @@ export default function ClientPortalPage({
     } finally {
       setLoading(false);
     }
-  }, [params.token, deepLinkItemId, initialLoadDone, selectedItem]);
+  }, [params.token, deepLinkItemId, initialLoadDone]); // Removed selectedItem from deps
 
   useEffect(() => {
     fetchPortal();
