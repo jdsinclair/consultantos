@@ -2,6 +2,7 @@ import { generateText } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { withAILogging } from "./logger";
 import { createClarityInsight, getClarityDocument } from "@/lib/db/clarity";
+import type { ClarityStrategicTruth } from "@/db/schema";
 
 interface ClarityInsightSuggestion {
   fieldName: string;
@@ -158,4 +159,91 @@ Rules:
     console.error("Clarity insights generation error:", error);
     // Don't throw - insights generation is optional
   }
+}
+
+/**
+ * Field mapping from Clarity Method Strategic Truth to Clarity Document
+ */
+const CLARITY_METHOD_TO_DOC_MAPPING: Record<string, { docField: string; label: string }> = {
+  whoWeAre: { docField: "whoWeAre", label: "Who We Are" },
+  whatWeDo: { docField: "whatWeDo", label: "What We Do" },
+  whyWeWin: { docField: "whyPeopleLoveUs", label: "Why People Love Us" },
+  theWedge: { docField: "ourWedge", label: "Our Wedge" },
+  howWeDie: { docField: "howWeWillDie", label: "How We Will Die" },
+};
+
+/**
+ * Generate clarity insights from Clarity Method canvas
+ * Called when Strategic Truth fields are filled to suggest updates to the clarity document
+ */
+export async function generateClarityInsightsFromCanvas(
+  strategicTruth: ClarityStrategicTruth,
+  context: {
+    canvasId: string;
+    clientId: string;
+    userId: string;
+    clientName: string;
+  }
+): Promise<{ created: number; skipped: number }> {
+  let created = 0;
+  let skipped = 0;
+
+  try {
+    // Get existing clarity document to compare
+    const existingClarity = await getClarityDocument(context.clientId, context.userId);
+
+    // Process each mapped field
+    for (const [methodField, mapping] of Object.entries(CLARITY_METHOD_TO_DOC_MAPPING)) {
+      const methodValue = strategicTruth[methodField as keyof ClarityStrategicTruth]?.value?.trim();
+
+      if (!methodValue) {
+        skipped++;
+        continue;
+      }
+
+      // Check if clarity document already has this value
+      const existingValue = existingClarity?.[mapping.docField as keyof typeof existingClarity] as string | null;
+
+      // Skip if values are essentially the same
+      if (existingValue && existingValue.trim().toLowerCase() === methodValue.toLowerCase()) {
+        skipped++;
+        continue;
+      }
+
+      // Create insight for this field
+      await createClarityInsight({
+        clientId: context.clientId,
+        userId: context.userId,
+        fieldName: mapping.docField,
+        suggestedValue: methodValue,
+        reasoning: `Derived from Clarity Method canvas Strategic Truth - "${mapping.label}" section. This was developed through the strategic diagnosis process.`,
+        confidence: 0.95, // High confidence since it comes from deliberate strategic work
+        sourceType: "clarity_method",
+        sourceId: context.canvasId,
+        sourceContext: `From Clarity Method: ${context.clientName}`,
+        status: "pending",
+      });
+
+      created++;
+      console.log(`[Clarity Insights] Created insight from canvas for ${mapping.docField}`);
+    }
+
+    console.log(`[Clarity Insights] Canvas sync complete: ${created} created, ${skipped} skipped`);
+    return { created, skipped };
+  } catch (error) {
+    console.error("Clarity insights from canvas error:", error);
+    return { created, skipped };
+  }
+}
+
+/**
+ * Check if Clarity Method has content that could inform Clarity Document
+ */
+export function canvasHasClarityContent(strategicTruth: ClarityStrategicTruth | null): boolean {
+  if (!strategicTruth) return false;
+
+  return Object.keys(CLARITY_METHOD_TO_DOC_MAPPING).some(field => {
+    const value = strategicTruth[field as keyof ClarityStrategicTruth]?.value;
+    return value && value.trim().length > 0;
+  });
 }

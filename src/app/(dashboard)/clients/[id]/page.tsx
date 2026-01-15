@@ -36,6 +36,7 @@ import {
   Mail,
   StickyNote,
   AlertCircle,
+  Compass,
 } from "lucide-react";
 import Link from "next/link";
 import { formatDistanceToNow, isPast } from "date-fns";
@@ -46,6 +47,7 @@ import { DealBadge } from "@/components/deal-badge";
 import { NoteDialog } from "@/components/note-dialog";
 import { ChatComposer } from "@/components/chat";
 import { PhoneInput } from "@/components/ui/phone-input";
+import { ClientSignals } from "@/components/client-signals";
 import { cn } from "@/lib/utils";
 
 interface Client {
@@ -107,8 +109,16 @@ interface Note {
   createdAt: string;
 }
 
+interface ClarityMethodStatus {
+  exists: boolean;
+  phase?: string;
+  hasStrategicTruth?: boolean;
+  lastUpdated?: string;
+}
+
 const NOTE_TYPE_COLORS: Record<string, string> = {
   general: "bg-gray-100 text-gray-700",
+  discussion: "bg-cyan-100 text-cyan-700",
   future: "bg-blue-100 text-blue-700",
   competitor: "bg-red-100 text-red-700",
   partner: "bg-green-100 text-green-700",
@@ -136,6 +146,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   const [sessions, setSessions] = useState<Session[]>([]);
   const [actionItems, setActionItems] = useState<ActionItem[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
+  const [clarityMethod, setClarityMethod] = useState<ClarityMethodStatus>({ exists: false });
   const [loading, setLoading] = useState(true);
   const [showAddTodo, setShowAddTodo] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -179,12 +190,13 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [clientRes, sourcesRes, sessionsRes, actionsRes, notesRes] = await Promise.all([
+        const [clientRes, sourcesRes, sessionsRes, actionsRes, notesRes, clarityMethodRes] = await Promise.all([
           fetch(`/api/clients/${params.id}`),
           fetch(`/api/clients/${params.id}/sources`),
           fetch(`/api/sessions?clientId=${params.id}`),
           fetch(`/api/action-items?clientId=${params.id}&status=pending`),
           fetch(`/api/notes?clientId=${params.id}&limit=5`),
+          fetch(`/api/clarity-method/${params.id}`),
         ]);
 
         if (clientRes.ok) setClient(await clientRes.json());
@@ -192,6 +204,20 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
         if (sessionsRes.ok) setSessions(await sessionsRes.json());
         if (actionsRes.ok) setActionItems(await actionsRes.json());
         if (notesRes.ok) setNotes(await notesRes.json());
+        if (clarityMethodRes.ok) {
+          const data = await clarityMethodRes.json();
+          const canvas = data.canvas;
+          setClarityMethod({
+            exists: true,
+            phase: canvas.phase,
+            hasStrategicTruth: !!(
+              canvas.strategicTruth?.whoWeAre?.value ||
+              canvas.strategicTruth?.whatWeDo?.value ||
+              canvas.strategicTruth?.theWedge?.value
+            ),
+            lastUpdated: canvas.updatedAt,
+          });
+        }
       } catch (error) {
         console.error("Failed to fetch client data:", error);
       } finally {
@@ -377,7 +403,19 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                 <Button variant="outline" className="gap-2 w-full sm:w-auto" size="sm">
                   <FileText className="h-4 w-4" />
                   <span className="hidden sm:inline">Clarity Doc</span>
-                  <span className="sm:hidden">Clarity</span>
+                  <span className="sm:hidden">Doc</span>
+                </Button>
+              </Link>
+              <Link href={`/methods/clarity/${client.id}`} className="flex-1 sm:flex-none">
+                <Button variant="outline" className="gap-2 w-full sm:w-auto" size="sm">
+                  <Compass className="h-4 w-4" />
+                  <span className="hidden sm:inline">Clarity Method</span>
+                  <span className="sm:hidden">Method</span>
+                  {clarityMethod.hasStrategicTruth && (
+                    <Badge variant="secondary" className="text-xs ml-1 hidden sm:inline-flex">
+                      {clarityMethod.phase}
+                    </Badge>
+                  )}
                 </Button>
               </Link>
               <Link href={`/session/new?client=${client.id}`} className="flex-1 sm:flex-none">
@@ -691,6 +729,11 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
               )}
             </CardContent>
           </Card>
+
+          {/* Client Signals - AI-powered insights and call agenda */}
+          <div className="lg:col-span-2">
+            <ClientSignals clientId={params.id} clientName={client.name} />
+          </div>
 
           {/* Quick Chat */}
           <Card className="lg:col-span-2">

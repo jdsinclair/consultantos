@@ -25,6 +25,7 @@ interface NoteDialogProps {
 
 const NOTE_TYPES = [
   { value: "general", label: "General", color: "bg-gray-100 text-gray-700" },
+  { value: "discussion", label: "Next Call", color: "bg-cyan-100 text-cyan-700" },
   { value: "future", label: "Future", color: "bg-blue-100 text-blue-700" },
   { value: "competitor", label: "Competitor", color: "bg-red-100 text-red-700" },
   { value: "partner", label: "Partner", color: "bg-green-100 text-green-700" },

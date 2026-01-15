@@ -23,10 +23,25 @@ export async function GET(
     const { searchParams } = new URL(req.url);
     const includeAll = searchParams.get("all") === "true";
     const countOnly = searchParams.get("count") === "true";
+    const status = searchParams.get("status");
+    const limitParam = searchParams.get("limit");
+    const limit = limitParam ? parseInt(limitParam, 10) : undefined;
 
     if (countOnly) {
       const count = await countPendingInsights(params.id, user.id);
       return NextResponse.json({ count });
+    }
+
+    // If status=pending with limit, return both insights and total count
+    if (status === "pending" && limit) {
+      const [allPending, total] = await Promise.all([
+        getPendingInsights(params.id, user.id),
+        countPendingInsights(params.id, user.id),
+      ]);
+      return NextResponse.json({
+        insights: allPending.slice(0, limit),
+        total,
+      });
     }
 
     const insights = includeAll

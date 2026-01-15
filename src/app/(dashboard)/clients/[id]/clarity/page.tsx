@@ -31,6 +31,8 @@ import {
   AlertCircle,
   CheckCircle2,
   LockIcon,
+  Compass,
+  Download,
 } from "lucide-react";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
@@ -147,13 +149,21 @@ function FieldStatusControl({
   );
 }
 
+interface ClarityMethodCanvas {
+  exists: boolean;
+  hasStrategicTruth: boolean;
+  phase?: string;
+}
+
 export default function ClarityDocumentPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const [client, setClient] = useState<Client | null>(null);
   const [doc, setDoc] = useState<ClarityDocument | null>(null);
   const [insights, setInsights] = useState<ClarityInsight[]>([]);
+  const [canvas, setCanvas] = useState<ClarityMethodCanvas>({ exists: false, hasStrategicTruth: false });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [newSection, setNewSection] = useState({ title: "", content: "" });
   const [showAddSection, setShowAddSection] = useState(false);
@@ -166,15 +176,29 @@ export default function ClarityDocumentPage({ params }: { params: { id: string }
 
   const fetchData = async () => {
     try {
-      const [clientRes, clarityRes, insightsRes] = await Promise.all([
+      const [clientRes, clarityRes, insightsRes, canvasRes] = await Promise.all([
         fetch(`/api/clients/${params.id}`),
         fetch(`/api/clients/${params.id}/clarity`),
         fetch(`/api/clients/${params.id}/clarity/insights`),
+        fetch(`/api/clarity-method/${params.id}`),
       ]);
 
       if (clientRes.ok) setClient(await clientRes.json());
       if (clarityRes.ok) setDoc(await clarityRes.json());
       if (insightsRes.ok) setInsights(await insightsRes.json());
+      if (canvasRes.ok) {
+        const data = await canvasRes.json();
+        const c = data.canvas;
+        setCanvas({
+          exists: true,
+          hasStrategicTruth: !!(
+            c.strategicTruth?.whoWeAre?.value ||
+            c.strategicTruth?.whatWeDo?.value ||
+            c.strategicTruth?.theWedge?.value
+          ),
+          phase: c.phase,
+        });
+      }
     } catch (error) {
       console.error("Failed to fetch data:", error);
     } finally {
@@ -283,6 +307,33 @@ export default function ClarityDocumentPage({ params }: { params: { id: string }
     }
   };
 
+  const handleImportFromCanvas = async () => {
+    setImporting(true);
+    try {
+      const res = await fetch(`/api/clients/${params.id}/clarity/import-from-canvas`, {
+        method: "POST",
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.created > 0) {
+          // Refresh insights to show new ones
+          await fetchData();
+          setShowInsightsPanel(true);
+        }
+        alert(data.message);
+      } else {
+        const error = await res.json();
+        alert(error.error || "Failed to import");
+      }
+    } catch (error) {
+      console.error("Failed to import from canvas:", error);
+      alert("Failed to import from Clarity Method");
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const getFieldStatus = (fieldName: string): ClarityFieldMeta | undefined => {
     return doc?.fieldMeta?.[fieldName];
   };
@@ -362,6 +413,26 @@ export default function ClarityDocumentPage({ params }: { params: { id: string }
         </Link>
 
         <div className="flex items-center gap-2">
+          {/* Import from Clarity Method */}
+          {canvas.hasStrategicTruth && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleImportFromCanvas}
+              disabled={importing}
+              className="gap-2"
+              title="Import insights from Clarity Method canvas"
+            >
+              {importing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Compass className="h-4 w-4" />
+              )}
+              <span className="hidden sm:inline">Import from Method</span>
+              <Download className="h-3 w-3 sm:hidden" />
+            </Button>
+          )}
+
           {/* Insights Bell */}
           <Button
             variant={showInsightsPanel ? "default" : "outline"}
