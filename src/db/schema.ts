@@ -66,6 +66,7 @@ export const clients = pgTable('clients', {
   dealValue: integer('deal_value'), // in cents (e.g., 500000 = $5,000)
   dealStatus: text('deal_status').default('none'), // none, placeholder, presented, active
   dealNotes: text('deal_notes'), // private notes about the deal
+  hourlyRate: integer('hourly_rate'), // in cents (e.g., 15000 = $150/hr)
   // Prospect evaluation
   evaluation: jsonb('evaluation').$type<ProspectEvaluation>(), // AI evaluation of the prospect
   evaluatedAt: timestamp('evaluated_at'),
