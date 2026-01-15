@@ -9,6 +9,26 @@ import {
 
 export const dynamic = "force-dynamic";
 
+// Initiative (section) schema with full metadata support
+const initiativeSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  objective: z.string().optional(),
+  goal: z.string().optional(),
+  successMetrics: z.object({
+    quantitative: z.array(z.string()),
+    qualitative: z.array(z.string()),
+  }).optional(),
+  rules: z.array(z.string()).optional(),
+  why: z.string().optional(),
+  what: z.string().optional(),
+  notes: z.string().optional(),
+  status: z.enum(["draft", "active", "completed", "backlog"]).optional(),
+  items: z.array(z.any()), // Items can be nested
+  order: z.number(),
+  collapsed: z.boolean().optional(),
+});
+
 const updatePlanSchema = z.object({
   title: z.string().min(1).optional(),
   objective: z.string().optional(),
@@ -20,7 +40,7 @@ const updatePlanSchema = z.object({
     quantitative: z.array(z.string()),
     qualitative: z.array(z.string()),
   }).optional(),
-  sections: z.array(z.any()).optional(),
+  sections: z.array(initiativeSchema).optional(),  // Now properly typed
   notes: z.string().optional(),
   rules: z.array(z.string()).optional(),
   status: z.enum(["draft", "active", "completed", "archived"]).optional(),

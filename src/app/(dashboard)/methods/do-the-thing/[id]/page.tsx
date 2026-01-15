@@ -39,9 +39,12 @@ import {
   GripVertical,
   ChevronDown,
   ChevronRight,
+  ChevronUp,
   Sparkles,
   Send,
   ArrowLeft,
+  ArrowUp,
+  ArrowDown,
   Save,
   Loader2,
   MessageSquare,
@@ -59,6 +62,10 @@ import {
   Download,
   Link2,
   Table2,
+  MoveRight,
+  Layers,
+  Settings2,
+  MoreVertical,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -96,13 +103,29 @@ interface PlanItem {
   blockedBy?: string;
 }
 
-interface PlanSection {
+interface InitiativeMetrics {
+  quantitative: string[];
+  qualitative: string[];
+}
+
+interface PlanSection {  // Now represents an "Initiative"
   id: string;
   title: string;
+  
+  // Initiative-level planning (optional - fill in when it's a real initiative)
+  objective?: string;
+  goal?: string;
+  successMetrics?: InitiativeMetrics;
+  rules?: string[];
+  
+  // Context
   why?: string;
   what?: string;
   notes?: string;
-  status?: 'not_started' | 'in_progress' | 'blocked' | 'done';
+  
+  // Lifecycle
+  status?: 'draft' | 'active' | 'completed' | 'backlog';
+  
   items: PlanItem[];
   order: number;
   collapsed?: boolean;
@@ -469,18 +492,22 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
     }
   };
 
-  // Section management
-  const addSection = () => {
+  // Initiative (section) management
+  const addInitiative = (status: 'draft' | 'active' | 'backlog' = 'draft') => {
     const sections = plan?.sections || [];
     const newSection: PlanSection = {
       id: crypto.randomUUID(),
-      title: `(${String.fromCharCode(97 + sections.length)}) New Section`,
+      title: "New Initiative",
+      status,
       items: [],
       order: sections.length,
     };
     updatePlan({ sections: [...sections, newSection] });
     setExpandedSections((prev) => new Set([...Array.from(prev), newSection.id]));
   };
+
+  // Legacy alias
+  const addSection = () => addInitiative('draft');
 
   const updateSection = (sectionId: string, updates: Partial<PlanSection>) => {
     const sections = plan?.sections?.map((s) =>
@@ -492,6 +519,100 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
   const deleteSection = (sectionId: string) => {
     const sections = plan?.sections?.filter((s) => s.id !== sectionId);
     updatePlan({ sections });
+  };
+
+  // Move item between initiatives
+  const moveItemToInitiative = (fromSectionId: string, itemId: string, toSectionId: string) => {
+    if (!plan?.sections) return;
+    
+    let movedItem: PlanItem | null = null;
+    
+    // Remove from source
+    const sectionsWithoutItem = plan.sections.map((s) => {
+      if (s.id === fromSectionId) {
+        const item = s.items.find(i => i.id === itemId);
+        if (item) movedItem = item;
+        return { ...s, items: s.items.filter(i => i.id !== itemId) };
+      }
+      return s;
+    });
+    
+    if (!movedItem) return;
+    
+    // Add to destination
+    const sections = sectionsWithoutItem.map((s) => {
+      if (s.id === toSectionId) {
+        return { ...s, items: [...s.items, { ...movedItem!, order: s.items.length }] };
+      }
+      return s;
+    });
+    
+    updatePlan({ sections });
+  };
+
+  // Promote item to its own initiative
+  const promoteToInitiative = (sectionId: string, itemId: string) => {
+    if (!plan?.sections) return;
+    
+    const section = plan.sections.find(s => s.id === sectionId);
+    const item = section?.items.find(i => i.id === itemId);
+    if (!item) return;
+    
+    // Create new initiative with item text as objective
+    const newInitiative: PlanSection = {
+      id: crypto.randomUUID(),
+      title: item.text || "New Initiative",
+      objective: item.text,
+      status: 'draft',
+      items: [],
+      order: plan.sections.length,
+    };
+    
+    // Remove item from source, add new initiative
+    const sections = plan.sections.map((s) => {
+      if (s.id === sectionId) {
+        return { ...s, items: s.items.filter(i => i.id !== itemId) };
+      }
+      return s;
+    });
+    
+    updatePlan({ sections: [...sections, newInitiative] });
+    setExpandedSections((prev) => new Set([...Array.from(prev), newInitiative.id]));
+  };
+
+  // Reorder items within a section
+  const reorderItem = (sectionId: string, itemId: string, direction: 'up' | 'down') => {
+    if (!plan?.sections) return;
+    
+    const sections = plan.sections.map((s) => {
+      if (s.id !== sectionId) return s;
+      
+      const idx = s.items.findIndex(i => i.id === itemId);
+      if (idx === -1) return s;
+      if (direction === 'up' && idx === 0) return s;
+      if (direction === 'down' && idx === s.items.length - 1) return s;
+      
+      const newItems = [...s.items];
+      const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+      [newItems[idx], newItems[swapIdx]] = [newItems[swapIdx], newItems[idx]];
+      
+      // Update order values
+      newItems.forEach((item, i) => {
+        item.order = i;
+      });
+      
+      return { ...s, items: newItems };
+    });
+    
+    updatePlan({ sections });
+  };
+
+  // Get sections grouped by status
+  const groupedSections = {
+    active: plan?.sections?.filter(s => s.status === 'active') || [],
+    draft: plan?.sections?.filter(s => s.status === 'draft' || !s.status) || [],
+    backlog: plan?.sections?.filter(s => s.status === 'backlog') || [],
+    completed: plan?.sections?.filter(s => s.status === 'completed') || [],
   };
 
   // Item management
@@ -986,29 +1107,42 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
           </CardContent>
         </Card>
 
-        {/* Sections / The Plan */}
+        {/* Initiatives / The Plan */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold flex items-center gap-2">
-              <FileText className="h-5 w-5 text-orange-500" />
-              The Plan
+              <Layers className="h-5 w-5 text-orange-500" />
+              Initiatives
             </h2>
-            <Button variant="outline" size="sm" onClick={addSection}>
-              <Plus className="h-4 w-4 mr-1" />
-              Add Section
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => addInitiative('draft')}>
+                <Plus className="h-4 w-4 mr-1" />
+                Add Initiative
+              </Button>
+              {!plan.sections?.length && (
+                <Button 
+                  size="sm" 
+                  onClick={generatePlan}
+                  disabled={generating}
+                  className="bg-gradient-to-r from-orange-500 to-red-600"
+                >
+                  <Wand2 className="h-4 w-4 mr-1" />
+                  Generate
+                </Button>
+              )}
+            </div>
           </div>
 
           {(!plan.sections || plan.sections.length === 0) && (
             <Card className="border-dashed">
               <CardContent className="flex flex-col items-center justify-center py-8">
                 <p className="text-muted-foreground text-sm mb-3">
-                  No sections yet. Add one or generate with AI.
+                  No initiatives yet. Add one or generate with AI.
                 </p>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={addSection}>
+                  <Button variant="outline" size="sm" onClick={() => addInitiative('active')}>
                     <Plus className="h-4 w-4 mr-1" />
-                    Add Section
+                    Add Initiative
                   </Button>
                   <Button 
                     size="sm" 
@@ -1024,115 +1158,155 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
             </Card>
           )}
 
-          {plan.sections?.map((section) => (
-            <Card key={section.id} className="overflow-hidden">
-              <CardHeader className="py-3 bg-muted/30">
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={() => {
-                      setExpandedSections((prev) => {
-                        const next = new Set(prev);
-                        if (next.has(section.id)) {
-                          next.delete(section.id);
-                        } else {
-                          next.add(section.id);
-                        }
-                        return next;
-                      });
-                    }}
-                  >
-                    {expandedSections.has(section.id) ? (
-                      <ChevronDown className="h-4 w-4" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4" />
-                    )}
-                  </Button>
-                  <Input
-                    value={section.title}
-                    onChange={(e) => updateSection(section.id, { title: e.target.value })}
-                    className="font-semibold border-0 bg-transparent focus-visible:ring-0 p-0 h-auto"
-                  />
-                  {section.status && (
-                    <Badge variant="outline" className={cn(
-                      "text-xs",
-                      section.status === "in_progress" && "bg-blue-500/20 text-blue-500",
-                      section.status === "done" && "bg-green-500/20 text-green-500",
-                      section.status === "blocked" && "bg-red-500/20 text-red-500",
-                      section.status === "not_started" && "bg-muted text-muted-foreground"
-                    )}>
-                      {section.status.replace("_", " ")}
-                    </Badge>
-                  )}
-                  <Badge variant="outline" className="ml-auto">
-                    {section.items.length} items
-                  </Badge>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                    onClick={() => deleteSection(section.id)}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
-              </CardHeader>
+          {/* Active Initiatives */}
+          {groupedSections.active.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm font-medium text-green-500">
+                <div className="h-2 w-2 rounded-full bg-green-500" />
+                Active
+              </div>
+              {groupedSections.active.map((section) => (
+                <InitiativeCard 
+                  key={section.id} 
+                  section={section}
+                  allSections={plan?.sections || []}
+                  expanded={expandedSections.has(section.id)}
+                  onToggle={() => {
+                    setExpandedSections((prev) => {
+                      const next = new Set(prev);
+                      next.has(section.id) ? next.delete(section.id) : next.add(section.id);
+                      return next;
+                    });
+                  }}
+                  onUpdate={(updates) => updateSection(section.id, updates)}
+                  onDelete={() => deleteSection(section.id)}
+                  onAddItem={() => addItem(section.id)}
+                  onUpdateItem={updateItem}
+                  onDeleteItem={deleteItem}
+                  onAddChildItem={addItem}
+                  onMoveItem={moveItemToInitiative}
+                  onPromoteItem={promoteToInitiative}
+                  onReorderItem={reorderItem}
+                />
+              ))}
+            </div>
+          )}
 
-              {expandedSections.has(section.id) && (
-                <CardContent className="pt-3 space-y-3">
-                  {/* Section Why/What/Notes */}
-                  {(section.why || section.what || section.notes) && (
-                    <div className="grid gap-2 text-sm mb-4 p-3 bg-muted/50 rounded-lg">
-                      {section.why && (
-                        <div>
-                          <span className="font-medium text-orange-500">Why: </span>
-                          <span className="text-muted-foreground">{section.why}</span>
-                        </div>
-                      )}
-                      {section.what && (
-                        <div>
-                          <span className="font-medium text-green-500">What: </span>
-                          <span className="text-muted-foreground">{section.what}</span>
-                        </div>
-                      )}
-                      {section.notes && (
-                        <div>
-                          <span className="font-medium text-yellow-500">Note: </span>
-                          <span className="text-muted-foreground">{section.notes}</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
+          {/* Draft Initiatives */}
+          {groupedSections.draft.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm font-medium text-yellow-500">
+                <div className="h-2 w-2 rounded-full bg-yellow-500" />
+                Draft
+              </div>
+              {groupedSections.draft.map((section) => (
+                <InitiativeCard 
+                  key={section.id} 
+                  section={section}
+                  allSections={plan?.sections || []}
+                  expanded={expandedSections.has(section.id)}
+                  onToggle={() => {
+                    setExpandedSections((prev) => {
+                      const next = new Set(prev);
+                      next.has(section.id) ? next.delete(section.id) : next.add(section.id);
+                      return next;
+                    });
+                  }}
+                  onUpdate={(updates) => updateSection(section.id, updates)}
+                  onDelete={() => deleteSection(section.id)}
+                  onAddItem={() => addItem(section.id)}
+                  onUpdateItem={updateItem}
+                  onDeleteItem={deleteItem}
+                  onAddChildItem={addItem}
+                  onMoveItem={moveItemToInitiative}
+                  onPromoteItem={promoteToInitiative}
+                  onReorderItem={reorderItem}
+                />
+              ))}
+            </div>
+          )}
 
-                  {/* Items */}
-                  <div className="space-y-1">
-                    {section.items.map((item) => (
-                      <PlanItemRow
-                        key={item.id}
-                        item={item}
-                        sectionId={section.id}
-                        onUpdate={updateItem}
-                        onDelete={deleteItem}
-                        onAddChild={addItem}
-                        depth={0}
-                      />
-                    ))}
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full justify-start text-muted-foreground hover:text-foreground mt-2"
-                    onClick={() => addItem(section.id)}
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add item
-                  </Button>
-                </CardContent>
-              )}
-            </Card>
-          ))}
+          {/* Backlog */}
+          {groupedSections.backlog.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                <div className="h-2 w-2 rounded-full bg-muted-foreground" />
+                Backlog
+              </div>
+              {groupedSections.backlog.map((section) => (
+                <InitiativeCard 
+                  key={section.id} 
+                  section={section}
+                  allSections={plan?.sections || []}
+                  expanded={expandedSections.has(section.id)}
+                  onToggle={() => {
+                    setExpandedSections((prev) => {
+                      const next = new Set(prev);
+                      next.has(section.id) ? next.delete(section.id) : next.add(section.id);
+                      return next;
+                    });
+                  }}
+                  onUpdate={(updates) => updateSection(section.id, updates)}
+                  onDelete={() => deleteSection(section.id)}
+                  onAddItem={() => addItem(section.id)}
+                  onUpdateItem={updateItem}
+                  onDeleteItem={deleteItem}
+                  onAddChildItem={addItem}
+                  onMoveItem={moveItemToInitiative}
+                  onPromoteItem={promoteToInitiative}
+                  onReorderItem={reorderItem}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Completed - collapsed by default */}
+          {groupedSections.completed.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm font-medium text-blue-500">
+                <CheckCircle2 className="h-3 w-3" />
+                Completed ({groupedSections.completed.length})
+              </div>
+              {groupedSections.completed.map((section) => (
+                <InitiativeCard 
+                  key={section.id} 
+                  section={section}
+                  allSections={plan?.sections || []}
+                  expanded={expandedSections.has(section.id)}
+                  onToggle={() => {
+                    setExpandedSections((prev) => {
+                      const next = new Set(prev);
+                      next.has(section.id) ? next.delete(section.id) : next.add(section.id);
+                      return next;
+                    });
+                  }}
+                  onUpdate={(updates) => updateSection(section.id, updates)}
+                  onDelete={() => deleteSection(section.id)}
+                  onAddItem={() => addItem(section.id)}
+                  onUpdateItem={updateItem}
+                  onDeleteItem={deleteItem}
+                  onAddChildItem={addItem}
+                  onMoveItem={moveItemToInitiative}
+                  onPromoteItem={promoteToInitiative}
+                  onReorderItem={reorderItem}
+                  isCompleted
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Quick add buttons for empty groups */}
+          {plan.sections && plan.sections.length > 0 && groupedSections.backlog.length === 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground"
+              onClick={() => addInitiative('backlog')}
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              Add Backlog
+            </Button>
+          )}
         </div>
 
         {/* Notes */}
@@ -1352,7 +1526,562 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
   );
 }
 
-// Recursive item component
+// Initiative card component
+function InitiativeCard({
+  section,
+  allSections,
+  expanded,
+  onToggle,
+  onUpdate,
+  onDelete,
+  onAddItem,
+  onUpdateItem,
+  onDeleteItem,
+  onAddChildItem,
+  onMoveItem,
+  onPromoteItem,
+  onReorderItem,
+  isCompleted = false,
+}: {
+  section: PlanSection;
+  allSections: PlanSection[];
+  expanded: boolean;
+  onToggle: () => void;
+  onUpdate: (updates: Partial<PlanSection>) => void;
+  onDelete: () => void;
+  onAddItem: () => void;
+  onUpdateItem: (sectionId: string, itemId: string, updates: Partial<PlanItem>) => void;
+  onDeleteItem: (sectionId: string, itemId: string) => void;
+  onAddChildItem: (sectionId: string, parentId: string) => void;
+  onMoveItem: (fromSectionId: string, itemId: string, toSectionId: string) => void;
+  onPromoteItem: (sectionId: string, itemId: string) => void;
+  onReorderItem: (sectionId: string, itemId: string, direction: 'up' | 'down') => void;
+  isCompleted?: boolean;
+}) {
+  const [showMetadata, setShowMetadata] = useState(false);
+  const completedCount = section.items.filter(i => i.done).length;
+  const progress = section.items.length > 0 ? (completedCount / section.items.length) * 100 : 0;
+
+  return (
+    <Card className={cn("overflow-hidden", isCompleted && "opacity-60")}>
+      <CardHeader className={cn(
+        "py-3",
+        section.status === "active" && "bg-green-500/5 border-l-2 border-l-green-500",
+        section.status === "draft" && "bg-yellow-500/5 border-l-2 border-l-yellow-500",
+        section.status === "backlog" && "bg-muted/30",
+        section.status === "completed" && "bg-blue-500/5 border-l-2 border-l-blue-500"
+      )}>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            onClick={onToggle}
+          >
+            {expanded ? (
+              <ChevronDown className="h-4 w-4" />
+            ) : (
+              <ChevronRight className="h-4 w-4" />
+            )}
+          </Button>
+          <Input
+            value={section.title}
+            onChange={(e) => onUpdate({ title: e.target.value })}
+            className="font-semibold border-0 bg-transparent focus-visible:ring-0 p-0 h-auto flex-1"
+          />
+          
+          {/* Status selector */}
+          <Select
+            value={section.status || 'draft'}
+            onValueChange={(value: 'draft' | 'active' | 'completed' | 'backlog') => onUpdate({ status: value })}
+          >
+            <SelectTrigger className="w-[110px] h-7 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">🟢 Active</SelectItem>
+              <SelectItem value="draft">⚪ Draft</SelectItem>
+              <SelectItem value="backlog">📦 Backlog</SelectItem>
+              <SelectItem value="completed">✓ Completed</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Badge variant="outline" className="text-xs">
+            {completedCount}/{section.items.length}
+          </Badge>
+          
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            onClick={() => setShowMetadata(!showMetadata)}
+            title="Edit initiative details"
+          >
+            <Settings2 className="h-3 w-3" />
+          </Button>
+          
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 text-muted-foreground hover:text-destructive"
+            onClick={onDelete}
+          >
+            <Trash2 className="h-3 w-3" />
+          </Button>
+        </div>
+
+        {/* Progress bar */}
+        {section.items.length > 0 && (
+          <div className="mt-2 h-1 bg-muted rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-green-500 transition-all duration-300"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        )}
+
+        {/* Quick info - objective preview */}
+        {section.objective && !expanded && (
+          <p className="text-xs text-muted-foreground mt-2 truncate">
+            {section.objective}
+          </p>
+        )}
+      </CardHeader>
+
+      {expanded && (
+        <CardContent className="pt-3 space-y-3">
+          {/* Metadata editor */}
+          {showMetadata && (
+            <div className="border rounded-lg p-4 space-y-4 bg-muted/30">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label className="text-xs">Objective</Label>
+                  <Textarea
+                    value={section.objective || ""}
+                    onChange={(e) => onUpdate({ objective: e.target.value })}
+                    placeholder="What is this initiative trying to achieve?"
+                    className="text-sm min-h-[60px]"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Goal (Definition of Done)</Label>
+                  <Textarea
+                    value={section.goal || ""}
+                    onChange={(e) => onUpdate({ goal: e.target.value })}
+                    placeholder="What does success look like?"
+                    className="text-sm min-h-[60px]"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="space-y-2">
+                  <Label className="text-xs text-orange-500">Why</Label>
+                  <Textarea
+                    value={section.why || ""}
+                    onChange={(e) => onUpdate({ why: e.target.value })}
+                    placeholder="Why are we doing this?"
+                    className="text-sm min-h-[50px]"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-green-500">What (Success Criteria)</Label>
+                  <Textarea
+                    value={section.what || ""}
+                    onChange={(e) => onUpdate({ what: e.target.value })}
+                    placeholder="How do we know it worked?"
+                    className="text-sm min-h-[50px]"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-yellow-500">Notes</Label>
+                  <Textarea
+                    value={section.notes || ""}
+                    onChange={(e) => onUpdate({ notes: e.target.value })}
+                    placeholder="Extra context..."
+                    className="text-sm min-h-[50px]"
+                  />
+                </div>
+              </div>
+
+              {/* Success Metrics */}
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label className="text-xs">Quantitative Metrics</Label>
+                  <div className="space-y-1">
+                    {section.successMetrics?.quantitative?.map((metric, i) => (
+                      <div key={i} className="flex items-center gap-2 text-sm">
+                        <span className="flex-1">{metric}</span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-5 w-5"
+                          onClick={() => {
+                            const metrics = {
+                              ...section.successMetrics,
+                              quantitative: section.successMetrics?.quantitative?.filter((_, idx) => idx !== i) || [],
+                              qualitative: section.successMetrics?.qualitative || [],
+                            };
+                            onUpdate({ successMetrics: metrics });
+                          }}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                    <Input
+                      placeholder="Add metric (press Enter)..."
+                      className="h-7 text-xs"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && e.currentTarget.value) {
+                          const metrics = {
+                            quantitative: [...(section.successMetrics?.quantitative || []), e.currentTarget.value],
+                            qualitative: section.successMetrics?.qualitative || [],
+                          };
+                          onUpdate({ successMetrics: metrics });
+                          e.currentTarget.value = "";
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Qualitative Metrics</Label>
+                  <div className="space-y-1">
+                    {section.successMetrics?.qualitative?.map((metric, i) => (
+                      <div key={i} className="flex items-center gap-2 text-sm">
+                        <span className="flex-1">{metric}</span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-5 w-5"
+                          onClick={() => {
+                            const metrics = {
+                              quantitative: section.successMetrics?.quantitative || [],
+                              qualitative: section.successMetrics?.qualitative?.filter((_, idx) => idx !== i) || [],
+                            };
+                            onUpdate({ successMetrics: metrics });
+                          }}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                    <Input
+                      placeholder="Add metric (press Enter)..."
+                      className="h-7 text-xs"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && e.currentTarget.value) {
+                          const metrics = {
+                            quantitative: section.successMetrics?.quantitative || [],
+                            qualitative: [...(section.successMetrics?.qualitative || []), e.currentTarget.value],
+                          };
+                          onUpdate({ successMetrics: metrics });
+                          e.currentTarget.value = "";
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Rules */}
+              <div className="space-y-2">
+                <Label className="text-xs">Rules / Constraints</Label>
+                <div className="space-y-1">
+                  {section.rules?.map((rule, i) => (
+                    <div key={i} className="flex items-center gap-2 text-sm">
+                      <Shield className="h-3 w-3 text-red-500 flex-shrink-0" />
+                      <span className="flex-1">{rule}</span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5"
+                        onClick={() => {
+                          onUpdate({ rules: section.rules?.filter((_, idx) => idx !== i) });
+                        }}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))}
+                  <Input
+                    placeholder="Add rule (press Enter)..."
+                    className="h-7 text-xs"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && e.currentTarget.value) {
+                        onUpdate({ rules: [...(section.rules || []), e.currentTarget.value] });
+                        e.currentTarget.value = "";
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Quick context display when metadata editor is closed */}
+          {!showMetadata && (section.objective || section.why || section.what) && (
+            <div className="grid gap-2 text-sm p-3 bg-muted/50 rounded-lg">
+              {section.objective && (
+                <div>
+                  <span className="font-medium text-primary">Objective: </span>
+                  <span className="text-muted-foreground">{section.objective}</span>
+                </div>
+              )}
+              {section.why && (
+                <div>
+                  <span className="font-medium text-orange-500">Why: </span>
+                  <span className="text-muted-foreground">{section.why}</span>
+                </div>
+              )}
+              {section.what && (
+                <div>
+                  <span className="font-medium text-green-500">Success: </span>
+                  <span className="text-muted-foreground">{section.what}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Items */}
+          <div className="space-y-1">
+            {section.items.map((item, idx) => (
+              <EnhancedPlanItemRow
+                key={item.id}
+                item={item}
+                itemIndex={idx}
+                totalItems={section.items.length}
+                sectionId={section.id}
+                allSections={allSections}
+                onUpdate={onUpdateItem}
+                onDelete={onDeleteItem}
+                onAddChild={onAddChildItem}
+                onMove={onMoveItem}
+                onPromote={onPromoteItem}
+                onReorder={onReorderItem}
+                depth={0}
+              />
+            ))}
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start text-muted-foreground hover:text-foreground mt-2"
+            onClick={onAddItem}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add item
+          </Button>
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
+// Enhanced item component with move/promote/reorder
+function EnhancedPlanItemRow({
+  item,
+  itemIndex,
+  totalItems,
+  sectionId,
+  allSections,
+  onUpdate,
+  onDelete,
+  onAddChild,
+  onMove,
+  onPromote,
+  onReorder,
+  depth,
+}: {
+  item: PlanItem;
+  itemIndex: number;
+  totalItems: number;
+  sectionId: string;
+  allSections: PlanSection[];
+  onUpdate: (sectionId: string, itemId: string, updates: Partial<PlanItem>) => void;
+  onDelete: (sectionId: string, itemId: string) => void;
+  onAddChild: (sectionId: string, parentId: string) => void;
+  onMove: (fromSectionId: string, itemId: string, toSectionId: string) => void;
+  onPromote: (sectionId: string, itemId: string) => void;
+  onReorder: (sectionId: string, itemId: string, direction: 'up' | 'down') => void;
+  depth: number;
+}) {
+  const [expanded, setExpanded] = useState(true);
+  const [showMoveMenu, setShowMoveMenu] = useState(false);
+  const hasChildren = item.children && item.children.length > 0;
+  const otherSections = allSections.filter(s => s.id !== sectionId);
+
+  return (
+    <div style={{ marginLeft: depth * 20 }}>
+      <div className="flex items-center gap-2 group py-1">
+        {/* Reorder buttons */}
+        <div className="flex flex-col opacity-0 group-hover:opacity-100">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-4 w-4"
+            onClick={() => onReorder(sectionId, item.id, 'up')}
+            disabled={itemIndex === 0}
+          >
+            <ChevronUp className="h-3 w-3" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-4 w-4"
+            onClick={() => onReorder(sectionId, item.id, 'down')}
+            disabled={itemIndex === totalItems - 1}
+          >
+            <ChevronDown className="h-3 w-3" />
+          </Button>
+        </div>
+
+        {hasChildren ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-5 w-5"
+            onClick={() => setExpanded(!expanded)}
+          >
+            {expanded ? (
+              <ChevronDown className="h-3 w-3" />
+            ) : (
+              <ChevronRight className="h-3 w-3" />
+            )}
+          </Button>
+        ) : (
+          <div className="w-5" />
+        )}
+
+        <Checkbox
+          checked={item.done}
+          onCheckedChange={(checked) =>
+            onUpdate(sectionId, item.id, { done: !!checked })
+          }
+        />
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <Input
+              value={item.text}
+              onChange={(e) => onUpdate(sectionId, item.id, { text: e.target.value })}
+              className={cn(
+                "flex-1 border-0 bg-transparent focus-visible:ring-0 p-0 h-auto text-sm",
+                item.done && "line-through text-muted-foreground"
+              )}
+              placeholder="Action item..."
+            />
+            {item.priority && (
+              <Badge variant="outline" className={cn(
+                "text-[10px] px-1.5 py-0 h-4 flex-shrink-0",
+                item.priority === "now" && "bg-red-500/20 text-red-500 border-red-500/30",
+                item.priority === "next" && "bg-yellow-500/20 text-yellow-500 border-yellow-500/30",
+                item.priority === "later" && "bg-muted text-muted-foreground"
+              )}>
+                {item.priority}
+              </Badge>
+            )}
+          </div>
+          {item.notes && (
+            <p className="text-xs text-muted-foreground ml-0 mt-0.5 italic">
+              💡 {item.notes}
+            </p>
+          )}
+        </div>
+
+        <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 flex-shrink-0">
+          {/* Move to initiative */}
+          {otherSections.length > 0 && (
+            <div className="relative">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                onClick={() => setShowMoveMenu(!showMoveMenu)}
+                title="Move to another initiative"
+              >
+                <MoveRight className="h-3 w-3" />
+              </Button>
+              {showMoveMenu && (
+                <div className="absolute right-0 top-full mt-1 bg-popover border rounded-lg shadow-lg z-50 min-w-[180px]">
+                  <div className="p-1">
+                    <p className="text-xs text-muted-foreground px-2 py-1">Move to:</p>
+                    {otherSections.map((s) => (
+                      <button
+                        key={s.id}
+                        className="w-full text-left px-2 py-1.5 text-sm hover:bg-accent rounded"
+                        onClick={() => {
+                          onMove(sectionId, item.id, s.id);
+                          setShowMoveMenu(false);
+                        }}
+                      >
+                        {s.title}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* Promote to initiative */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            onClick={() => onPromote(sectionId, item.id)}
+            title="Promote to its own initiative"
+          >
+            <Layers className="h-3 w-3" />
+          </Button>
+          
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            onClick={() => onAddChild(sectionId, item.id)}
+            title="Add sub-item"
+          >
+            <Plus className="h-3 w-3" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 text-muted-foreground hover:text-destructive"
+            onClick={() => onDelete(sectionId, item.id)}
+          >
+            <Trash2 className="h-3 w-3" />
+          </Button>
+        </div>
+      </div>
+
+      {expanded && hasChildren && (
+        <div>
+          {item.children!.map((child, idx) => (
+            <EnhancedPlanItemRow
+              key={child.id}
+              item={child}
+              itemIndex={idx}
+              totalItems={item.children!.length}
+              sectionId={sectionId}
+              allSections={allSections}
+              onUpdate={onUpdate}
+              onDelete={onDelete}
+              onAddChild={onAddChild}
+              onMove={onMove}
+              onPromote={onPromote}
+              onReorder={onReorder}
+              depth={depth + 1}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Recursive item component (legacy - kept for compatibility)
 function PlanItemRow({
   item,
   sectionId,

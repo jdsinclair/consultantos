@@ -298,18 +298,35 @@ export const clarityMethodCanvases = pgTable('clarity_method_canvases', {
   userIdx: index('clarity_canvas_user_idx').on(table.userId),
 }));
 
+// Initiative metrics for section-level tracking
+export interface InitiativeMetrics {
+  quantitative: string[];
+  qualitative: string[];
+}
+
 // "Do The Thing" Execution Plans - tactical drill-down from strategy to action
+// Sections are now "Initiatives" with full planning metadata
 export interface ExecutionPlanSection {
   id: string;
   title: string;
+  
+  // Initiative-level planning (optional - fill in when it's a real initiative)
+  objective?: string;  // What is this initiative trying to achieve?
+  goal?: string;       // Definition of done - what success looks like
+  successMetrics?: InitiativeMetrics;  // How we measure success
+  rules?: string[];    // Constraints/guardrails for this initiative
+  
+  // Context
+  why?: string;        // Why are we doing this? The rationale
+  what?: string;       // Success criteria
+  notes?: string;      // Extra context, things to remember
+  
+  // Lifecycle
+  status?: 'draft' | 'active' | 'completed' | 'backlog';
+  
   items: ExecutionPlanItem[];
   order: number;
   collapsed?: boolean;
-  // Optional section-level context
-  why?: string;      // Why are we doing this? The objective/rationale
-  what?: string;     // What does success look like for this section?
-  notes?: string;    // Extra context, considerations, things to remember
-  status?: 'not_started' | 'in_progress' | 'blocked' | 'done';
 }
 
 export interface ExecutionPlanItem {
