@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useChat } from "ai/react";
+import { useChat, Message } from "ai/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -51,11 +51,24 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { ChatComposer } from "@/components/chat";
 
 interface Client {
   id: string;
   name: string;
   company?: string;
+}
+
+interface Source {
+  id: string;
+  name: string;
+  type: string;
+}
+
+interface Persona {
+  id: string;
+  name: string;
+  description?: string;
 }
 
 interface PlanItem {
@@ -111,16 +124,55 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // AI Chat
-  const { messages, input, handleInputChange, handleSubmit, isLoading: chatLoading } = useChat({
+  // Chat context
+  const [sources, setSources] = useState<Source[]>([]);
+  const [personas, setPersonas] = useState<Persona[]>([]);
+  const [selectedPersona, setSelectedPersona] = useState<string | null>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // Chat history storage key
+  const chatStorageKey = `dtt-chat-${params.id}`;
+
+  // Load persisted chat history
+  const getInitialMessages = (): Message[] => {
+    if (typeof window === "undefined") return [];
+    try {
+      const stored = localStorage.getItem(chatStorageKey);
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (e) {
+      console.error("Failed to load chat history:", e);
+    }
+    return [];
+  };
+
+  // AI Chat with clientId for RAG context
+  const { messages, append, setMessages, isLoading: chatLoading } = useChat({
     api: "/api/chat",
     body: {
       context: "execution-plan",
+      clientId: plan?.clientId, // Pass clientId for RAG context!
+      personaId: selectedPersona,
       plan: plan,
     },
+    initialMessages: getInitialMessages(),
+    onFinish: () => {
+      // Persist messages after each response
+      if (typeof window !== "undefined") {
+        localStorage.setItem(chatStorageKey, JSON.stringify(messages));
+      }
+    },
   });
-  const chatEndRef = useRef<HTMLDivElement>(null);
 
+  // Persist messages when they change
+  useEffect(() => {
+    if (messages.length > 0 && typeof window !== "undefined") {
+      localStorage.setItem(chatStorageKey, JSON.stringify(messages));
+    }
+  }, [messages, chatStorageKey]);
+
+  // Load plan data
   useEffect(() => {
     fetch(`/api/execution-plans/${params.id}`)
       .then((r) => r.json())
@@ -134,9 +186,71 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
       .finally(() => setLoading(false));
   }, [params.id]);
 
+  // Load sources when plan loads (for #source mentions)
+  useEffect(() => {
+    if (!plan?.clientId) return;
+    
+    fetch(`/api/clients/${plan.clientId}/sources`)
+      .then((r) => r.json())
+      .then(setSources)
+      .catch((e) => console.error("Failed to fetch sources:", e));
+  }, [plan?.clientId]);
+
+  // Load personas
+  useEffect(() => {
+    fetch("/api/personas")
+      .then((r) => r.json())
+      .then(setPersonas)
+      .catch((e) => console.error("Failed to fetch personas:", e));
+  }, []);
+
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Handle chat message submission from ChatComposer
+  const handleChatSubmit = useCallback((
+    message: string,
+    options: {
+      personaId?: string;
+      sourceIds?: string[];
+      attachments?: File[];
+    }
+  ) => {
+    // Handle commands
+    if (message === "/clear") {
+      setMessages([]);
+      localStorage.removeItem(chatStorageKey);
+      return;
+    }
+    if (message === "/help") {
+      append({
+        role: "assistant",
+        content: `**Available commands:**
+- \`/clear\` - Clear conversation history
+- \`@persona\` - Use a specific AI persona
+- \`#source\` - Reference a client source/document
+- Attach files to include them in context
+
+**Tips:**
+- Ask me to break down complex tasks
+- Use \`#\` to reference specific documents for context
+- Ask about risks or missing steps`,
+      });
+      return;
+    }
+
+    // Update selected persona if changed
+    if (options.personaId && options.personaId !== selectedPersona) {
+      setSelectedPersona(options.personaId);
+    }
+
+    // Append message
+    append({
+      role: "user",
+      content: message,
+    });
+  }, [append, setMessages, selectedPersona, chatStorageKey]);
 
   // Auto-save with debounce
   const autoSave = useCallback((updates: Partial<ExecutionPlan>) => {
@@ -815,9 +929,24 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
               <Sparkles className="h-4 w-4 text-orange-500" />
               AI Assistant
             </h3>
-            <Button variant="ghost" size="icon" onClick={() => setShowChat(false)}>
-              <X className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center gap-2">
+              {messages.length > 0 && (
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  className="text-xs text-muted-foreground"
+                  onClick={() => {
+                    setMessages([]);
+                    localStorage.removeItem(chatStorageKey);
+                  }}
+                >
+                  Clear
+                </Button>
+              )}
+              <Button variant="ghost" size="icon" onClick={() => setShowChat(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
 
           <div className="flex-1 overflow-auto p-4 space-y-4">
@@ -832,13 +961,19 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
                   <li>• Identify risks</li>
                   <li>• Refine your metrics</li>
                 </ul>
+                <div className="mt-4 p-3 bg-muted rounded-lg text-xs text-left">
+                  <p className="font-medium mb-1">💡 Tips:</p>
+                  <p>• Use <code className="bg-background px-1 rounded">#</code> to reference client sources</p>
+                  <p>• Use <code className="bg-background px-1 rounded">@</code> to select a persona</p>
+                  <p>• Attach files for context</p>
+                </div>
               </div>
             )}
             {messages.map((m) => (
               <div
                 key={m.id}
                 className={cn(
-                  "rounded-lg p-3 text-sm",
+                  "rounded-lg p-3 text-sm whitespace-pre-wrap",
                   m.role === "user"
                     ? "bg-primary text-primary-foreground ml-8"
                     : "bg-muted mr-8"
@@ -856,19 +991,19 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
             <div ref={chatEndRef} />
           </div>
 
-          <form onSubmit={handleSubmit} className="p-4 border-t">
-            <div className="flex gap-2">
-              <Input
-                value={input}
-                onChange={handleInputChange}
-                placeholder="Ask about this plan..."
-                disabled={chatLoading}
-              />
-              <Button type="submit" size="icon" disabled={chatLoading || !input}>
-                <Send className="h-4 w-4" />
-              </Button>
-            </div>
-          </form>
+          <div className="p-4 border-t">
+            <ChatComposer
+              onSubmit={handleChatSubmit}
+              personas={personas}
+              sources={sources}
+              selectedPersona={selectedPersona}
+              onPersonaChange={setSelectedPersona}
+              isLoading={chatLoading}
+              placeholder="Ask about this plan... Use @ # or attach files"
+              compact={false}
+              showAttachments={true}
+            />
+          </div>
         </div>
       )}
     </div>
