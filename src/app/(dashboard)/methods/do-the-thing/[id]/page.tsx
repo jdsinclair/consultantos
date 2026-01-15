@@ -920,6 +920,17 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
                     onChange={(e) => updateSection(section.id, { title: e.target.value })}
                     className="font-semibold border-0 bg-transparent focus-visible:ring-0 p-0 h-auto"
                   />
+                  {section.status && (
+                    <Badge variant="outline" className={cn(
+                      "text-xs",
+                      section.status === "in_progress" && "bg-blue-500/20 text-blue-500",
+                      section.status === "done" && "bg-green-500/20 text-green-500",
+                      section.status === "blocked" && "bg-red-500/20 text-red-500",
+                      section.status === "not_started" && "bg-muted text-muted-foreground"
+                    )}>
+                      {section.status.replace("_", " ")}
+                    </Badge>
+                  )}
                   <Badge variant="outline" className="ml-auto">
                     {section.items.length} items
                   </Badge>
@@ -935,18 +946,45 @@ export default function ExecutionPlanPage({ params }: { params: { id: string } }
               </CardHeader>
 
               {expandedSections.has(section.id) && (
-                <CardContent className="pt-3 space-y-1">
-                  {section.items.map((item) => (
-                    <PlanItemRow
-                      key={item.id}
-                      item={item}
-                      sectionId={section.id}
-                      onUpdate={updateItem}
-                      onDelete={deleteItem}
-                      onAddChild={addItem}
-                      depth={0}
-                    />
-                  ))}
+                <CardContent className="pt-3 space-y-3">
+                  {/* Section Why/What/Notes */}
+                  {(section.why || section.what || section.notes) && (
+                    <div className="grid gap-2 text-sm mb-4 p-3 bg-muted/50 rounded-lg">
+                      {section.why && (
+                        <div>
+                          <span className="font-medium text-orange-500">Why: </span>
+                          <span className="text-muted-foreground">{section.why}</span>
+                        </div>
+                      )}
+                      {section.what && (
+                        <div>
+                          <span className="font-medium text-green-500">What: </span>
+                          <span className="text-muted-foreground">{section.what}</span>
+                        </div>
+                      )}
+                      {section.notes && (
+                        <div>
+                          <span className="font-medium text-yellow-500">Note: </span>
+                          <span className="text-muted-foreground">{section.notes}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Items */}
+                  <div className="space-y-1">
+                    {section.items.map((item) => (
+                      <PlanItemRow
+                        key={item.id}
+                        item={item}
+                        sectionId={section.id}
+                        onUpdate={updateItem}
+                        onDelete={deleteItem}
+                        onAddChild={addItem}
+                        depth={0}
+                      />
+                    ))}
+                  </div>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -1157,17 +1195,36 @@ function PlanItemRow({
           }
         />
 
-        <Input
-          value={item.text}
-          onChange={(e) => onUpdate(sectionId, item.id, { text: e.target.value })}
-          className={cn(
-            "flex-1 border-0 bg-transparent focus-visible:ring-0 p-0 h-auto text-sm",
-            item.done && "line-through text-muted-foreground"
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <Input
+              value={item.text}
+              onChange={(e) => onUpdate(sectionId, item.id, { text: e.target.value })}
+              className={cn(
+                "flex-1 border-0 bg-transparent focus-visible:ring-0 p-0 h-auto text-sm",
+                item.done && "line-through text-muted-foreground"
+              )}
+              placeholder="Action item..."
+            />
+            {item.priority && (
+              <Badge variant="outline" className={cn(
+                "text-[10px] px-1.5 py-0 h-4 flex-shrink-0",
+                item.priority === "now" && "bg-red-500/20 text-red-500 border-red-500/30",
+                item.priority === "next" && "bg-yellow-500/20 text-yellow-500 border-yellow-500/30",
+                item.priority === "later" && "bg-muted text-muted-foreground"
+              )}>
+                {item.priority}
+              </Badge>
+            )}
+          </div>
+          {item.notes && (
+            <p className="text-xs text-muted-foreground ml-0 mt-0.5 italic">
+              💡 {item.notes}
+            </p>
           )}
-          placeholder="Action item..."
-        />
+        </div>
 
-        <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1">
+        <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 flex-shrink-0">
           <Button
             variant="ghost"
             size="icon"

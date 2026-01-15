@@ -305,6 +305,11 @@ export interface ExecutionPlanSection {
   items: ExecutionPlanItem[];
   order: number;
   collapsed?: boolean;
+  // Optional section-level context
+  why?: string;      // Why are we doing this? The objective/rationale
+  what?: string;     // What does success look like for this section?
+  notes?: string;    // Extra context, considerations, things to remember
+  status?: 'not_started' | 'in_progress' | 'blocked' | 'done';
 }
 
 export interface ExecutionPlanItem {
@@ -316,6 +321,8 @@ export interface ExecutionPlanItem {
   assignee?: string;
   dueDate?: string;
   notes?: string;
+  priority?: 'now' | 'next' | 'later';  // Action priority
+  blockedBy?: string;  // What's blocking this?
 }
 
 export interface ExecutionPlanSuccessMetrics {
