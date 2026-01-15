@@ -142,6 +142,10 @@ export default function RoadmapPage({ params }: { params: { id: string } }) {
   const [showItemDialog, setShowItemDialog] = useState(false);
   const [expandedSwimlanes, setExpandedSwimlanes] = useState<Set<string>>(new Set());
   const [newBacklogText, setNewBacklogText] = useState("");
+  const [editingSwimlaneKey, setEditingSwimlaneKey] = useState<string | null>(null);
+  const [editingSwimlaneLabel, setEditingSwimlaneLabel] = useState("");
+  const [draggedItem, setDraggedItem] = useState<RoadmapItem | null>(null);
+  const [dragOverCell, setDragOverCell] = useState<{ swimlane: string; timeframe: RoadmapTimeframe } | null>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Chat context
@@ -372,6 +376,44 @@ export default function RoadmapPage({ params }: { params: { id: string } }) {
     });
   };
 
+  const updateSwimlaneLabel = (key: string, newLabel: string) => {
+    if (!newLabel.trim()) return;
+    const swimlanes = roadmap?.swimlanes?.map(s =>
+      s.key === key ? { ...s, label: newLabel.trim() } : s
+    );
+    updateRoadmap({ swimlanes });
+    setEditingSwimlaneKey(null);
+    setEditingSwimlaneLabel("");
+  };
+
+  // Drag and drop handlers
+  const handleDragStart = (item: RoadmapItem) => {
+    setDraggedItem(item);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedItem(null);
+    setDragOverCell(null);
+  };
+
+  const handleDragOver = (e: React.DragEvent, swimlane: string, timeframe: RoadmapTimeframe) => {
+    e.preventDefault();
+    setDragOverCell({ swimlane, timeframe });
+  };
+
+  const handleDragLeave = () => {
+    setDragOverCell(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, swimlane: string, timeframe: RoadmapTimeframe) => {
+    e.preventDefault();
+    if (draggedItem) {
+      updateItem(draggedItem.id, { swimlaneKey: swimlane, timeframe });
+    }
+    setDraggedItem(null);
+    setDragOverCell(null);
+  };
+
   // Quick add from AI
   const quickAddItem = (title: string, swimlaneKey?: string, timeframe?: RoadmapTimeframe) => {
     const now = new Date().toISOString();
@@ -578,6 +620,13 @@ export default function RoadmapPage({ params }: { params: { id: string } }) {
               AI Asst.
             </Button>
 
+            <Link href={`/roadmap/${params.id}/focus`}>
+              <Button variant="outline" className="gap-2">
+                <LayoutGrid className="h-4 w-4" />
+                Focus View
+              </Button>
+            </Link>
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="icon">
@@ -586,10 +635,16 @@ export default function RoadmapPage({ params }: { params: { id: string } }) {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => {
+                  window.open(`/roadmap/${params.id}/focus`, 'roadmap-focus', 'width=1600,height=1000');
+                }}>
+                  <LayoutGrid className="h-4 w-4 mr-2" />
+                  Open Focus View
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => {
                   window.open(`/roadmap/${params.id}`, 'roadmap-share', 'width=1400,height=900');
                 }}>
                   <ExternalLink className="h-4 w-4 mr-2" />
-                  Open in New Window
+                  Open Client Share View
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={async () => {
@@ -734,7 +789,35 @@ export default function RoadmapPage({ params }: { params: { id: string } }) {
                     className="h-3 w-3 rounded-full"
                     style={{ backgroundColor: swimlane.color }}
                   />
-                  <span className="font-medium text-sm">{swimlane.label}</span>
+                  {editingSwimlaneKey === swimlane.key ? (
+                    <Input
+                      value={editingSwimlaneLabel}
+                      onChange={(e) => setEditingSwimlaneLabel(e.target.value)}
+                      onBlur={() => updateSwimlaneLabel(swimlane.key, editingSwimlaneLabel)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          updateSwimlaneLabel(swimlane.key, editingSwimlaneLabel);
+                        } else if (e.key === "Escape") {
+                          setEditingSwimlaneKey(null);
+                          setEditingSwimlaneLabel("");
+                        }
+                      }}
+                      className="h-6 w-32 text-sm font-medium"
+                      autoFocus
+                    />
+                  ) : (
+                    <span
+                      className="font-medium text-sm cursor-pointer hover:text-primary"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingSwimlaneKey(swimlane.key);
+                        setEditingSwimlaneLabel(swimlane.label);
+                      }}
+                      title="Click to edit"
+                    >
+                      {swimlane.label}
+                    </span>
+                  )}
                   <Badge variant="outline" className="text-xs">
                     {roadmap.items?.filter(i => i.swimlaneKey === swimlane.key).length || 0}
                   </Badge>
@@ -756,10 +839,19 @@ export default function RoadmapPage({ params }: { params: { id: string } }) {
                     <div /> {/* Empty cell for alignment */}
                     {(['now', 'next', 'later', 'someday'] as RoadmapTimeframe[]).map((tf) => {
                       const items = getItemsForCell(swimlane.key, tf);
+                      const isDropTarget = dragOverCell?.swimlane === swimlane.key && dragOverCell?.timeframe === tf;
                       return (
                         <div
                           key={`${swimlane.key}-${tf}`}
-                          className="min-h-[100px] rounded-lg border border-dashed border-muted-foreground/30 p-2 space-y-2 bg-muted/20"
+                          className={cn(
+                            "min-h-[100px] rounded-lg border border-dashed p-2 space-y-2 transition-colors",
+                            isDropTarget
+                              ? "border-primary bg-primary/10 border-solid"
+                              : "border-muted-foreground/30 bg-muted/20"
+                          )}
+                          onDragOver={(e) => handleDragOver(e, swimlane.key, tf)}
+                          onDragLeave={handleDragLeave}
+                          onDrop={(e) => handleDrop(e, swimlane.key, tf)}
                         >
                           {items.map((item) => (
                             <RoadmapItemCard
@@ -770,17 +862,46 @@ export default function RoadmapPage({ params }: { params: { id: string } }) {
                                 setShowItemDialog(true);
                               }}
                               onMove={moveItem}
+                              onDragStart={() => handleDragStart(item)}
+                              onDragEnd={handleDragEnd}
+                              isDragging={draggedItem?.id === item.id}
                             />
                           ))}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="w-full h-8 text-muted-foreground hover:text-foreground border-dashed border"
-                            onClick={() => addItem(swimlane.key, tf)}
-                          >
-                            <Plus className="h-3 w-3 mr-1" />
-                            Add
-                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="w-full h-8 text-muted-foreground hover:text-foreground border-dashed border"
+                              >
+                                <Plus className="h-3 w-3 mr-1" />
+                                Add
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="center">
+                              <DropdownMenuItem onClick={() => addItem(swimlane.key, tf)}>
+                                <Target className="h-4 w-4 mr-2" />
+                                Add to Board
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => {
+                                const now = new Date().toISOString();
+                                const newItem: RoadmapBacklogItem = {
+                                  id: crypto.randomUUID(),
+                                  title: "New Item",
+                                  suggestedSwimlane: swimlane.key,
+                                  suggestedTimeframe: tf,
+                                  createdAt: now,
+                                  order: roadmap?.backlog?.length || 0,
+                                  source: 'manual',
+                                };
+                                updateRoadmap({ backlog: [...(roadmap?.backlog || []), newItem] });
+                                setViewMode('backlog');
+                              }}>
+                                <Package className="h-4 w-4 mr-2" />
+                                Add to Backlog
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       );
                     })}
@@ -1272,19 +1393,36 @@ function RoadmapItemCard({
   item,
   onSelect,
   onMove,
+  onDragStart,
+  onDragEnd,
+  isDragging,
 }: {
   item: RoadmapItem;
   onSelect: () => void;
   onMove: (itemId: string, timeframe: RoadmapTimeframe) => void;
+  onDragStart?: () => void;
+  onDragEnd?: () => void;
+  isDragging?: boolean;
 }) {
   const statusConfig = STATUS_CONFIG[item.status];
 
   return (
     <div
-      className="p-2 bg-background border rounded-lg cursor-pointer hover:border-primary/50 hover:shadow-sm transition-all group"
+      className={cn(
+        "p-2 bg-background border rounded-lg cursor-grab hover:border-primary/50 hover:shadow-sm transition-all group",
+        isDragging && "opacity-50 cursor-grabbing"
+      )}
       onClick={onSelect}
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", item.id);
+        onDragStart?.();
+      }}
+      onDragEnd={onDragEnd}
     >
       <div className="flex items-start gap-2">
+        <GripVertical className="h-4 w-4 text-muted-foreground/50 mt-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100" />
         <div
           className="h-2 w-2 rounded-full mt-1.5 flex-shrink-0"
           style={{ backgroundColor: statusConfig.color }}
