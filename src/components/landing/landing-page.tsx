@@ -224,37 +224,210 @@ export function LandingPage() {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* Feature 1: Commitment Tracking - Large showcase */}
+          <div className="grid lg:grid-cols-2 gap-12 items-center mb-24">
+            <div>
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-success/10 text-success text-sm font-medium mb-4">
+                <CheckCircle className="h-4 w-4" />
+                Automatic Detection
+              </div>
+              <h3 className="text-3xl font-bold text-foreground mb-4">
+                AI Catches Every Commitment
+              </h3>
+              <p className="text-lg text-muted-foreground mb-6 leading-relaxed">
+                &quot;I&apos;ll send that by Friday&quot; becomes a tracked deliverable instantly. 
+                No more lost action items buried in meeting notes.
+              </p>
+              <ul className="space-y-3">
+                {["Auto-detected from conversation", "Assigned owners & due dates", "Syncs to your calendar"].map((item) => (
+                  <li key={item} className="flex items-center gap-3 text-foreground">
+                    <CheckCircle className="h-5 w-5 text-success flex-shrink-0" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="rounded-2xl border-2 border-border/50 bg-card shadow-corporate-lg overflow-hidden">
+              <div className="bg-muted/30 px-4 py-2.5 border-b border-border flex items-center gap-2">
+                <div className="flex gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-destructive/60" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-warning/60" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-success/60" />
+                </div>
+                <span className="text-xs text-muted-foreground ml-2">Action Items</span>
+              </div>
+              <div className="p-5 space-y-3">
+                {[
+                  { text: "Send revised proposal to Sarah", due: "Tomorrow", status: "urgent" },
+                  { text: "Schedule follow-up call with engineering", due: "Friday", status: "pending" },
+                  { text: "Share competitive analysis deck", due: "Next week", status: "pending" },
+                ].map((item, i) => (
+                  <div key={i} className={`flex items-center gap-3 p-3 rounded-xl border ${item.status === 'urgent' ? 'border-warning/30 bg-warning/5' : 'border-border/50 bg-muted/20'}`}>
+                    <div className={`w-5 h-5 rounded-md border-2 flex-shrink-0 ${item.status === 'urgent' ? 'border-warning' : 'border-muted-foreground/30'}`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{item.text}</p>
+                      <p className="text-xs text-muted-foreground">Due: {item.due}</p>
+                    </div>
+                    {item.status === 'urgent' && (
+                      <span className="px-2 py-0.5 text-[10px] font-semibold bg-warning/20 text-warning rounded-full">URGENT</span>
+                    )}
+                  </div>
+                ))}
+                <div className="pt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                  <Zap className="h-3 w-3 text-primary" />
+                  <span>3 items detected from today&apos;s session</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Feature 2: AI Personas - Reverse layout */}
+          <div className="grid lg:grid-cols-2 gap-12 items-center mb-24">
+            <div className="order-2 lg:order-1 rounded-2xl border-2 border-border/50 bg-card shadow-corporate-lg overflow-hidden">
+              <div className="bg-muted/30 px-4 py-2.5 border-b border-border flex items-center gap-2">
+                <div className="flex gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-destructive/60" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-warning/60" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-success/60" />
+                </div>
+                <span className="text-xs text-muted-foreground ml-2">AI Persona Selection</span>
+              </div>
+              <div className="p-5">
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { name: "Strategy Advisor", icon: Target, color: "primary", active: true },
+                    { name: "Sales Coach", icon: TrendingUp, color: "success", active: false },
+                    { name: "Technical Reviewer", icon: FileText, color: "warning", active: false },
+                    { name: "Executive Coach", icon: Users, color: "accent", active: false },
+                  ].map((persona, i) => (
+                    <div 
+                      key={i} 
+                      className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                        persona.active 
+                          ? 'border-primary bg-primary/5 shadow-sm' 
+                          : 'border-border/50 hover:border-border'
+                      }`}
+                    >
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${
+                        persona.active ? 'bg-primary/20' : 'bg-muted'
+                      }`}>
+                        <persona.icon className={`h-5 w-5 ${persona.active ? 'text-primary' : 'text-muted-foreground'}`} />
+                      </div>
+                      <p className={`text-sm font-medium ${persona.active ? 'text-foreground' : 'text-muted-foreground'}`}>
+                        {persona.name}
+                      </p>
+                      {persona.active && (
+                        <span className="text-[10px] text-primary font-medium">ACTIVE</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                  <p className="text-xs text-muted-foreground mb-1">Strategy Advisor mode:</p>
+                  <p className="text-sm text-foreground">&quot;Consider asking about their Q3 budget timeline...&quot;</p>
+                </div>
+              </div>
+            </div>
+            <div className="order-1 lg:order-2">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-medium mb-4">
+                <Brain className="h-4 w-4" />
+                Context-Aware AI
+              </div>
+              <h3 className="text-3xl font-bold text-foreground mb-4">
+                Switch AI Modes On The Fly
+              </h3>
+              <p className="text-lg text-muted-foreground mb-6 leading-relaxed">
+                Strategy session? Sales call? Technical review? Switch personas instantly 
+                and get suggestions tailored to your current context.
+              </p>
+              <ul className="space-y-3">
+                {["Pre-built expert personas", "Custom persona creation", "Context carries between modes"].map((item) => (
+                  <li key={item} className="flex items-center gap-3 text-foreground">
+                    <CheckCircle className="h-5 w-5 text-primary flex-shrink-0" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          {/* Feature 3: Knowledge Base - Full width */}
+          <div className="rounded-2xl border-2 border-border/50 bg-card shadow-corporate-lg overflow-hidden mb-24">
+            <div className="bg-muted/30 px-6 py-3 border-b border-border flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="flex gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-destructive/60" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-warning/60" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-success/60" />
+                </div>
+                <span className="text-xs text-muted-foreground ml-2">Client Knowledge Base — Acme Corp</span>
+              </div>
+              <span className="text-xs text-success font-medium">● AI has full context</span>
+            </div>
+            <div className="p-6">
+              <div className="grid md:grid-cols-3 gap-6">
+                <div className="md:col-span-2">
+                  <h4 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-primary" />
+                    Sources & Documents
+                  </h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { name: "Q4 Strategy Deck.pdf", type: "PDF", size: "2.4 MB" },
+                      { name: "acmecorp.com", type: "Website", size: "Indexed" },
+                      { name: "Product Roadmap 2025", type: "Doc", size: "1.1 MB" },
+                      { name: "Competitor Analysis", type: "PDF", size: "3.2 MB" },
+                    ].map((doc, i) => (
+                      <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 border border-border/50">
+                        <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center flex-shrink-0">
+                          <FileText className="h-4 w-4 text-primary" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-foreground truncate">{doc.name}</p>
+                          <p className="text-xs text-muted-foreground">{doc.type} · {doc.size}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <h4 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
+                    <Brain className="h-4 w-4 text-warning" />
+                    AI Knowledge
+                  </h4>
+                  <div className="space-y-3">
+                    <div className="p-3 rounded-lg bg-warning/5 border border-warning/20">
+                      <p className="text-xs text-warning font-medium mb-1">Key Insight</p>
+                      <p className="text-sm text-foreground">Budget cycle ends March 15th</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-accent/5 border border-accent/20">
+                      <p className="text-xs text-accent font-medium mb-1">Decision Maker</p>
+                      <p className="text-sm text-foreground">Sarah Chen, VP Strategy</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-success/5 border border-success/20">
+                      <p className="text-xs text-success font-medium mb-1">Priority</p>
+                      <p className="text-sm text-foreground">Cost reduction initiatives</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Remaining features as cards */}
+          <div className="grid md:grid-cols-3 gap-6">
             {[
               {
                 icon: Mic,
-                title: "Live Session Intelligence",
+                title: "Live Transcription",
                 description:
-                  "Real-time transcription with AI suggestions during calls. Every commitment captured automatically.",
-              },
-              {
-                icon: CheckCircle,
-                title: "Commitment Tracking",
-                description:
-                  "AI detects action items as you speak. 'I'll send that by Friday' becomes a tracked deliverable.",
-              },
-              {
-                icon: FileText,
-                title: "Client Knowledge Base",
-                description:
-                  "Centralize documents, websites, and context. AI has full context for every conversation.",
+                  "Real-time speech-to-text with speaker identification. Never miss a word.",
               },
               {
                 icon: Target,
                 title: "Session Gameplans",
                 description:
-                  "Set objectives before calls. AI keeps you on track and surfaces relevant talking points.",
-              },
-              {
-                icon: Brain,
-                title: "Strategic AI Personas",
-                description:
-                  "Strategy Advisor, Sales Coach, Technical Reviewer — switch AI modes for different contexts.",
+                  "Set objectives before calls. AI keeps you on track and surfaces talking points.",
               },
               {
                 icon: Users,
