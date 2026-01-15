@@ -10,13 +10,10 @@ import { getClarityMethodCanvas } from "@/lib/db/clarity-method";
 import { searchRelevantChunks, buildContextFromChunks } from "@/lib/rag";
 import { buildCanvasContext } from "@/lib/clarity-method/rag-integration";
 
-// Check API key availability at startup
-const hasAnthropicKey = !!process.env.ANTHROPIC_API_KEY;
-
 export async function POST(req: Request) {
   try {
-    // Pre-flight check: API key
-    if (!hasAnthropicKey) {
+    // Pre-flight check: API key (check at runtime, not module load)
+    if (!process.env.ANTHROPIC_API_KEY) {
       console.error("[Chat] ANTHROPIC_API_KEY is not configured");
       return new Response(
         JSON.stringify({

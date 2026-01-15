@@ -6,9 +6,19 @@ import { createSource, updateSourceContent } from "@/lib/db/sources";
 import { processSourceEmbeddings } from "@/lib/rag";
 import { extractTodosFromTranscript } from "@/lib/ai/extract-todos";
 import { createDetectedActionItems } from "@/lib/db/action-items";
+import { extractImageContent, formatImageContentForRAG } from "@/lib/ai/vision";
 import { z } from "zod";
 import type { SessionAttachment } from "@/db/schema";
 import pdf from "pdf-parse";
+
+/**
+ * Sanitize content for PostgreSQL - removes null bytes and invalid UTF8
+ */
+function sanitizeForDB(content: string): string {
+  if (!content) return "";
+  // Remove null bytes which cause PostgreSQL UTF8 errors
+  return content.replace(/\0/g, "").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
+}
 
 const historicSessionSchema = z.object({
   clientId: z.string().uuid(),
@@ -102,8 +112,22 @@ export async function POST(req: NextRequest) {
       ).catch(console.error);
     }
 
-    // Process transcript for action items (async)
-    if (data.transcript) {
+    // Process transcript for:
+    // 1. Action item extraction
+    // 2. RAG indexing (create source from transcript)
+    if (data.transcript && data.transcript.trim().length > 100) {
+      // Create source from transcript for RAG
+      processTranscriptToRAG(
+        session.id,
+        data.clientId,
+        user.id,
+        data.title,
+        data.transcript
+      ).catch((err) => {
+        console.error("Failed to process transcript to RAG:", err);
+      });
+
+      // Extract action items
       extractTodosFromTranscript(data.transcript)
         .then(async (todos) => {
           if (todos.length > 0) {
@@ -136,6 +160,59 @@ export async function POST(req: NextRequest) {
   }
 }
 
+/**
+ * Process session transcript into RAG
+ * Creates a source record and generates embeddings
+ */
+async function processTranscriptToRAG(
+  sessionId: string,
+  clientId: string,
+  userId: string,
+  sessionTitle: string,
+  transcript: string
+) {
+  console.log(`[Session RAG] Processing transcript for session: ${sessionTitle}`);
+
+  // Create source for transcript
+  const source = await createSource({
+    clientId,
+    userId,
+    type: "session_transcript",
+    name: `Session Transcript: ${sessionTitle}`,
+    metadata: {
+      sessionId,
+      contentType: "transcript",
+    },
+    processingStatus: "processing",
+  });
+
+  // Sanitize and format transcript
+  const cleanTranscript = sanitizeForDB(transcript);
+  const formattedContent = `# Session Transcript: ${sessionTitle}\n\n${cleanTranscript}`;
+
+  // Update source with content
+  await updateSourceContent(source.id, userId, formattedContent);
+
+  // Generate embeddings for RAG
+  await processSourceEmbeddings(source.id, clientId, userId, formattedContent, {
+    type: "session_transcript",
+    sessionId,
+    sessionTitle,
+  });
+
+  // Mark as completed
+  const { db } = await import("@/db");
+  const { sources } = await import("@/db/schema");
+  const { eq } = await import("drizzle-orm");
+
+  await db
+    .update(sources)
+    .set({ processingStatus: "completed" })
+    .where(eq(sources.id, source.id));
+
+  console.log(`[Session RAG] Successfully indexed transcript for: ${sessionTitle} (source: ${source.id})`);
+}
+
 async function processAttachmentsToSources(
   sessionId: string,
   clientId: string,
@@ -146,8 +223,9 @@ async function processAttachmentsToSources(
   for (const { file, attachment } of filesToProcess) {
     try {
       // Determine source type based on attachment type
-      const sourceType = attachment.type === "recording" ? "recording" : "document";
       const fileType = getFileType(file.name);
+      const isImage = attachment.type === "whiteboard" || ["png", "jpg", "jpeg", "gif", "webp"].includes(fileType);
+      const sourceType = attachment.type === "recording" ? "recording" : isImage ? "image" : "document";
 
       // Create source record
       const source = await createSource({
@@ -186,10 +264,22 @@ async function processAttachmentsToSources(
         }
       } else if (["txt", "md"].includes(fileType)) {
         content = await file.text();
-      } else if (attachment.type === "whiteboard" || ["png", "jpg", "jpeg", "gif", "webp"].includes(fileType)) {
-        // For images, store description as content for now
-        // In a real app, you'd use vision AI to describe the image
-        content = attachment.description || `[Whiteboard/Image: ${file.name}]`;
+      } else if (isImage && attachment.blobUrl) {
+        // Use Vision AI to extract content from images
+        try {
+          console.log(`[Session Attachment] Extracting content from image: ${file.name}`);
+          const extraction = await extractImageContent(attachment.blobUrl, {
+            fileName: file.name,
+          });
+          content = formatImageContentForRAG({
+            ...extraction,
+            fileName: file.name,
+          });
+          console.log(`[Session Attachment] Vision AI extracted ${content.length} chars from: ${file.name}`);
+        } catch (visionError) {
+          console.error(`[Session Attachment] Vision AI failed for ${file.name}:`, visionError);
+          content = attachment.description || `[Image: ${file.name}]`;
+        }
       } else {
         try {
           content = await file.text();
@@ -198,17 +288,30 @@ async function processAttachmentsToSources(
         }
       }
 
+      // Sanitize content to prevent UTF8 errors
+      content = sanitizeForDB(content);
+
       // Update source with content
       await updateSourceContent(source.id, userId, content);
 
       // Generate embeddings for RAG (if we have meaningful text)
-      if (content && !content.startsWith("[")) {
+      if (content && content.length > 50 && !content.startsWith("[Error")) {
         await processSourceEmbeddings(source.id, clientId, userId, content, {
           type: sourceType,
           fileType,
           fileName: file.name,
           sessionId,
         });
+
+        // Mark as completed
+        const { db } = await import("@/db");
+        const { sources } = await import("@/db/schema");
+        const { eq } = await import("drizzle-orm");
+
+        await db
+          .update(sources)
+          .set({ processingStatus: "completed" })
+          .where(eq(sources.id, source.id));
       }
     } catch (error) {
       console.error(`Failed to process attachment ${attachment.filename}:`, error);
