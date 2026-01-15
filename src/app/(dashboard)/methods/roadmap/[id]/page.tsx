@@ -79,6 +79,7 @@ import {
   IMPACT_CONFIG,
   SWIMLANE_CATEGORIES,
   LINK_TYPE_CONFIG,
+  TAG_COLORS,
 } from "@/lib/roadmap/types";
 import type {
   RoadmapItem,
@@ -89,6 +90,8 @@ import type {
   RoadmapItemSize,
   RoadmapItemImpact,
   RoadmapItemLink,
+  RoadmapTag,
+  RoadmapSubtask,
 } from "@/lib/roadmap/types";
 
 interface Client {
@@ -119,6 +122,7 @@ interface Roadmap {
   swimlanes: RoadmapSwimlane[];
   items: RoadmapItem[];
   backlog: RoadmapBacklogItem[];
+  tags?: RoadmapTag[];
   successMetrics?: {
     quantitative: string[];
     qualitative: string[];
@@ -865,6 +869,7 @@ export default function RoadmapPage({ params }: { params: { id: string } }) {
                               onDragStart={() => handleDragStart(item)}
                               onDragEnd={handleDragEnd}
                               isDragging={draggedItem?.id === item.id}
+                              tags={roadmap?.tags}
                             />
                           ))}
                           <DropdownMenu>
@@ -1202,6 +1207,34 @@ export default function RoadmapPage({ params }: { params: { id: string } }) {
                   />
                 </div>
 
+                {/* Tags Section */}
+                <div className="space-y-2">
+                  <Label>Tags</Label>
+                  <TagInput
+                    itemTags={selectedItem.tags || []}
+                    allTags={roadmap?.tags || []}
+                    onTagsChange={(tags) => updateItem(selectedItem.id, { tags })}
+                    onCreateTag={(name, color) => {
+                      const newTag: RoadmapTag = {
+                        id: crypto.randomUUID(),
+                        name,
+                        color,
+                      };
+                      updateRoadmap({ tags: [...(roadmap?.tags || []), newTag] });
+                      return newTag.id;
+                    }}
+                  />
+                </div>
+
+                {/* Subtasks Section */}
+                <div className="space-y-2">
+                  <Label>Subtasks</Label>
+                  <SubtaskList
+                    subtasks={selectedItem.subtasks || []}
+                    onSubtasksChange={(subtasks) => updateItem(selectedItem.id, { subtasks })}
+                  />
+                </div>
+
                 <div className="flex justify-between pt-4">
                   <Button
                     variant="destructive"
@@ -1396,6 +1429,7 @@ function RoadmapItemCard({
   onDragStart,
   onDragEnd,
   isDragging,
+  tags,
 }: {
   item: RoadmapItem;
   onSelect: () => void;
@@ -1403,8 +1437,12 @@ function RoadmapItemCard({
   onDragStart?: () => void;
   onDragEnd?: () => void;
   isDragging?: boolean;
+  tags?: RoadmapTag[];
 }) {
   const statusConfig = STATUS_CONFIG[item.status];
+  const itemTags = tags?.filter(t => item.tags?.includes(t.id)) || [];
+  const subtasksDone = item.subtasks?.filter(s => s.done).length || 0;
+  const subtasksTotal = item.subtasks?.length || 0;
 
   return (
     <div
@@ -1427,8 +1465,25 @@ function RoadmapItemCard({
           className="h-2 w-2 rounded-full mt-1.5 flex-shrink-0"
           style={{ backgroundColor: statusConfig.color }}
         />
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 overflow-hidden">
           <p className="text-sm font-medium truncate">{item.title}</p>
+          {/* Tags */}
+          {itemTags.length > 0 && (
+            <div className="flex items-center gap-1 mt-1 flex-wrap">
+              {itemTags.map(tag => (
+                <span
+                  key={tag.id}
+                  className="text-[9px] px-1.5 py-0.5 rounded-full font-medium"
+                  style={{
+                    backgroundColor: `${tag.color}20`,
+                    color: tag.color,
+                  }}
+                >
+                  {tag.name}
+                </span>
+              ))}
+            </div>
+          )}
           <div className="flex items-center gap-1 mt-1 flex-wrap">
             {item.size && (
               <Badge variant="outline" className="text-[10px] h-4 px-1">
@@ -1448,13 +1503,261 @@ function RoadmapItemCard({
                 {IMPACT_CONFIG[item.metrics.impact].label}
               </Badge>
             )}
+            {subtasksTotal > 0 && (
+              <Badge variant="outline" className="text-[10px] h-4 px-1 gap-0.5">
+                <CheckCircle2 className="h-2.5 w-2.5" />
+                {subtasksDone}/{subtasksTotal}
+              </Badge>
+            )}
           </div>
           {item.notes && (
-            <p className="text-[10px] text-muted-foreground mt-1 truncate">
+            <p className="text-[10px] text-muted-foreground mt-1 line-clamp-2 break-all">
               💡 {item.notes}
             </p>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// Tag Input Component with autocomplete
+function TagInput({
+  itemTags,
+  allTags,
+  onTagsChange,
+  onCreateTag,
+}: {
+  itemTags: string[];
+  allTags: RoadmapTag[];
+  onTagsChange: (tags: string[]) => void;
+  onCreateTag: (name: string, color: string) => string;
+}) {
+  const [inputValue, setInputValue] = useState("");
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedColorIndex, setSelectedColorIndex] = useState(0);
+
+  const currentTags = allTags.filter(t => itemTags.includes(t.id));
+  const availableTags = allTags.filter(t => !itemTags.includes(t.id));
+  const filteredSuggestions = availableTags.filter(t =>
+    t.name.toLowerCase().includes(inputValue.toLowerCase())
+  );
+  const isNewTag = inputValue.trim() && !allTags.some(t =>
+    t.name.toLowerCase() === inputValue.toLowerCase()
+  );
+
+  const addTag = (tagId: string) => {
+    onTagsChange([...itemTags, tagId]);
+    setInputValue("");
+    setShowSuggestions(false);
+  };
+
+  const removeTag = (tagId: string) => {
+    onTagsChange(itemTags.filter(id => id !== tagId));
+  };
+
+  const createAndAddTag = () => {
+    if (!inputValue.trim()) return;
+    const color = TAG_COLORS[selectedColorIndex];
+    const tagId = onCreateTag(inputValue.trim(), color);
+    onTagsChange([...itemTags, tagId]);
+    setInputValue("");
+    setShowSuggestions(false);
+    setSelectedColorIndex((selectedColorIndex + 1) % TAG_COLORS.length);
+  };
+
+  return (
+    <div className="space-y-2">
+      {/* Current tags */}
+      {currentTags.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {currentTags.map(tag => (
+            <span
+              key={tag.id}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
+              style={{
+                backgroundColor: `${tag.color}20`,
+                color: tag.color,
+              }}
+            >
+              {tag.name}
+              <button
+                onClick={() => removeTag(tag.id)}
+                className="hover:opacity-70"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Input */}
+      <div className="relative">
+        <Input
+          value={inputValue}
+          onChange={(e) => {
+            setInputValue(e.target.value);
+            setShowSuggestions(true);
+          }}
+          onFocus={() => setShowSuggestions(true)}
+          onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && isNewTag) {
+              e.preventDefault();
+              createAndAddTag();
+            }
+          }}
+          placeholder="Add tag..."
+          className="h-8"
+        />
+
+        {/* Suggestions dropdown */}
+        {showSuggestions && (inputValue || availableTags.length > 0) && (
+          <div className="absolute z-10 w-full mt-1 bg-popover border rounded-md shadow-md max-h-48 overflow-auto">
+            {filteredSuggestions.map(tag => (
+              <button
+                key={tag.id}
+                className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
+                onClick={() => addTag(tag.id)}
+              >
+                <span
+                  className="h-3 w-3 rounded-full"
+                  style={{ backgroundColor: tag.color }}
+                />
+                {tag.name}
+              </button>
+            ))}
+            {isNewTag && (
+              <button
+                className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2 border-t"
+                onClick={createAndAddTag}
+              >
+                <Plus className="h-3 w-3" />
+                Create &quot;{inputValue}&quot;
+                <span
+                  className="h-3 w-3 rounded-full ml-auto"
+                  style={{ backgroundColor: TAG_COLORS[selectedColorIndex] }}
+                />
+              </button>
+            )}
+            {!isNewTag && filteredSuggestions.length === 0 && (
+              <div className="px-3 py-2 text-sm text-muted-foreground">
+                No matching tags
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Subtask List Component
+function SubtaskList({
+  subtasks,
+  onSubtasksChange,
+}: {
+  subtasks: RoadmapSubtask[];
+  onSubtasksChange: (subtasks: RoadmapSubtask[]) => void;
+}) {
+  const [newSubtask, setNewSubtask] = useState("");
+
+  const addSubtask = () => {
+    if (!newSubtask.trim()) return;
+    const subtask: RoadmapSubtask = {
+      id: crypto.randomUUID(),
+      title: newSubtask.trim(),
+      done: false,
+    };
+    onSubtasksChange([...subtasks, subtask]);
+    setNewSubtask("");
+  };
+
+  const toggleSubtask = (id: string) => {
+    onSubtasksChange(
+      subtasks.map(s => s.id === id ? { ...s, done: !s.done } : s)
+    );
+  };
+
+  const deleteSubtask = (id: string) => {
+    onSubtasksChange(subtasks.filter(s => s.id !== id));
+  };
+
+  const doneCount = subtasks.filter(s => s.done).length;
+
+  return (
+    <div className="space-y-2">
+      {/* Progress */}
+      {subtasks.length > 0 && (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+            <div
+              className="h-full bg-green-500 transition-all"
+              style={{ width: `${(doneCount / subtasks.length) * 100}%` }}
+            />
+          </div>
+          <span>{doneCount}/{subtasks.length}</span>
+        </div>
+      )}
+
+      {/* Subtask list */}
+      <div className="space-y-1">
+        {subtasks.map(subtask => (
+          <div
+            key={subtask.id}
+            className="flex items-center gap-2 group"
+          >
+            <button
+              onClick={() => toggleSubtask(subtask.id)}
+              className={cn(
+                "h-4 w-4 rounded border flex items-center justify-center flex-shrink-0",
+                subtask.done
+                  ? "bg-green-500 border-green-500 text-white"
+                  : "border-muted-foreground/30 hover:border-primary"
+              )}
+            >
+              {subtask.done && <CheckCircle2 className="h-3 w-3" />}
+            </button>
+            <span className={cn(
+              "flex-1 text-sm",
+              subtask.done && "line-through text-muted-foreground"
+            )}>
+              {subtask.title}
+            </span>
+            <button
+              onClick={() => deleteSubtask(subtask.id)}
+              className="opacity-0 group-hover:opacity-100 text-destructive"
+            >
+              <Trash2 className="h-3 w-3" />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* Add subtask */}
+      <div className="flex gap-2">
+        <Input
+          value={newSubtask}
+          onChange={(e) => setNewSubtask(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              addSubtask();
+            }
+          }}
+          placeholder="Add subtask..."
+          className="h-8"
+        />
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={addSubtask}
+          disabled={!newSubtask.trim()}
+          className="h-8"
+        >
+          <Plus className="h-3 w-3" />
+        </Button>
       </div>
     </div>
   );

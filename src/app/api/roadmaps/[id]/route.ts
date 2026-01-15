@@ -9,6 +9,20 @@ import {
 
 export const dynamic = "force-dynamic";
 
+// Tag schema
+const tagSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  color: z.string(),
+});
+
+// Subtask schema
+const subtaskSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  done: z.boolean(),
+});
+
 // Item schema
 const roadmapItemSchema = z.object({
   id: z.string(),
@@ -36,6 +50,8 @@ const roadmapItemSchema = z.object({
     url: z.string(),
     title: z.string().optional(),
   })).optional(),
+  tags: z.array(z.string()).optional(),
+  subtasks: z.array(subtaskSchema).optional(),
   source: z.enum(['manual', 'ai', 'import']).optional(),
   sourceContext: z.string().optional(),
   createdAt: z.string(),
@@ -83,6 +99,7 @@ const updateRoadmapSchema = z.object({
   swimlanes: z.array(swimlaneSchema).optional(),
   items: z.array(roadmapItemSchema).optional(),
   backlog: z.array(backlogItemSchema).optional(),
+  tags: z.array(tagSchema).optional(),
   successMetrics: z.object({
     quantitative: z.array(z.string()),
     qualitative: z.array(z.string()),
