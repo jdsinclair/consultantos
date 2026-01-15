@@ -150,6 +150,7 @@ async function processSessionInsights(
           owner: item.owner || (item.ownerType === "me" ? "me" : "client"),
           ownerType: item.ownerType,
           priority: item.priority,
+          sourceContext: item.sourceContext,
         }))
       );
       console.log(`[Session Insights] Created ${insights.actionItems.length} action items`);

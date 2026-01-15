@@ -1,8 +1,10 @@
 import { generateObject } from "ai";
 import { z } from "zod";
 import { models, systemPrompts } from "@/lib/ai";
-
-export const runtime = "edge";
+import { db } from "@/db";
+import { suggestions } from "@/db/schema";
+import { requireUser } from "@/lib/auth";
+import { eq } from "drizzle-orm";
 
 const suggestionSchema = z.object({
   suggestions: z.array(
@@ -22,6 +24,7 @@ const suggestionSchema = z.object({
   ),
 });
 
+// Generate new suggestions from AI
 export async function POST(req: Request) {
   const { transcript, gameplan, clientContext } = await req.json();
 
@@ -50,4 +53,70 @@ Provide:
   });
 
   return Response.json(result.object);
+}
+
+// Save suggestions to database
+export async function PUT(req: Request) {
+  try {
+    await requireUser();
+    const { sessionId, suggestions: suggestionList } = await req.json();
+
+    if (!sessionId || !suggestionList || !Array.isArray(suggestionList)) {
+      return Response.json({ error: "Invalid request" }, { status: 400 });
+    }
+
+    // Insert all suggestions
+    const values = suggestionList.map((s: {
+      type: string;
+      content: string;
+      priority?: string;
+      context?: string;
+      acted?: boolean;
+      dismissed?: boolean;
+    }) => ({
+      sessionId,
+      type: s.type,
+      content: s.content,
+      priority: s.priority || "medium",
+      context: s.context,
+      acted: s.acted || false,
+      dismissed: s.dismissed || false,
+    }));
+
+    if (values.length > 0) {
+      await db.insert(suggestions).values(values);
+    }
+
+    return Response.json({ success: true, count: values.length });
+  } catch (error) {
+    console.error("Failed to save suggestions:", error);
+    return Response.json({ error: "Failed to save suggestions" }, { status: 500 });
+  }
+}
+
+// Update a suggestion (mark as acted or dismissed)
+export async function PATCH(req: Request) {
+  try {
+    await requireUser();
+    const { suggestionId, acted, dismissed } = await req.json();
+
+    if (!suggestionId) {
+      return Response.json({ error: "Invalid request" }, { status: 400 });
+    }
+
+    const updateData: { acted?: boolean; dismissed?: boolean } = {};
+    if (acted !== undefined) updateData.acted = acted;
+    if (dismissed !== undefined) updateData.dismissed = dismissed;
+
+    const [updated] = await db
+      .update(suggestions)
+      .set(updateData)
+      .where(eq(suggestions.id, suggestionId))
+      .returning();
+
+    return Response.json(updated);
+  } catch (error) {
+    console.error("Failed to update suggestion:", error);
+    return Response.json({ error: "Failed to update suggestion" }, { status: 500 });
+  }
 }

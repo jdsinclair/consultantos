@@ -70,6 +70,16 @@ interface SessionActionItem {
   ownerType: string;
 }
 
+interface SessionSuggestion {
+  id: string;
+  type: string;
+  content: string;
+  priority: string;
+  context?: string;
+  acted: boolean;
+  dismissed: boolean;
+}
+
 interface Session {
   id: string;
   title: string;
@@ -87,6 +97,7 @@ interface Session {
   isHistoric?: boolean;
   attachments?: SessionAttachment[];
   actionItems?: SessionActionItem[];
+  suggestions?: SessionSuggestion[];
   client: {
     id: string;
     name: string;
@@ -242,12 +253,12 @@ export default function LiveSessionPage({ params }: { params: { id: string } }) 
               return [...newSuggestions, ...prev].slice(0, 10);
             });
           }
-          if (data.commitments?.length > 0) {
+          if (data.detectedCommitments?.length > 0) {
             setDetectedCommitments((prev) => {
               const existing = new Set(prev);
-              const newCommitments = data.commitments.filter(
-                (c: string) => !existing.has(c)
-              );
+              const newCommitments = data.detectedCommitments
+                .map((c: { text: string }) => c.text)
+                .filter((text: string) => !existing.has(text));
               return [...prev, ...newCommitments];
             });
           }
@@ -402,9 +413,28 @@ export default function LiveSessionPage({ params }: { params: { id: string } }) 
     }
   };
 
-  const pauseRecording = () => {
-    // Pause just stops the timer locally - session stays "live"
+  const stopRecording = () => {
+    // Stop transcription but keep session open for review
+    if (transcriptionRef.current) {
+      transcriptionRef.current.stop();
+      transcriptionRef.current = null;
+    }
+    setAudioStream(null);
     setIsRecording(false);
+    releaseSession();
+
+    // Save current transcript to DB so it's not lost
+    const currentTranscript = liveTranscript
+      .map((seg) => `${seg.speaker}: ${seg.text}`)
+      .join("\n");
+
+    if (currentTranscript) {
+      fetch(`/api/sessions/${params.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transcript: currentTranscript }),
+      }).catch((err) => console.error("Failed to save transcript:", err));
+    }
   };
 
   const handleEndSession = async () => {
@@ -428,12 +458,29 @@ export default function LiveSessionPage({ params }: { params: { id: string } }) 
       .map((seg) => `${seg.speaker}: ${seg.text}`)
       .join("\n");
 
-    // Update transcript if we have one, then end session
+    // Save transcript using PATCH (the correct endpoint for updates)
     if (finalTranscript) {
       await fetch(`/api/sessions/${params.id}`, {
-        method: "PUT",
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ transcript: finalTranscript }),
+      });
+    }
+
+    // Save any remaining suggestions to DB before ending
+    if (suggestions.length > 0) {
+      await fetch(`/api/session/suggestions`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: params.id,
+          suggestions: suggestions.map((s) => ({
+            type: s.type,
+            content: s.content,
+            priority: s.priority,
+            acted: s.acted,
+          })),
+        }),
       });
     }
 
@@ -705,6 +752,38 @@ export default function LiveSessionPage({ params }: { params: { id: string } }) 
               </Card>
             )}
 
+            {/* AI Suggestions from Session */}
+            {session.suggestions && session.suggestions.filter(s => !s.dismissed).length > 0 && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Lightbulb className="h-5 w-5 text-yellow-500" />
+                    Session Suggestions ({session.suggestions.filter(s => !s.dismissed).length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {session.suggestions.filter(s => !s.dismissed).map((suggestion) => (
+                      <div key={suggestion.id} className="flex items-start gap-2">
+                        <div className={`mt-1 h-2 w-2 rounded-full flex-shrink-0 ${
+                          suggestion.acted ? 'bg-green-500' : 'bg-yellow-500'
+                        }`} />
+                        <div>
+                          <p className={`text-sm ${suggestion.acted ? 'text-muted-foreground' : ''}`}>
+                            {suggestion.content}
+                          </p>
+                          <p className="text-xs text-muted-foreground capitalize">
+                            {suggestion.type.replace('_', ' ')}
+                            {suggestion.acted && ' · Acted on'}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Gameplan */}
             {session.gameplan && session.gameplan.length > 0 && (
               <Card>
@@ -799,30 +878,42 @@ export default function LiveSessionPage({ params }: { params: { id: string } }) 
                 {formatTime(elapsedTime)}
               </div>
               {isRecording ? (
-                <Button size="sm" variant="destructive" onClick={handleEndSession} className="flex-shrink-0">
-                  <Square className="h-4 w-4 sm:mr-2" />
-                  <span className="hidden sm:inline">End</span>
-                </Button>
+                <>
+                  <Button size="sm" variant="secondary" onClick={stopRecording} className="flex-shrink-0">
+                    <Square className="h-4 w-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Stop</span>
+                  </Button>
+                  <Button size="sm" variant="destructive" onClick={handleEndSession} className="flex-shrink-0">
+                    <span className="hidden sm:inline">End Session</span>
+                    <span className="sm:hidden">End</span>
+                  </Button>
+                </>
               ) : (
-                <Button size="sm" onClick={startRecording} className="flex-shrink-0">
-                  <Mic className="h-4 w-4 sm:mr-2" />
-                  <span className="hidden sm:inline">{session.startedAt ? "Resume" : "Start"}</span>
-                </Button>
-              )}
-              {!isRecording && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive flex-shrink-0"
-                  onClick={handleDelete}
-                  disabled={deleting}
-                >
-                  {deleting ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Trash2 className="h-4 w-4" />
+                <>
+                  <Button size="sm" onClick={startRecording} className="flex-shrink-0">
+                    <Mic className="h-4 w-4 sm:mr-2" />
+                    <span className="hidden sm:inline">{session.startedAt ? "Resume" : "Start"}</span>
+                  </Button>
+                  {session.startedAt && (
+                    <Button size="sm" variant="destructive" onClick={handleEndSession} className="flex-shrink-0">
+                      <span className="hidden sm:inline">End Session</span>
+                      <span className="sm:hidden">End</span>
+                    </Button>
                   )}
-                </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive flex-shrink-0"
+                    onClick={handleDelete}
+                    disabled={deleting}
+                  >
+                    {deleting ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
+                  </Button>
+                </>
               )}
             </div>
           </div>
