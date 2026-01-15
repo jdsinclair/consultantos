@@ -420,23 +420,19 @@ export function SharePortalCard({
                         )}
                       </div>
                       <div className="flex items-center gap-1">
-                        {item.deepLinkToken && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 opacity-0 group-hover:opacity-100"
-                            onClick={async () => {
-                              const url =
-                                item.itemType === "execution_plan"
-                                  ? `${window.location.origin}/share/plan/${item.itemId}`
-                                  : `${window.location.origin}/share/clarity/${item.itemId}`;
-                              await navigator.clipboard.writeText(url);
-                            }}
-                            title="Copy direct link"
-                          >
-                            <Link2 className="h-3 w-3" />
-                          </Button>
-                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 opacity-0 group-hover:opacity-100"
+                          onClick={async () => {
+                            // Generate portal deep link that auto-selects this item
+                            const url = `${window.location.origin}/portal/${portal.accessToken}?item=${item.itemId}`;
+                            await navigator.clipboard.writeText(url);
+                          }}
+                          title="Copy direct link"
+                        >
+                          <Link2 className="h-3 w-3" />
+                        </Button>
                         <Button
                           variant="ghost"
                           size="icon"
