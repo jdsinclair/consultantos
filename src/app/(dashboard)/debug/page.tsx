@@ -100,6 +100,7 @@ export default function DebugPage() {
   const [aiLogsTotal, setAiLogsTotal] = useState(0);
   const [expandedLog, setExpandedLog] = useState<string | null>(null);
   const [logFilter, setLogFilter] = useState<string>("all");
+  const [logDebugInfo, setLogDebugInfo] = useState<Record<string, unknown> | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -114,6 +115,8 @@ export default function DebugPage() {
         const data = await res.json();
         setAiLogs(data.logs || []);
         setAiLogsTotal(data.total || 0);
+        setLogDebugInfo(data.debug || null);
+        console.log("[Debug] AI Logs response:", data);
       }
     } catch (error) {
       console.error("Failed to fetch AI logs:", error);
@@ -508,6 +511,11 @@ export default function DebugPage() {
             </CardTitle>
             <p className="text-xs text-muted-foreground mt-1">
               Persistent logs - survives page navigation. Auto-cleanup after 7 days.
+              {logDebugInfo && (
+                <span className="ml-2 text-orange-600">
+                  [File: {logDebugInfo.fileExists ? `exists (${logDebugInfo.fileSize} bytes)` : `NOT FOUND - ${logDebugInfo.fileError}`}]
+                </span>
+              )}
             </p>
           </div>
           <div className="flex gap-2">

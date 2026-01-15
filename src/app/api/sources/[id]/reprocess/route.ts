@@ -108,40 +108,64 @@ async function reprocessSource(
 
     // Generate AI summary for the source
     if (content && !content.startsWith("[Error") && !content.startsWith("[Unsupported")) {
-      console.log(`Generating AI summary for: ${source.name}`);
-      const summary = await generateSourceSummary(content, {
-        fileName: source.name,
-        fileType: source.fileType || undefined,
-        sourceType: source.type,
-        clientName: clientName || undefined,
-        userProfile,
-      });
-      await updateSourceSummary(sourceId, userId, summary);
+      console.log(`[Reprocess] Generating AI summary for: ${source.name}`);
+      try {
+        const summary = await generateSourceSummary(content, {
+          fileName: source.name,
+          fileType: source.fileType || undefined,
+          sourceType: source.type,
+          clientName: clientName || undefined,
+          userProfile,
+        });
+        await updateSourceSummary(sourceId, userId, summary);
+        console.log(`[Reprocess] AI summary SAVED for: ${source.name}`);
+      } catch (summaryError) {
+        console.error(`[Reprocess] AI summary FAILED for ${source.name}:`, summaryError);
+        // Don't throw - continue with embeddings
+      }
+    } else {
+      console.log(`[Reprocess] Skipping AI summary - content starts with error marker`);
     }
 
     // Generate embeddings for RAG
     if (content && !content.startsWith("[")) {
-      await processSourceEmbeddings(sourceId, clientId, userId, content, {
-        type: source.type,
-        fileType: source.fileType || undefined,
-        fileName: source.name,
-      });
+      console.log(`[Reprocess] Generating embeddings for: ${source.name}`);
+      try {
+        await processSourceEmbeddings(sourceId, clientId, userId, content, {
+          type: source.type,
+          fileType: source.fileType || undefined,
+          fileName: source.name,
+        });
+        console.log(`[Reprocess] Embeddings completed for: ${source.name}`);
+      } catch (embError) {
+        console.error(`[Reprocess] Embeddings FAILED for ${source.name}:`, embError);
+      }
     }
 
     // Generate clarity insights from the source content
     if (content && !content.startsWith("[Error") && !content.startsWith("[Unsupported")) {
-      console.log(`Generating clarity insights for: ${source.name}`);
-      await generateClarityInsightsFromSource(content, {
-        sourceId,
-        clientId,
-        userId,
-        sourceName: source.name,
-        sourceType: source.type,
-        userProfile,
-      });
+      console.log(`[Reprocess] Generating clarity insights for: ${source.name}`);
+      try {
+        await generateClarityInsightsFromSource(content, {
+          sourceId,
+          clientId,
+          userId,
+          sourceName: source.name,
+          sourceType: source.type,
+          userProfile,
+        });
+        console.log(`[Reprocess] Clarity insights completed for: ${source.name}`);
+      } catch (insightsError) {
+        console.error(`[Reprocess] Clarity insights FAILED for ${source.name}:`, insightsError);
+      }
     }
+
+    // Mark as completed
+    console.log(`[Reprocess] Marking source as completed: ${source.name}`);
+    await updateSource(sourceId, userId, { processingStatus: "completed", processingError: null });
+    console.log(`[Reprocess] DONE: ${source.name}`);
   } catch (error) {
-    console.error("Reprocessing error:", error);
+    console.error("[Reprocess] FATAL ERROR:", error);
     await setSourceError(sourceId, userId, String(error));
   }
 }
