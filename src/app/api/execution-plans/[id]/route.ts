@@ -9,7 +9,20 @@ import {
 
 export const dynamic = "force-dynamic";
 
+// Transform old status values to new ones for backward compatibility
+const normalizeStatus = (status: string | undefined): string | undefined => {
+  if (!status) return undefined;
+  const statusMap: Record<string, string> = {
+    'in_progress': 'active',
+    'not_started': 'draft',
+    'done': 'completed',
+    'blocked': 'active', // treat blocked as active
+  };
+  return statusMap[status] || status;
+};
+
 // Initiative (section) schema with full metadata support
+// Accepts both old and new status values, transforms old to new
 const initiativeSchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -23,7 +36,8 @@ const initiativeSchema = z.object({
   why: z.string().optional(),
   what: z.string().optional(),
   notes: z.string().optional(),
-  status: z.enum(["draft", "active", "completed", "backlog"]).optional(),
+  // Accept any string status, transform old values to new
+  status: z.string().optional().transform(normalizeStatus),
   items: z.array(z.any()), // Items can be nested
   order: z.number(),
   collapsed: z.boolean().optional(),

@@ -769,7 +769,7 @@ function ExecutionPlanFullView({
                     <p><span className="font-medium" style={{ color: brandColor }}>Why:</span> {section.why}</p>
                   )}
                   {section.what && (
-                    <p><span className="font-medium text-green-600">What:</span> {section.what}</p>
+                    <p><span className="font-medium text-green-600">Success:</span> {section.what}</p>
                   )}
                   {section.notes && (
                     <p><span className="font-medium text-yellow-600">Note:</span> {section.notes}</p>
