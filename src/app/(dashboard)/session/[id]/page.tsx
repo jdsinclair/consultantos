@@ -44,6 +44,8 @@ import {
   AudioSource,
 } from "@/lib/transcription";
 import { cn } from "@/lib/utils";
+import { useSessionInstance } from "@/hooks/use-session-instance";
+import { DuplicateSessionModal } from "@/components/session/duplicate-session-modal";
 
 interface GameplanItem {
   id: string;
@@ -137,6 +139,33 @@ export default function LiveSessionPage({ params }: { params: { id: string } }) 
   const inElectron = useIsElectron();
   const [showSourcePicker, setShowSourcePicker] = useState(false);
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
+
+  // Multi-instance session handling
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const {
+    hasConflict,
+    isOwner,
+    claimSession,
+    releaseSession,
+    requestTakeover,
+  } = useSessionInstance({
+    sessionId: params.id,
+    onConflictDetected: () => {
+      // If we're not recording and another tab is, show the modal
+      if (!isRecording) {
+        setShowDuplicateModal(true);
+      }
+    },
+    onTakeoverRequested: () => {
+      // Another tab wants to take over - stop our recording
+      if (isRecording && transcriptionRef.current) {
+        transcriptionRef.current.stop();
+        setIsRecording(false);
+        setAudioStream(null);
+        releaseSession();
+      }
+    },
+  });
 
   const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
     api: "/api/chat",
@@ -298,6 +327,12 @@ export default function LiveSessionPage({ params }: { params: { id: string } }) 
   };
 
   const startRecording = async () => {
+    // Check for multi-tab conflict before starting
+    if (hasConflict) {
+      setShowDuplicateModal(true);
+      return;
+    }
+
     // In Electron with system audio, show source picker first
     if (inElectron && (audioSource === "both" || audioSource === "system")) {
       setShowSourcePicker(true);
@@ -308,6 +343,13 @@ export default function LiveSessionPage({ params }: { params: { id: string } }) 
   };
 
   const startRecordingWithSource = async (sourceId: string | null) => {
+    // Claim session ownership for multi-tab protection
+    if (!claimSession()) {
+      // Another tab has this session - show conflict modal
+      setShowDuplicateModal(true);
+      return;
+    }
+
     // Clear any previous errors
     setTranscriptionError(null);
 
@@ -372,6 +414,9 @@ export default function LiveSessionPage({ params }: { params: { id: string } }) 
       transcriptionRef.current = null;
     }
     setAudioStream(null);
+
+    // Release multi-tab session ownership
+    releaseSession();
 
     // Save all remaining commitments as action items
     for (const commitment of detectedCommitments) {
@@ -1334,6 +1379,26 @@ export default function LiveSessionPage({ params }: { params: { id: string } }) 
         open={showSourcePicker}
         onClose={() => setShowSourcePicker(false)}
         onSelect={handleSourceSelect}
+      />
+
+      {/* Duplicate Session Warning Modal */}
+      <DuplicateSessionModal
+        open={showDuplicateModal}
+        onOpenChange={setShowDuplicateModal}
+        onContinueHere={() => {
+          // Request takeover from the other tab
+          requestTakeover();
+          setShowDuplicateModal(false);
+          // Wait a moment for other tab to release, then try to start
+          setTimeout(() => {
+            startRecordingWithSource(selectedSourceId);
+          }, 500);
+        }}
+        onGoBack={() => {
+          setShowDuplicateModal(false);
+          router.push("/session");
+        }}
+        isRecording={hasConflict}
       />
     </div>
   );

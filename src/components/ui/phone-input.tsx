@@ -24,6 +24,11 @@ const countries: { code: CountryCode; label: string }[] = [
   { code: "SG", label: "SG (+65)" },
   { code: "IL", label: "IL (+972)" },
   { code: "AE", label: "UAE (+971)" },
+  { code: "SA", label: "KSA (+966)" },
+  { code: "QA", label: "QA (+974)" },
+  { code: "KW", label: "KW (+965)" },
+  { code: "BH", label: "BH (+973)" },
+  { code: "OM", label: "OM (+968)" },
   { code: "NZ", label: "NZ (+64)" },
   { code: "IE", label: "IE (+353)" },
   { code: "NL", label: "NL (+31)" },
@@ -31,6 +36,14 @@ const countries: { code: CountryCode; label: string }[] = [
   { code: "IT", label: "IT (+39)" },
   { code: "BR", label: "BR (+55)" },
   { code: "MX", label: "MX (+52)" },
+  { code: "ZA", label: "ZA (+27)" },
+  { code: "PH", label: "PH (+63)" },
+  { code: "MY", label: "MY (+60)" },
+  { code: "TH", label: "TH (+66)" },
+  { code: "ID", label: "ID (+62)" },
+  { code: "VN", label: "VN (+84)" },
+  { code: "PK", label: "PK (+92)" },
+  { code: "EG", label: "EG (+20)" },
 ];
 
 interface PhoneInputProps {
@@ -64,13 +77,23 @@ export function PhoneInput({
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const input = e.target.value;
+    const digits = input.replace(/[^\d]/g, "");
     
     // Try to parse as international format first (handles paste with +)
-    if (input.includes("+") || input.length > 10) {
-      const parsed = parsePhoneNumberFromString(input);
+    if (input.includes("+") || digits.length > 10) {
+      let parsed = parsePhoneNumberFromString(input);
+      
+      // If no + but long number, try adding + prefix to detect country
+      if (!parsed?.isValid() && !input.includes("+") && digits.length > 10) {
+        parsed = parsePhoneNumberFromString("+" + digits);
+      }
+      
       if (parsed && parsed.isValid()) {
         const detectedCountry = parsed.country || country;
-        setCountry(detectedCountry);
+        // Only update country if it's in our list
+        if (countries.some(c => c.code === detectedCountry)) {
+          setCountry(detectedCountry);
+        }
         setDisplayValue(parsed.formatNational());
         onChange(parsed.format("E.164"), parsed.formatNational(), detectedCountry);
         return;
@@ -79,7 +102,7 @@ export function PhoneInput({
 
     // Format as you type for the current country
     const formatter = new AsYouType(country);
-    const formatted = formatter.input(input.replace(/[^\d]/g, ""));
+    const formatted = formatter.input(digits);
     setDisplayValue(formatted);
 
     // Try to get E.164 format
@@ -92,7 +115,7 @@ export function PhoneInput({
       );
     } else {
       // Store raw digits if not yet valid
-      onChange(input.replace(/[^\d]/g, ""), formatted, country);
+      onChange(digits, formatted, country);
     }
   };
 
@@ -113,14 +136,25 @@ export function PhoneInput({
   };
 
   const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
-    const pasted = e.clipboardData.getData("text");
+    const pasted = e.clipboardData.getData("text").trim();
     
     // Try to parse pasted content as phone number
-    const parsed = parsePhoneNumberFromString(pasted);
+    let parsed = parsePhoneNumberFromString(pasted);
+    
+    // If not valid and doesn't start with +, try adding + prefix
+    // This handles cases like "966 50 586 8500" (without +)
+    if (!parsed?.isValid() && !pasted.startsWith("+")) {
+      const withPlus = "+" + pasted.replace(/[^\d]/g, "");
+      parsed = parsePhoneNumberFromString(withPlus);
+    }
+    
     if (parsed && parsed.isValid()) {
       e.preventDefault();
       const detectedCountry = parsed.country || country;
-      setCountry(detectedCountry);
+      // Only update country if it's in our list
+      if (countries.some(c => c.code === detectedCountry)) {
+        setCountry(detectedCountry);
+      }
       const formatted = parsed.formatNational();
       setDisplayValue(formatted);
       onChange(parsed.format("E.164"), formatted, detectedCountry);

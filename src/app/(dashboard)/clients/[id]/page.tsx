@@ -45,6 +45,7 @@ import { TodoQuickAdd } from "@/components/todo-quick-add";
 import { DealBadge } from "@/components/deal-badge";
 import { NoteDialog } from "@/components/note-dialog";
 import { ChatComposer } from "@/components/chat";
+import { PhoneInput } from "@/components/ui/phone-input";
 import { cn } from "@/lib/utils";
 
 interface Client {
@@ -793,11 +794,10 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
               </div>
               <div className="space-y-2">
                 <Label htmlFor="phone">Phone</Label>
-                <Input
-                  id="phone"
+                <PhoneInput
                   value={editForm.phone || ""}
-                  onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-                  placeholder="+1 555-123-4567"
+                  onChange={(value) => setEditForm({ ...editForm, phone: value })}
+                  placeholder="555-123-4567"
                 />
               </div>
             </div>

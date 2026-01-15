@@ -3,6 +3,9 @@ import { requireUser } from "@/lib/auth";
 import { getMethod, updateMethod, deleteMethod } from "@/lib/db/methods";
 import { z } from "zod";
 
+// Prevent static caching - auth routes must be dynamic
+export const dynamic = "force-dynamic";
+
 const stepSchema = z.object({
   id: z.string(),
   title: z.string(),

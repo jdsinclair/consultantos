@@ -4,6 +4,9 @@ import { db } from "@/db";
 import { sources } from "@/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 
+// Prevent static caching - auth routes must be dynamic
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
   try {
     const user = await requireUser();

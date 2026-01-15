@@ -4,6 +4,9 @@ import { db } from "@/db";
 import { inboundEmails, sources } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 
+// Prevent static caching - auth routes must be dynamic
+export const dynamic = "force-dynamic";
+
 // GET single email
 export async function GET(
   req: NextRequest,

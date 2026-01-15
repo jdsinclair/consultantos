@@ -6,6 +6,9 @@ import { eq } from "drizzle-orm";
 import { createDefaultMethods } from "@/lib/db/methods";
 import { createDefaultPersonas } from "@/lib/db/personas";
 
+// Prevent static caching - auth routes must be dynamic
+export const dynamic = "force-dynamic";
+
 // PATCH - save onboarding progress
 export async function PATCH(req: NextRequest) {
   try {

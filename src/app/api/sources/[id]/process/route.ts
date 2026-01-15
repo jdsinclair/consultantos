@@ -3,6 +3,9 @@ import { requireUser } from "@/lib/auth";
 import { getSource, updateSource, updateSourceContent, setSourceError } from "@/lib/db/sources";
 import { processSourceEmbeddings } from "@/lib/rag";
 
+// Prevent static caching - auth routes must be dynamic
+export const dynamic = "force-dynamic";
+
 export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }

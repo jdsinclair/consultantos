@@ -10,6 +10,9 @@ import { getClarityMethodCanvas } from "@/lib/db/clarity-method";
 import { searchRelevantChunks, buildContextFromChunks } from "@/lib/rag";
 import { buildCanvasContext } from "@/lib/clarity-method/rag-integration";
 
+// Prevent static caching - auth routes must be dynamic
+export const dynamic = "force-dynamic";
+
 export async function POST(req: Request) {
   try {
     // Pre-flight check: API key (check at runtime, not module load)

@@ -8,6 +8,9 @@ import {
 import { extractTodosFromText, parseBulkTodos } from "@/lib/ai/extract-todos";
 import { z } from "zod";
 
+// Prevent static caching - auth routes must be dynamic
+export const dynamic = "force-dynamic";
+
 const createActionItemSchema = z.object({
   clientId: z.string().uuid().optional(), // Optional for quick-add without client
   sessionId: z.string().uuid().optional(),

@@ -3,6 +3,9 @@ import { requireUser } from "@/lib/auth";
 import { updateActionItem, completeActionItem, deleteActionItem, getActionItem, getSubtasks } from "@/lib/db/action-items";
 import { z } from "zod";
 
+// Prevent static caching - auth routes must be dynamic
+export const dynamic = "force-dynamic";
+
 const updateActionItemSchema = z.object({
   title: z.string().min(1).optional(),
   description: z.string().optional(),

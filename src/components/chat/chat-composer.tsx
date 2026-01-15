@@ -355,7 +355,7 @@ export const ChatComposer = forwardRef<HTMLTextAreaElement, ChatComposerProps>(
       const mentionedSourceIds: string[] = [];
 
       // Find #source mentions
-      const sourceMatches = value.matchAll(/#([\w-]+)/g);
+      const sourceMatches = Array.from(value.matchAll(/#([\w-]+)/g));
       for (const match of sourceMatches) {
         const sourceName = match[1].replace(/-/g, " ").toLowerCase();
         const source = sources.find(s => s.name.toLowerCase().includes(sourceName));
