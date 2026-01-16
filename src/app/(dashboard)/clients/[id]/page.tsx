@@ -46,6 +46,8 @@ import {
   Building,
   BookOpen,
   Map,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import Link from "next/link";
 import { formatDistanceToNow, isPast } from "date-fns";
@@ -60,6 +62,12 @@ import { ClientSignals } from "@/components/client-signals";
 import { SharePortalCard } from "@/components/share-portal-card";
 import { TranscriptSearch } from "@/components/transcript-search";
 import { cn } from "@/lib/utils";
+
+interface Persona {
+  id: string;
+  name: string;
+  description?: string;
+}
 
 interface AtSomePointItem {
   id: string;
@@ -199,7 +207,12 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Client>>({});
   const [saving, setSaving] = useState(false);
-  
+
+  // Chat enhancements
+  const [personas, setPersonas] = useState<Persona[]>([]);
+  const [selectedPersona, setSelectedPersona] = useState<string | null>(null);
+  const [chatExpanded, setChatExpanded] = useState(false);
+
   // "At Some Point" and "Links" state
   const [showAddSomePoint, setShowAddSomePoint] = useState(false);
   const [showAddLink, setShowAddLink] = useState(false);
@@ -208,7 +221,10 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
 
   const { messages, append, setMessages, isLoading: chatLoading } = useChat({
     api: "/api/chat",
-    body: { clientId: params.id },
+    body: {
+      clientId: params.id,
+      personaId: selectedPersona,
+    },
   });
 
   const handleChatSubmit = useCallback((
@@ -243,7 +259,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [clientRes, sourcesRes, sessionsRes, actionsRes, notesRes, clarityMethodRes, plansRes, roadmapsRes] = await Promise.all([
+        const [clientRes, sourcesRes, sessionsRes, actionsRes, notesRes, clarityMethodRes, plansRes, roadmapsRes, personasRes] = await Promise.all([
           fetch(`/api/clients/${params.id}`),
           fetch(`/api/clients/${params.id}/sources`),
           fetch(`/api/sessions?clientId=${params.id}`),
@@ -252,6 +268,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
           fetch(`/api/clarity-method/${params.id}`),
           fetch(`/api/execution-plans?clientId=${params.id}`),
           fetch(`/api/roadmaps?clientId=${params.id}`),
+          fetch(`/api/personas`),
         ]);
 
         if (clientRes.ok) setClient(await clientRes.json());
@@ -261,6 +278,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
         if (notesRes.ok) setNotes(await notesRes.json());
         if (plansRes.ok) setExecutionPlans(await plansRes.json());
         if (roadmapsRes.ok) setRoadmaps(await roadmapsRes.json());
+        if (personasRes.ok) setPersonas(await personasRes.json());
         if (clarityMethodRes.ok) {
           const data = await clarityMethodRes.json();
           const canvas = data.canvas;
@@ -1284,49 +1302,100 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
             ]}
           />
 
-          {/* Quick Chat */}
-          <Card className="lg:col-span-2">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <MessageSquare className="h-5 w-5" />
-                Ask About {client.name}
-              </CardTitle>
+          {/* Quick Chat - Expandable */}
+          <Card className={cn(
+            "transition-all duration-300",
+            chatExpanded
+              ? "fixed inset-4 z-50 lg:col-span-2 flex flex-col"
+              : "lg:col-span-2"
+          )}>
+            <CardHeader className="pb-3 flex-shrink-0">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <MessageSquare className="h-5 w-5" />
+                  Ask About {client.name}
+                  {selectedPersona && personas.find(p => p.id === selectedPersona) && (
+                    <Badge variant="secondary" className="text-xs">
+                      {personas.find(p => p.id === selectedPersona)?.name}
+                    </Badge>
+                  )}
+                </CardTitle>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setChatExpanded(!chatExpanded)}
+                  title={chatExpanded ? "Minimize chat" : "Expand chat"}
+                >
+                  {chatExpanded ? (
+                    <Minimize2 className="h-4 w-4" />
+                  ) : (
+                    <Maximize2 className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
+            <CardContent className={cn(
+              "flex flex-col",
+              chatExpanded ? "flex-1 overflow-hidden" : ""
+            )}>
+              <div className={cn(
+                "space-y-4 flex flex-col",
+                chatExpanded ? "h-full" : ""
+              )}>
                 {messages.length > 0 && (
-                  <div className="max-h-48 overflow-auto space-y-2 mb-3">
+                  <div className={cn(
+                    "overflow-auto space-y-3 mb-3",
+                    chatExpanded ? "flex-1" : "max-h-48"
+                  )}>
                     {messages.map((m) => (
                       <div
                         key={m.id}
-                        className={`text-sm ${
-                          m.role === "user" ? "text-primary" : "text-muted-foreground"
-                        }`}
+                        className={cn(
+                          "text-sm p-3 rounded-lg",
+                          m.role === "user"
+                            ? "bg-primary/10 ml-8"
+                            : "bg-muted mr-8"
+                        )}
                       >
-                        <span className="font-medium">{m.role === "user" ? "You: " : "AI: "}</span>
-                        {m.content}
+                        <span className="font-medium text-xs text-muted-foreground block mb-1">
+                          {m.role === "user" ? "You" : "AI"}
+                        </span>
+                        <div className="whitespace-pre-wrap">{m.content}</div>
                       </div>
                     ))}
                     {chatLoading && (
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground p-3 bg-muted rounded-lg mr-8">
                         <Loader2 className="h-3 w-3 animate-spin" />
                         Thinking...
                       </div>
                     )}
                   </div>
                 )}
-                <ChatComposer
-                  onSubmit={handleChatSubmit}
-                  sources={sources.map(s => ({ id: s.id, name: s.name, type: s.type }))}
-                  selectedClient={params.id}
-                  isLoading={chatLoading}
-                  placeholder="Ask about this client... Use @ # /"
-                  compact
-                  showAttachments={false}
-                />
+                <div className={cn(chatExpanded ? "flex-shrink-0" : "")}>
+                  <ChatComposer
+                    onSubmit={handleChatSubmit}
+                    personas={personas}
+                    sources={sources.map(s => ({ id: s.id, name: s.name, type: s.type }))}
+                    selectedClient={params.id}
+                    selectedPersona={selectedPersona}
+                    onPersonaChange={setSelectedPersona}
+                    isLoading={chatLoading}
+                    placeholder="Ask about this client... Use @ # /"
+                    compact={!chatExpanded}
+                    showAttachments={chatExpanded}
+                  />
+                </div>
               </div>
             </CardContent>
           </Card>
+          {/* Backdrop when chat is expanded */}
+          {chatExpanded && (
+            <div
+              className="fixed inset-0 bg-black/50 z-40"
+              onClick={() => setChatExpanded(false)}
+            />
+          )}
         </div>
       </div>
 
