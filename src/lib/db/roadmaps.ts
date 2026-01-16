@@ -58,6 +58,7 @@ export async function getRoadmapPublic(id: string) {
     swimlanes: roadmap.swimlanes,
     items: roadmap.items,
     backlog: roadmap.backlog,
+    tags: roadmap.tags,
     successMetrics: roadmap.successMetrics,
     notes: roadmap.notes,
     status: roadmap.status,
