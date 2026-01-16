@@ -192,10 +192,9 @@ export default function ProspectDetailPage({ params }: { params: { id: string } 
     setConverting(true);
 
     try {
-      const res = await fetch(`/api/clients/${prospect.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "active" }),
+      // Use the dedicated convert endpoint that saves eval chat and creates clarity doc
+      const res = await fetch(`/api/prospects/${prospect.id}/convert`, {
+        method: "POST",
       });
 
       if (res.ok) {
