@@ -24,9 +24,15 @@ export async function POST(
     // Process based on type
     switch (source.type) {
       case "website":
+        if (!source.clientId) {
+          return NextResponse.json({ error: "Website sources require a client" }, { status: 400 });
+        }
         await processWebsite(params.id, source.clientId, user.id, source.url!);
         break;
       case "repo":
+        if (!source.clientId) {
+          return NextResponse.json({ error: "Repo sources require a client" }, { status: 400 });
+        }
         await processRepo(params.id, source.clientId, user.id, source.url!);
         break;
       case "local_folder":
