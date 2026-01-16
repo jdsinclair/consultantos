@@ -30,7 +30,7 @@ interface SearchResult {
   sessionId?: string;
   sessionTitle?: string;
   sessionDate?: string;
-  clientId: string;
+  clientId?: string | null;
   clientName?: string;
   matchType: "semantic" | "text";
 }
