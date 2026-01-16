@@ -45,6 +45,7 @@ import {
   User,
   Building,
   BookOpen,
+  Map,
 } from "lucide-react";
 import Link from "next/link";
 import { formatDistanceToNow, isPast } from "date-fns";
@@ -724,6 +725,52 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                     </Button>
                   </Link>
                 </div>
+              )}
+
+              {/* Roadmap Builder */}
+              {roadmaps.length > 0 ? (
+                <div className="space-y-2">
+                  {roadmaps.map((roadmap) => (
+                    <Link
+                      key={roadmap.id}
+                      href={`/methods/roadmap/${roadmap.id}`}
+                      className="flex items-center gap-3 p-3 rounded-lg hover:bg-accent/50 transition-colors"
+                    >
+                      <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
+                        <Map className="h-4 w-4 text-white" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{roadmap.title}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {roadmap.planningHorizon && `${roadmap.planningHorizon} · `}
+                          {formatDistanceToNow(new Date(roadmap.updatedAt), { addSuffix: true })}
+                        </p>
+                      </div>
+                      <Badge variant="outline" className={cn(
+                        "text-xs",
+                        roadmap.status === "active" && "bg-green-500/20 text-green-500",
+                        roadmap.status === "draft" && "bg-yellow-500/20 text-yellow-500",
+                        roadmap.status === "completed" && "bg-blue-500/20 text-blue-500"
+                      )}>
+                        {roadmap.status}
+                      </Badge>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <Link
+                  href={`/methods/roadmap?client=${client.id}`}
+                  className="flex items-center gap-3 p-3 rounded-lg border border-dashed hover:border-blue-500/40 hover:bg-blue-500/5 transition-colors"
+                >
+                  <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
+                    <Map className="h-4 w-4 text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium">Roadmap Builder</p>
+                    <p className="text-xs text-muted-foreground">Create a visual product roadmap</p>
+                  </div>
+                  <Plus className="h-4 w-4 text-muted-foreground" />
+                </Link>
               )}
             </CardContent>
           </Card>
