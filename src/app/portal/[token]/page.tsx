@@ -25,6 +25,12 @@ import {
   Zap,
   TrendingUp,
   ArrowRight,
+  Map,
+  Layers,
+  CheckSquare,
+  Clock,
+  Tag,
+  ListChecks,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
@@ -238,6 +244,8 @@ export default function ClientPortalPage({
                           <Rocket className="h-4 w-4" style={{ color: brandColor }} />
                         ) : item.itemType === "clarity_canvas" ? (
                           <Target className="h-4 w-4" style={{ color: brandColor }} />
+                        ) : item.itemType === "roadmap" ? (
+                          <Map className="h-4 w-4" style={{ color: brandColor }} />
                         ) : (
                           <FileText className="h-4 w-4" style={{ color: brandColor }} />
                         )}
@@ -284,6 +292,8 @@ export default function ClientPortalPage({
                           <Rocket className="h-5 w-5" style={{ color: brandColor }} />
                         ) : selectedItem.itemType === "clarity_canvas" ? (
                           <Target className="h-5 w-5" style={{ color: brandColor }} />
+                        ) : selectedItem.itemType === "roadmap" ? (
+                          <Map className="h-5 w-5" style={{ color: brandColor }} />
                         ) : (
                           <FileText className="h-5 w-5" style={{ color: brandColor }} />
                         )}
@@ -333,6 +343,14 @@ export default function ClientPortalPage({
                         <ClarityCanvasFullView canvas={selectedItem.data} brandColor={brandColor} />
                       ) : (
                         <ClarityCanvasPreview canvas={selectedItem.data} brandColor={brandColor} />
+                      )
+                    )}
+                  {selectedItem.itemType === "roadmap" &&
+                    selectedItem.data && (
+                      expandedView ? (
+                        <RoadmapFullView roadmap={selectedItem.data} brandColor={brandColor} />
+                      ) : (
+                        <RoadmapPreview roadmap={selectedItem.data} brandColor={brandColor} />
                       )
                     )}
                   {!selectedItem.data && (
@@ -1223,6 +1241,465 @@ function PortalPlanItem({
           {item.children.map((child: any) => (
             <PortalPlanItem key={child.id} item={child} depth={depth + 1} brandColor={brandColor} />
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Roadmap Preview - CEO View (High-level summary)
+function RoadmapPreview({
+  roadmap,
+  brandColor,
+}: {
+  roadmap: any;
+  brandColor: string;
+}) {
+  const swimlanes = roadmap.swimlanes || [];
+  const items = roadmap.items || [];
+  const backlog = roadmap.backlog || [];
+  const tags = roadmap.tags || [];
+
+  // Calculate overall progress
+  const totalItems = items.length;
+  const completedItems = items.filter((item: any) => item.status === "done").length;
+  const progressPercent = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
+
+  // Count items by swimlane
+  const swimlaneStats = swimlanes.map((lane: any) => {
+    const laneItems = items.filter((item: any) => item.swimlane === lane.id);
+    const completed = laneItems.filter((item: any) => item.status === "done").length;
+    return {
+      id: lane.id,
+      name: lane.name,
+      total: laneItems.length,
+      completed,
+    };
+  });
+
+  // Get items by status for quick overview
+  const inProgress = items.filter((item: any) => item.status === "in-progress").length;
+  const notStarted = items.filter((item: any) => item.status === "not-started" || !item.status).length;
+
+  return (
+    <div className="space-y-6">
+      {/* Vision & Objective */}
+      <div className="grid gap-4 md:grid-cols-2">
+        {roadmap.vision && (
+          <div className="p-4 rounded-lg border-2" style={{ backgroundColor: `${brandColor}10`, borderColor: `${brandColor}40` }}>
+            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1 flex items-center gap-1">
+              <Star className="h-3 w-3" style={{ color: brandColor }} />
+              Vision
+            </p>
+            <p className="text-sm font-medium">{roadmap.vision}</p>
+          </div>
+        )}
+        {roadmap.objective && (
+          <div className="p-4 rounded-lg bg-muted/30 border">
+            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1 flex items-center gap-1">
+              <Target className="h-3 w-3" />
+              Objective
+            </p>
+            <p className="text-sm">{roadmap.objective}</p>
+          </div>
+        )}
+      </div>
+
+      {/* Planning Horizon & Status */}
+      <div className="flex items-center gap-4 flex-wrap">
+        {roadmap.planningHorizon && (
+          <div className="flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-medium">{roadmap.planningHorizon}</span>
+          </div>
+        )}
+        <Badge
+          variant="outline"
+          className={cn(
+            roadmap.status === "active" && "bg-green-500/20 text-green-500",
+            roadmap.status === "completed" && "bg-blue-500/20 text-blue-500",
+            roadmap.status === "draft" && "bg-yellow-500/20 text-yellow-500"
+          )}
+        >
+          {roadmap.status || "draft"}
+        </Badge>
+      </div>
+
+      {/* Progress Overview */}
+      {totalItems > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">Overall Progress</span>
+            <span className="font-semibold">{progressPercent}%</span>
+          </div>
+          <div className="h-3 bg-muted rounded-full overflow-hidden">
+            <div
+              className="h-full transition-all duration-500"
+              style={{ width: `${progressPercent}%`, backgroundColor: brandColor }}
+            />
+          </div>
+          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <CheckCircle2 className="h-3 w-3 text-green-500" />
+              {completedItems} Done
+            </span>
+            <span className="flex items-center gap-1">
+              <Clock className="h-3 w-3 text-blue-500" />
+              {inProgress} In Progress
+            </span>
+            <span className="flex items-center gap-1">
+              <Layers className="h-3 w-3 text-muted-foreground" />
+              {notStarted} To Do
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Swimlanes Summary */}
+      {swimlaneStats.length > 0 && (
+        <div>
+          <p className="text-xs text-muted-foreground uppercase tracking-wide mb-3">Swimlanes</p>
+          <div className="grid gap-2 md:grid-cols-2">
+            {swimlaneStats.filter((s: any) => s.total > 0).map((lane: any) => (
+              <div key={lane.id} className="p-3 rounded-lg bg-muted/30 border flex items-center justify-between">
+                <span className="text-sm font-medium">{lane.name}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">
+                    {lane.completed}/{lane.total}
+                  </span>
+                  {lane.total > 0 && (
+                    <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${(lane.completed / lane.total) * 100}%`,
+                          backgroundColor: brandColor,
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Backlog & Tags counts */}
+      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+        {backlog.length > 0 && (
+          <span className="flex items-center gap-1">
+            <Layers className="h-4 w-4" />
+            {backlog.length} items in backlog
+          </span>
+        )}
+        {tags.length > 0 && (
+          <span className="flex items-center gap-1">
+            <Tag className="h-4 w-4" />
+            {tags.length} tags
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Roadmap Full View - PM View (Detailed)
+function RoadmapFullView({
+  roadmap,
+  brandColor,
+}: {
+  roadmap: any;
+  brandColor: string;
+}) {
+  const swimlanes = roadmap.swimlanes || [];
+  const items = roadmap.items || [];
+  const backlog = roadmap.backlog || [];
+  const tags = roadmap.tags || [];
+
+  // Calculate overall progress
+  const totalItems = items.length;
+  const completedItems = items.filter((item: any) => item.status === "done").length;
+  const progressPercent = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
+
+  // Get tag by ID
+  const getTag = (tagId: string) => tags.find((t: any) => t.id === tagId);
+
+  // Group items by swimlane
+  const getItemsForSwimlane = (swimlaneId: string) =>
+    items.filter((item: any) => item.swimlane === swimlaneId);
+
+  // Get status color
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "done": return "bg-green-500";
+      case "in-progress": return "bg-blue-500";
+      case "blocked": return "bg-red-500";
+      default: return "bg-muted-foreground/50";
+    }
+  };
+
+  const getStatusBadgeStyle = (status: string) => {
+    switch (status) {
+      case "done": return "bg-green-500/20 text-green-600 border-green-500/30";
+      case "in-progress": return "bg-blue-500/20 text-blue-600 border-blue-500/30";
+      case "blocked": return "bg-red-500/20 text-red-600 border-red-500/30";
+      default: return "bg-muted text-muted-foreground";
+    }
+  };
+
+  return (
+    <div className="space-y-8">
+      {/* Header Info */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {roadmap.vision && (
+          <div className="md:col-span-2 p-4 rounded-lg border-2" style={{ backgroundColor: `${brandColor}10`, borderColor: `${brandColor}40` }}>
+            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1 flex items-center gap-1">
+              <Star className="h-3 w-3" style={{ color: brandColor }} />
+              Vision
+            </p>
+            <p className="text-sm font-medium">{roadmap.vision}</p>
+          </div>
+        )}
+        {roadmap.objective && (
+          <div className="p-4 rounded-lg bg-muted/30 border">
+            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Objective</p>
+            <p className="text-sm">{roadmap.objective}</p>
+          </div>
+        )}
+        <div className="p-4 rounded-lg bg-muted/30 border">
+          <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Timeline</p>
+          <p className="text-sm flex items-center gap-1">
+            <Calendar className="h-3 w-3" />
+            {roadmap.planningHorizon || "Not set"}
+          </p>
+          <Badge
+            variant="outline"
+            className={cn(
+              "mt-2",
+              roadmap.status === "active" && "bg-green-500/20 text-green-500",
+              roadmap.status === "completed" && "bg-blue-500/20 text-blue-500",
+              roadmap.status === "draft" && "bg-yellow-500/20 text-yellow-500"
+            )}
+          >
+            {roadmap.status || "draft"}
+          </Badge>
+        </div>
+      </div>
+
+      {/* Progress Bar */}
+      {totalItems > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-sm">
+            <span className="font-medium">Progress</span>
+            <span className="text-muted-foreground">
+              {completedItems} of {totalItems} items complete ({progressPercent}%)
+            </span>
+          </div>
+          <div className="h-4 bg-muted rounded-full overflow-hidden">
+            <div
+              className="h-full transition-all duration-500"
+              style={{ width: `${progressPercent}%`, backgroundColor: brandColor }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Tags Legend */}
+      {tags.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground">Tags:</span>
+          {tags.map((tag: any) => (
+            <Badge
+              key={tag.id}
+              variant="outline"
+              className="text-xs"
+              style={{ backgroundColor: `${tag.color}20`, color: tag.color, borderColor: tag.color }}
+            >
+              {tag.name}
+            </Badge>
+          ))}
+        </div>
+      )}
+
+      {/* Swimlanes with Items */}
+      <div className="space-y-6">
+        <h3 className="text-sm font-semibold flex items-center gap-2">
+          <Map className="h-4 w-4" style={{ color: brandColor }} />
+          Roadmap Items by Swimlane
+        </h3>
+
+        {swimlanes.map((swimlane: any) => {
+          const laneItems = getItemsForSwimlane(swimlane.id);
+          if (laneItems.length === 0) return null;
+
+          return (
+            <div key={swimlane.id} className="border rounded-lg overflow-hidden">
+              <div className="bg-muted/30 px-4 py-3 border-b flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Layers className="h-4 w-4" style={{ color: brandColor }} />
+                  <span className="font-medium">{swimlane.name}</span>
+                </div>
+                <Badge variant="outline" className="text-xs">
+                  {laneItems.filter((i: any) => i.status === "done").length}/{laneItems.length} complete
+                </Badge>
+              </div>
+              <div className="p-4 space-y-3">
+                {laneItems.map((item: any) => (
+                  <div key={item.id} className="p-4 rounded-lg border bg-card hover:shadow-sm transition-shadow">
+                    <div className="flex items-start gap-3">
+                      {/* Status indicator */}
+                      <div className={cn("w-2 h-2 rounded-full mt-2 flex-shrink-0", getStatusColor(item.status))} />
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="font-medium text-sm">{item.title || "Untitled"}</h4>
+                          <Badge variant="outline" className={cn("text-[10px]", getStatusBadgeStyle(item.status))}>
+                            {item.status?.replace("-", " ") || "not started"}
+                          </Badge>
+                        </div>
+
+                        {/* Description */}
+                        {item.notes && (
+                          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.notes}</p>
+                        )}
+
+                        {/* Tags */}
+                        {item.tags?.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {item.tags.map((tagId: string) => {
+                              const tag = getTag(tagId);
+                              if (!tag) return null;
+                              return (
+                                <span
+                                  key={tagId}
+                                  className="text-[10px] px-1.5 py-0.5 rounded"
+                                  style={{ backgroundColor: `${tag.color}20`, color: tag.color }}
+                                >
+                                  {tag.name}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {/* Subtasks */}
+                        {item.subtasks?.length > 0 && (
+                          <div className="mt-3 pt-3 border-t">
+                            <div className="flex items-center gap-2 mb-2">
+                              <ListChecks className="h-3 w-3 text-muted-foreground" />
+                              <span className="text-xs text-muted-foreground">
+                                Subtasks ({item.subtasks.filter((s: any) => s.done).length}/{item.subtasks.length})
+                              </span>
+                            </div>
+                            <div className="space-y-1">
+                              {item.subtasks.map((subtask: any) => (
+                                <div key={subtask.id} className="flex items-center gap-2 text-xs">
+                                  <CheckSquare className={cn("h-3 w-3", subtask.done ? "text-green-500" : "text-muted-foreground")} />
+                                  <span className={cn(subtask.done && "line-through text-muted-foreground")}>
+                                    {subtask.title}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Items without swimlane */}
+        {items.filter((item: any) => !item.swimlane || !swimlanes.find((s: any) => s.id === item.swimlane)).length > 0 && (
+          <div className="border rounded-lg overflow-hidden">
+            <div className="bg-muted/30 px-4 py-3 border-b">
+              <span className="font-medium text-muted-foreground">Unassigned Items</span>
+            </div>
+            <div className="p-4 space-y-3">
+              {items.filter((item: any) => !item.swimlane || !swimlanes.find((s: any) => s.id === item.swimlane)).map((item: any) => (
+                <div key={item.id} className="p-3 rounded-lg border bg-card">
+                  <div className="flex items-center gap-2">
+                    <div className={cn("w-2 h-2 rounded-full flex-shrink-0", getStatusColor(item.status))} />
+                    <span className="text-sm">{item.title || "Untitled"}</span>
+                    <Badge variant="outline" className={cn("text-[10px]", getStatusBadgeStyle(item.status))}>
+                      {item.status?.replace("-", " ") || "not started"}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Backlog */}
+      {backlog.length > 0 && (
+        <div className="border rounded-lg overflow-hidden">
+          <div className="bg-yellow-500/10 px-4 py-3 border-b border-yellow-500/20 flex items-center gap-2">
+            <Layers className="h-4 w-4 text-yellow-600" />
+            <span className="font-medium text-yellow-700 dark:text-yellow-500">Backlog</span>
+            <Badge variant="outline" className="text-xs ml-auto">{backlog.length} items</Badge>
+          </div>
+          <div className="p-4">
+            <div className="grid gap-2 md:grid-cols-2">
+              {backlog.map((item: any) => (
+                <div key={item.id} className="p-3 rounded-lg border bg-card hover:bg-muted/30 transition-colors">
+                  <div className="flex items-start gap-2">
+                    <Layers className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">{item.title || "Untitled"}</p>
+                      {item.notes && (
+                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.notes}</p>
+                      )}
+                      {item.tags?.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {item.tags.map((tagId: string) => {
+                            const tag = getTag(tagId);
+                            if (!tag) return null;
+                            return (
+                              <span
+                                key={tagId}
+                                className="text-[10px] px-1.5 py-0.5 rounded"
+                                style={{ backgroundColor: `${tag.color}20`, color: tag.color }}
+                              >
+                                {tag.name}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Success Metrics */}
+      {roadmap.successMetrics && (
+        <div className="p-4 rounded-lg bg-muted/30 border">
+          <p className="text-sm font-medium flex items-center gap-2 mb-3">
+            <BarChart3 className="h-4 w-4" style={{ color: brandColor }} />
+            Success Metrics
+          </p>
+          <p className="text-sm whitespace-pre-wrap">{roadmap.successMetrics}</p>
+        </div>
+      )}
+
+      {/* Notes */}
+      {roadmap.notes && (
+        <div className="p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+          <p className="text-sm font-medium flex items-center gap-2 mb-2">
+            <StickyNote className="h-4 w-4 text-yellow-600" />
+            Notes
+          </p>
+          <p className="text-sm whitespace-pre-wrap">{roadmap.notes}</p>
         </div>
       )}
     </div>

@@ -37,6 +37,7 @@ import {
   Eye,
   Loader2,
   MoreVertical,
+  Map,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -65,7 +66,7 @@ interface Portal {
 
 interface ShareableItem {
   id: string;
-  type: "execution_plan" | "clarity_canvas" | "source" | "note";
+  type: "execution_plan" | "clarity_canvas" | "roadmap" | "source" | "note";
   title: string;
   status?: string;
 }
@@ -218,6 +219,8 @@ export function SharePortalCard({
         return <Rocket className="h-4 w-4 text-orange-500" />;
       case "clarity_canvas":
         return <Target className="h-4 w-4 text-primary" />;
+      case "roadmap":
+        return <Map className="h-4 w-4 text-blue-500" />;
       default:
         return <FileText className="h-4 w-4 text-muted-foreground" />;
     }
