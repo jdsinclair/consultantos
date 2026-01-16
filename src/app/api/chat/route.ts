@@ -7,12 +7,77 @@ import { getSessions } from "@/lib/db/sessions";
 import { getPersona } from "@/lib/db/personas";
 import { getClarityDocument } from "@/lib/db/clarity";
 import { getClarityMethodCanvas } from "@/lib/db/clarity-method";
-import { searchRelevantChunks, buildContextFromChunks } from "@/lib/rag";
+import { searchRelevantChunks, buildContextFromChunks, searchPersonalKnowledge } from "@/lib/rag";
 import { buildCanvasContext } from "@/lib/clarity-method/rag-integration";
 import { logCompletedAICall } from "@/lib/ai/logger";
+import { db } from "@/db";
+import { users } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 // Prevent static caching - auth routes must be dynamic
 export const dynamic = "force-dynamic";
+
+/**
+ * Build consultant context from user's AI profile
+ */
+function buildConsultantContext(user: {
+  name: string | null;
+  nickname: string | null;
+  businessName: string | null;
+  bio: string | null;
+  specialties: string[] | null;
+  personalStory: string | null;
+  methodology: string | null;
+  notableClients: string | null;
+  uniquePerspective: string | null;
+  communicationStyle: string | null;
+  aiContextSummary: string | null;
+}): string {
+  const parts: string[] = [];
+
+  // Start with the AI-generated summary if available
+  if (user.aiContextSummary) {
+    parts.push(`## About the Consultant\n\n${user.aiContextSummary}`);
+  } else if (user.name || user.businessName) {
+    parts.push(`## About the Consultant\n\nYou are assisting ${user.nickname || user.name || 'the consultant'}${user.businessName ? ` of ${user.businessName}` : ''}.`);
+  }
+
+  // Add methodology if available
+  if (user.methodology) {
+    parts.push(`### Methodology & Approach\n\n${user.methodology}`);
+  }
+
+  // Add unique perspective
+  if (user.uniquePerspective) {
+    parts.push(`### Unique Perspective\n\n${user.uniquePerspective}`);
+  }
+
+  // Add background
+  if (user.personalStory) {
+    parts.push(`### Background\n\n${user.personalStory}`);
+  }
+
+  // Add notable experience
+  if (user.notableClients) {
+    parts.push(`### Experience & Clients\n\n${user.notableClients}`);
+  }
+
+  // Add communication style
+  if (user.communicationStyle) {
+    parts.push(`### Communication Style\n\nMatch this consultant's style: ${user.communicationStyle}`);
+  }
+
+  // Add specialties
+  if (user.specialties && user.specialties.length > 0) {
+    parts.push(`### Areas of Expertise\n\n${user.specialties.join(', ')}`);
+  }
+
+  if (parts.length === 0) {
+    return '';
+  }
+
+  return parts.join('\n\n') + '\n\n---\n\nWhen giving advice, draw from the consultant\'s methodology and perspective above. Speak as if you are their strategic thinking partner who deeply understands their approach.\n';
+}
 
 export async function POST(req: Request) {
   try {
@@ -341,8 +406,37 @@ Be direct. Help the user see what they're missing.`;
       }
     }
 
-    // Build full system message with client context
+    // Build full system message with consultant and client context
     let fullSystemPrompt = systemPrompt;
+
+    // Fetch user profile for consultant context
+    try {
+      const user = await db.query.users.findFirst({
+        where: eq(users.id, userId),
+      });
+
+      if (user) {
+        const consultantContext = buildConsultantContext({
+          name: user.name,
+          nickname: user.nickname,
+          businessName: user.businessName,
+          bio: user.bio,
+          specialties: user.specialties,
+          personalStory: user.personalStory,
+          methodology: user.methodology,
+          notableClients: user.notableClients,
+          uniquePerspective: user.uniquePerspective,
+          communicationStyle: user.communicationStyle,
+          aiContextSummary: user.aiContextSummary,
+        });
+
+        if (consultantContext) {
+          fullSystemPrompt += "\n\n" + consultantContext;
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch user profile:", error);
+    }
 
     // If clientId provided, fetch context using RAG
     if (clientId) {
@@ -438,12 +532,14 @@ Be direct. Help the user see what they're missing.`;
           if (lastUserMessage?.content) {
             try {
               // Search for relevant chunks using vector similarity
+              // Include personal sources (consultant's knowledge base) in the search
               const relevantChunks = await searchRelevantChunks(
                 lastUserMessage.content,
                 clientId,
                 userId,
                 8, // Get top 8 relevant chunks
-                0.5 // Lower threshold to get more results
+                0.5, // Lower threshold to get more results
+                true // Include personal knowledge sources
               );
 
               if (relevantChunks.length > 0) {
@@ -458,6 +554,37 @@ Be direct. Help the user see what they're missing.`;
         }
       } catch (error) {
         console.error("Failed to fetch client context:", error);
+      }
+    }
+
+    // If no clientId, still search personal knowledge for strategy/methodology questions
+    if (!clientId) {
+      const lastUserMessage = messages
+        .slice()
+        .reverse()
+        .find((m: { role: string }) => m.role === "user");
+
+      if (lastUserMessage?.content) {
+        try {
+          // Search personal knowledge base
+          const personalChunks = await searchPersonalKnowledge(
+            lastUserMessage.content,
+            userId,
+            5, // Get top 5 relevant chunks from personal knowledge
+            0.5
+          );
+
+          if (personalChunks.length > 0) {
+            let personalContext = "## Your Knowledge & Methodology\n\n";
+            personalContext += personalChunks.map((chunk) => {
+              return `[From: ${chunk.sourceName}${chunk.personalCategory ? ` (${chunk.personalCategory})` : ''}]\n${chunk.content}`;
+            }).join('\n\n---\n\n');
+
+            fullSystemPrompt += "\n\n" + personalContext;
+          }
+        } catch (ragError) {
+          console.error("Personal knowledge search failed:", ragError);
+        }
       }
     }
 

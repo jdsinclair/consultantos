@@ -32,6 +32,17 @@ export const users = pgTable('users', {
   timezone: text('timezone'),
   bio: text('bio'), // About the consultant - used for AI context
   specialties: jsonb('specialties').$type<string[]>(), // Areas of expertise
+  // AI Profile - rich context for AI personalization
+  linkedin: text('linkedin'), // LinkedIn profile URL
+  otherWebsites: jsonb('other_websites').$type<string[]>(), // Twitter/X, YouTube, podcast, etc.
+  personalStory: text('personal_story'), // Their journey, background, why they consult
+  methodology: text('methodology'), // Their consulting approach, frameworks, beliefs
+  notableClients: text('notable_clients'), // Past clients, case studies (anonymized if needed)
+  contentAssets: text('content_assets'), // Newsletters, books, courses, frameworks they've created
+  uniquePerspective: text('unique_perspective'), // What makes their POV different
+  communicationStyle: text('communication_style'), // How they communicate (direct, nurturing, data-driven, etc.)
+  aiContextSummary: text('ai_context_summary'), // AI-generated summary from Help Me wizard
+  aiProfile: jsonb('ai_profile').$type<AIProfile>(), // Structured AI profile data
   // Onboarding
   onboardingCompleted: boolean('onboarding_completed').default(false),
   onboardingStep: integer('onboarding_step').default(0),
@@ -42,6 +53,32 @@ export const users = pgTable('users', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
+
+// AI Profile structure for deep personalization
+export interface AIProfile {
+  // Core identity
+  consultantType?: string; // strategy, growth, product, etc.
+  targetClients?: string; // Who they typically work with
+  typicalEngagement?: string; // How engagements usually work
+  // Expertise
+  primaryExpertise?: string[];
+  industryFocus?: string[];
+  // Voice & style
+  tonePreferences?: string[]; // direct, warm, analytical, etc.
+  avoidPhrases?: string[]; // Things they never say
+  signaturePhrases?: string[]; // Things they often say
+  // Knowledge sources
+  knowledgeSources?: {
+    id: string;
+    type: 'newsletter' | 'book' | 'course' | 'framework' | 'podcast' | 'other';
+    name: string;
+    description?: string;
+    url?: string;
+  }[];
+  // Meta
+  lastUpdated?: string;
+  buildVersion?: number; // Incremented each time Help Me wizard runs
+}
 
 // Clients - each consulting engagement (belongs to a user)
 // Status can be: 'prospect', 'active', 'paused', 'completed', 'prospect_lost', 'client_cancelled'
@@ -412,10 +449,10 @@ export const executionPlans = pgTable('execution_plans', {
   statusIdx: index('execution_plans_status_idx').on(table.status),
 }));
 
-// Sources - documents, websites, repos, local folders linked to a client
+// Sources - documents, websites, repos, local folders linked to a client OR user (personal knowledge base)
 export const sources = pgTable('sources', {
   id: uuid('id').defaultRandom().primaryKey(),
-  clientId: uuid('client_id').references(() => clients.id, { onDelete: 'cascade' }).notNull(),
+  clientId: uuid('client_id').references(() => clients.id, { onDelete: 'cascade' }), // null = personal/user-level source
   userId: text('user_id').references(() => users.id).notNull(),
   type: text('type').notNull(), // 'document', 'website', 'repo', 'folder', 'recording', 'local_folder', 'email', 'image'
   name: text('name').notNull(), // AI-generated friendly name
@@ -435,21 +472,26 @@ export const sources = pgTable('sources', {
   lastSyncedAt: timestamp('last_synced_at'),
   // RAG control - exclude certain sources from being used in AI context (e.g., competitor decks)
   excludeFromRag: boolean('exclude_from_rag').default(false),
-  sourceCategory: text('source_category'), // competitor_info, client_docs, internal, reference, etc.
+  sourceCategory: text('source_category'), // competitor_info, client_docs, internal, reference, personal_knowledge, methodology, etc.
   excludeReason: text('exclude_reason'), // notes on why excluded from RAG
+  // Personal knowledge base flags
+  isPersonal: boolean('is_personal').default(false), // true for user-level sources (vs client-specific)
+  personalCategory: text('personal_category'), // newsletter, book, framework, course, podcast, methodology, etc.
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => ({
   clientIdx: index('sources_client_idx').on(table.clientId),
   userIdx: index('sources_user_idx').on(table.userId),
+  personalIdx: index('sources_personal_idx').on(table.isPersonal),
 }));
 
 // Source Chunks - chunked content with embeddings for RAG
 export const sourceChunks = pgTable('source_chunks', {
   id: uuid('id').defaultRandom().primaryKey(),
   sourceId: uuid('source_id').references(() => sources.id, { onDelete: 'cascade' }).notNull(),
-  clientId: uuid('client_id').references(() => clients.id, { onDelete: 'cascade' }).notNull(),
+  clientId: uuid('client_id').references(() => clients.id, { onDelete: 'cascade' }), // null for personal sources
   userId: text('user_id').references(() => users.id).notNull(),
+  isPersonal: boolean('is_personal').default(false), // true for user-level source chunks
   // Chunk content
   content: text('content').notNull(), // The actual chunk text
   chunkIndex: integer('chunk_index').notNull(), // Position in source (0-indexed)
