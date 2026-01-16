@@ -40,6 +40,7 @@ export async function POST(
     // Start async reprocessing - include existing content for sources without blobUrl
     reprocessSource(params.id, source.clientId ?? "", user.id, {
       ...source,
+      clientId: source.clientId ?? "", // Override nullable clientId from spread
       existingContent: source.content, // Pass existing content for session transcripts, notes, etc.
     }, userProfile, client?.name).catch(console.error);
 
