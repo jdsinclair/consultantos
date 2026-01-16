@@ -79,6 +79,7 @@ import {
   IMPACT_CONFIG,
   SWIMLANE_CATEGORIES,
   LINK_TYPE_CONFIG,
+  TAG_COLORS,
 } from "@/lib/roadmap/types";
 import type {
   RoadmapItem,
@@ -89,6 +90,8 @@ import type {
   RoadmapItemSize,
   RoadmapItemImpact,
   RoadmapItemLink,
+  RoadmapTag,
+  RoadmapSubtask,
 } from "@/lib/roadmap/types";
 
 interface Client {
@@ -119,6 +122,7 @@ interface Roadmap {
   swimlanes: RoadmapSwimlane[];
   items: RoadmapItem[];
   backlog: RoadmapBacklogItem[];
+  tags?: RoadmapTag[];
   successMetrics?: {
     quantitative: string[];
     qualitative: string[];
@@ -142,6 +146,10 @@ export default function RoadmapPage({ params }: { params: { id: string } }) {
   const [showItemDialog, setShowItemDialog] = useState(false);
   const [expandedSwimlanes, setExpandedSwimlanes] = useState<Set<string>>(new Set());
   const [newBacklogText, setNewBacklogText] = useState("");
+  const [editingSwimlaneKey, setEditingSwimlaneKey] = useState<string | null>(null);
+  const [editingSwimlaneLabel, setEditingSwimlaneLabel] = useState("");
+  const [draggedItem, setDraggedItem] = useState<RoadmapItem | null>(null);
+  const [dragOverCell, setDragOverCell] = useState<{ swimlane: string; timeframe: RoadmapTimeframe } | null>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Chat context
@@ -372,6 +380,44 @@ export default function RoadmapPage({ params }: { params: { id: string } }) {
     });
   };
 
+  const updateSwimlaneLabel = (key: string, newLabel: string) => {
+    if (!newLabel.trim()) return;
+    const swimlanes = roadmap?.swimlanes?.map(s =>
+      s.key === key ? { ...s, label: newLabel.trim() } : s
+    );
+    updateRoadmap({ swimlanes });
+    setEditingSwimlaneKey(null);
+    setEditingSwimlaneLabel("");
+  };
+
+  // Drag and drop handlers
+  const handleDragStart = (item: RoadmapItem) => {
+    setDraggedItem(item);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedItem(null);
+    setDragOverCell(null);
+  };
+
+  const handleDragOver = (e: React.DragEvent, swimlane: string, timeframe: RoadmapTimeframe) => {
+    e.preventDefault();
+    setDragOverCell({ swimlane, timeframe });
+  };
+
+  const handleDragLeave = () => {
+    setDragOverCell(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, swimlane: string, timeframe: RoadmapTimeframe) => {
+    e.preventDefault();
+    if (draggedItem) {
+      updateItem(draggedItem.id, { swimlaneKey: swimlane, timeframe });
+    }
+    setDraggedItem(null);
+    setDragOverCell(null);
+  };
+
   // Quick add from AI
   const quickAddItem = (title: string, swimlaneKey?: string, timeframe?: RoadmapTimeframe) => {
     const now = new Date().toISOString();
@@ -578,6 +624,13 @@ export default function RoadmapPage({ params }: { params: { id: string } }) {
               AI Asst.
             </Button>
 
+            <Link href={`/roadmap/${params.id}/focus`}>
+              <Button variant="outline" className="gap-2">
+                <LayoutGrid className="h-4 w-4" />
+                Focus View
+              </Button>
+            </Link>
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="icon">
@@ -586,10 +639,16 @@ export default function RoadmapPage({ params }: { params: { id: string } }) {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => {
+                  window.open(`/roadmap/${params.id}/focus`, 'roadmap-focus', 'width=1600,height=1000');
+                }}>
+                  <LayoutGrid className="h-4 w-4 mr-2" />
+                  Open Focus View
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => {
                   window.open(`/roadmap/${params.id}`, 'roadmap-share', 'width=1400,height=900');
                 }}>
                   <ExternalLink className="h-4 w-4 mr-2" />
-                  Open in New Window
+                  Open Client Share View
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={async () => {
@@ -734,7 +793,35 @@ export default function RoadmapPage({ params }: { params: { id: string } }) {
                     className="h-3 w-3 rounded-full"
                     style={{ backgroundColor: swimlane.color }}
                   />
-                  <span className="font-medium text-sm">{swimlane.label}</span>
+                  {editingSwimlaneKey === swimlane.key ? (
+                    <Input
+                      value={editingSwimlaneLabel}
+                      onChange={(e) => setEditingSwimlaneLabel(e.target.value)}
+                      onBlur={() => updateSwimlaneLabel(swimlane.key, editingSwimlaneLabel)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          updateSwimlaneLabel(swimlane.key, editingSwimlaneLabel);
+                        } else if (e.key === "Escape") {
+                          setEditingSwimlaneKey(null);
+                          setEditingSwimlaneLabel("");
+                        }
+                      }}
+                      className="h-6 w-32 text-sm font-medium"
+                      autoFocus
+                    />
+                  ) : (
+                    <span
+                      className="font-medium text-sm cursor-pointer hover:text-primary"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingSwimlaneKey(swimlane.key);
+                        setEditingSwimlaneLabel(swimlane.label);
+                      }}
+                      title="Click to edit"
+                    >
+                      {swimlane.label}
+                    </span>
+                  )}
                   <Badge variant="outline" className="text-xs">
                     {roadmap.items?.filter(i => i.swimlaneKey === swimlane.key).length || 0}
                   </Badge>
@@ -756,10 +843,19 @@ export default function RoadmapPage({ params }: { params: { id: string } }) {
                     <div /> {/* Empty cell for alignment */}
                     {(['now', 'next', 'later', 'someday'] as RoadmapTimeframe[]).map((tf) => {
                       const items = getItemsForCell(swimlane.key, tf);
+                      const isDropTarget = dragOverCell?.swimlane === swimlane.key && dragOverCell?.timeframe === tf;
                       return (
                         <div
                           key={`${swimlane.key}-${tf}`}
-                          className="min-h-[100px] rounded-lg border border-dashed border-muted-foreground/30 p-2 space-y-2 bg-muted/20"
+                          className={cn(
+                            "min-h-[100px] rounded-lg border border-dashed p-2 space-y-2 transition-colors",
+                            isDropTarget
+                              ? "border-primary bg-primary/10 border-solid"
+                              : "border-muted-foreground/30 bg-muted/20"
+                          )}
+                          onDragOver={(e) => handleDragOver(e, swimlane.key, tf)}
+                          onDragLeave={handleDragLeave}
+                          onDrop={(e) => handleDrop(e, swimlane.key, tf)}
                         >
                           {items.map((item) => (
                             <RoadmapItemCard
@@ -770,17 +866,47 @@ export default function RoadmapPage({ params }: { params: { id: string } }) {
                                 setShowItemDialog(true);
                               }}
                               onMove={moveItem}
+                              onDragStart={() => handleDragStart(item)}
+                              onDragEnd={handleDragEnd}
+                              isDragging={draggedItem?.id === item.id}
+                              tags={roadmap?.tags}
                             />
                           ))}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="w-full h-8 text-muted-foreground hover:text-foreground border-dashed border"
-                            onClick={() => addItem(swimlane.key, tf)}
-                          >
-                            <Plus className="h-3 w-3 mr-1" />
-                            Add
-                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="w-full h-8 text-muted-foreground hover:text-foreground border-dashed border"
+                              >
+                                <Plus className="h-3 w-3 mr-1" />
+                                Add
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="center">
+                              <DropdownMenuItem onClick={() => addItem(swimlane.key, tf)}>
+                                <Target className="h-4 w-4 mr-2" />
+                                Add to Board
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => {
+                                const now = new Date().toISOString();
+                                const newItem: RoadmapBacklogItem = {
+                                  id: crypto.randomUUID(),
+                                  title: "New Item",
+                                  suggestedSwimlane: swimlane.key,
+                                  suggestedTimeframe: tf,
+                                  createdAt: now,
+                                  order: roadmap?.backlog?.length || 0,
+                                  source: 'manual',
+                                };
+                                updateRoadmap({ backlog: [...(roadmap?.backlog || []), newItem] });
+                                setViewMode('backlog');
+                              }}>
+                                <Package className="h-4 w-4 mr-2" />
+                                Add to Backlog
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       );
                     })}
@@ -1081,6 +1207,34 @@ export default function RoadmapPage({ params }: { params: { id: string } }) {
                   />
                 </div>
 
+                {/* Tags Section */}
+                <div className="space-y-2">
+                  <Label>Tags</Label>
+                  <TagInput
+                    itemTags={selectedItem.tags || []}
+                    allTags={roadmap?.tags || []}
+                    onTagsChange={(tags) => updateItem(selectedItem.id, { tags })}
+                    onCreateTag={(name, color) => {
+                      const newTag: RoadmapTag = {
+                        id: crypto.randomUUID(),
+                        name,
+                        color,
+                      };
+                      updateRoadmap({ tags: [...(roadmap?.tags || []), newTag] });
+                      return newTag.id;
+                    }}
+                  />
+                </div>
+
+                {/* Subtasks Section */}
+                <div className="space-y-2">
+                  <Label>Subtasks</Label>
+                  <SubtaskList
+                    subtasks={selectedItem.subtasks || []}
+                    onSubtasksChange={(subtasks) => updateItem(selectedItem.id, { subtasks })}
+                  />
+                </div>
+
                 <div className="flex justify-between pt-4">
                   <Button
                     variant="destructive"
@@ -1272,25 +1426,64 @@ function RoadmapItemCard({
   item,
   onSelect,
   onMove,
+  onDragStart,
+  onDragEnd,
+  isDragging,
+  tags,
 }: {
   item: RoadmapItem;
   onSelect: () => void;
   onMove: (itemId: string, timeframe: RoadmapTimeframe) => void;
+  onDragStart?: () => void;
+  onDragEnd?: () => void;
+  isDragging?: boolean;
+  tags?: RoadmapTag[];
 }) {
   const statusConfig = STATUS_CONFIG[item.status];
+  const itemTags = tags?.filter(t => item.tags?.includes(t.id)) || [];
+  const subtasksDone = item.subtasks?.filter(s => s.done).length || 0;
+  const subtasksTotal = item.subtasks?.length || 0;
 
   return (
     <div
-      className="p-2 bg-background border rounded-lg cursor-pointer hover:border-primary/50 hover:shadow-sm transition-all group"
+      className={cn(
+        "p-2 bg-background border rounded-lg cursor-grab hover:border-primary/50 hover:shadow-sm transition-all group",
+        isDragging && "opacity-50 cursor-grabbing"
+      )}
       onClick={onSelect}
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", item.id);
+        onDragStart?.();
+      }}
+      onDragEnd={onDragEnd}
     >
       <div className="flex items-start gap-2">
+        <GripVertical className="h-4 w-4 text-muted-foreground/50 mt-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100" />
         <div
           className="h-2 w-2 rounded-full mt-1.5 flex-shrink-0"
           style={{ backgroundColor: statusConfig.color }}
         />
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 overflow-hidden">
           <p className="text-sm font-medium truncate">{item.title}</p>
+          {/* Tags */}
+          {itemTags.length > 0 && (
+            <div className="flex items-center gap-1 mt-1 flex-wrap">
+              {itemTags.map(tag => (
+                <span
+                  key={tag.id}
+                  className="text-[9px] px-1.5 py-0.5 rounded-full font-medium"
+                  style={{
+                    backgroundColor: `${tag.color}20`,
+                    color: tag.color,
+                  }}
+                >
+                  {tag.name}
+                </span>
+              ))}
+            </div>
+          )}
           <div className="flex items-center gap-1 mt-1 flex-wrap">
             {item.size && (
               <Badge variant="outline" className="text-[10px] h-4 px-1">
@@ -1310,13 +1503,261 @@ function RoadmapItemCard({
                 {IMPACT_CONFIG[item.metrics.impact].label}
               </Badge>
             )}
+            {subtasksTotal > 0 && (
+              <Badge variant="outline" className="text-[10px] h-4 px-1 gap-0.5">
+                <CheckCircle2 className="h-2.5 w-2.5" />
+                {subtasksDone}/{subtasksTotal}
+              </Badge>
+            )}
           </div>
           {item.notes && (
-            <p className="text-[10px] text-muted-foreground mt-1 truncate">
+            <p className="text-[10px] text-muted-foreground mt-1 line-clamp-2 break-all">
               💡 {item.notes}
             </p>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// Tag Input Component with autocomplete
+function TagInput({
+  itemTags,
+  allTags,
+  onTagsChange,
+  onCreateTag,
+}: {
+  itemTags: string[];
+  allTags: RoadmapTag[];
+  onTagsChange: (tags: string[]) => void;
+  onCreateTag: (name: string, color: string) => string;
+}) {
+  const [inputValue, setInputValue] = useState("");
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedColorIndex, setSelectedColorIndex] = useState(0);
+
+  const currentTags = allTags.filter(t => itemTags.includes(t.id));
+  const availableTags = allTags.filter(t => !itemTags.includes(t.id));
+  const filteredSuggestions = availableTags.filter(t =>
+    t.name.toLowerCase().includes(inputValue.toLowerCase())
+  );
+  const isNewTag = inputValue.trim() && !allTags.some(t =>
+    t.name.toLowerCase() === inputValue.toLowerCase()
+  );
+
+  const addTag = (tagId: string) => {
+    onTagsChange([...itemTags, tagId]);
+    setInputValue("");
+    setShowSuggestions(false);
+  };
+
+  const removeTag = (tagId: string) => {
+    onTagsChange(itemTags.filter(id => id !== tagId));
+  };
+
+  const createAndAddTag = () => {
+    if (!inputValue.trim()) return;
+    const color = TAG_COLORS[selectedColorIndex];
+    const tagId = onCreateTag(inputValue.trim(), color);
+    onTagsChange([...itemTags, tagId]);
+    setInputValue("");
+    setShowSuggestions(false);
+    setSelectedColorIndex((selectedColorIndex + 1) % TAG_COLORS.length);
+  };
+
+  return (
+    <div className="space-y-2">
+      {/* Current tags */}
+      {currentTags.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {currentTags.map(tag => (
+            <span
+              key={tag.id}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
+              style={{
+                backgroundColor: `${tag.color}20`,
+                color: tag.color,
+              }}
+            >
+              {tag.name}
+              <button
+                onClick={() => removeTag(tag.id)}
+                className="hover:opacity-70"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Input */}
+      <div className="relative">
+        <Input
+          value={inputValue}
+          onChange={(e) => {
+            setInputValue(e.target.value);
+            setShowSuggestions(true);
+          }}
+          onFocus={() => setShowSuggestions(true)}
+          onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && isNewTag) {
+              e.preventDefault();
+              createAndAddTag();
+            }
+          }}
+          placeholder="Add tag..."
+          className="h-8"
+        />
+
+        {/* Suggestions dropdown */}
+        {showSuggestions && (inputValue || availableTags.length > 0) && (
+          <div className="absolute z-10 w-full mt-1 bg-popover border rounded-md shadow-md max-h-48 overflow-auto">
+            {filteredSuggestions.map(tag => (
+              <button
+                key={tag.id}
+                className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
+                onClick={() => addTag(tag.id)}
+              >
+                <span
+                  className="h-3 w-3 rounded-full"
+                  style={{ backgroundColor: tag.color }}
+                />
+                {tag.name}
+              </button>
+            ))}
+            {isNewTag && (
+              <button
+                className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2 border-t"
+                onClick={createAndAddTag}
+              >
+                <Plus className="h-3 w-3" />
+                Create &quot;{inputValue}&quot;
+                <span
+                  className="h-3 w-3 rounded-full ml-auto"
+                  style={{ backgroundColor: TAG_COLORS[selectedColorIndex] }}
+                />
+              </button>
+            )}
+            {!isNewTag && filteredSuggestions.length === 0 && (
+              <div className="px-3 py-2 text-sm text-muted-foreground">
+                No matching tags
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Subtask List Component
+function SubtaskList({
+  subtasks,
+  onSubtasksChange,
+}: {
+  subtasks: RoadmapSubtask[];
+  onSubtasksChange: (subtasks: RoadmapSubtask[]) => void;
+}) {
+  const [newSubtask, setNewSubtask] = useState("");
+
+  const addSubtask = () => {
+    if (!newSubtask.trim()) return;
+    const subtask: RoadmapSubtask = {
+      id: crypto.randomUUID(),
+      title: newSubtask.trim(),
+      done: false,
+    };
+    onSubtasksChange([...subtasks, subtask]);
+    setNewSubtask("");
+  };
+
+  const toggleSubtask = (id: string) => {
+    onSubtasksChange(
+      subtasks.map(s => s.id === id ? { ...s, done: !s.done } : s)
+    );
+  };
+
+  const deleteSubtask = (id: string) => {
+    onSubtasksChange(subtasks.filter(s => s.id !== id));
+  };
+
+  const doneCount = subtasks.filter(s => s.done).length;
+
+  return (
+    <div className="space-y-2">
+      {/* Progress */}
+      {subtasks.length > 0 && (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+            <div
+              className="h-full bg-green-500 transition-all"
+              style={{ width: `${(doneCount / subtasks.length) * 100}%` }}
+            />
+          </div>
+          <span>{doneCount}/{subtasks.length}</span>
+        </div>
+      )}
+
+      {/* Subtask list */}
+      <div className="space-y-1">
+        {subtasks.map(subtask => (
+          <div
+            key={subtask.id}
+            className="flex items-center gap-2 group"
+          >
+            <button
+              onClick={() => toggleSubtask(subtask.id)}
+              className={cn(
+                "h-4 w-4 rounded border flex items-center justify-center flex-shrink-0",
+                subtask.done
+                  ? "bg-green-500 border-green-500 text-white"
+                  : "border-muted-foreground/30 hover:border-primary"
+              )}
+            >
+              {subtask.done && <CheckCircle2 className="h-3 w-3" />}
+            </button>
+            <span className={cn(
+              "flex-1 text-sm",
+              subtask.done && "line-through text-muted-foreground"
+            )}>
+              {subtask.title}
+            </span>
+            <button
+              onClick={() => deleteSubtask(subtask.id)}
+              className="opacity-0 group-hover:opacity-100 text-destructive"
+            >
+              <Trash2 className="h-3 w-3" />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* Add subtask */}
+      <div className="flex gap-2">
+        <Input
+          value={newSubtask}
+          onChange={(e) => setNewSubtask(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              addSubtask();
+            }
+          }}
+          placeholder="Add subtask..."
+          className="h-8"
+        />
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={addSubtask}
+          disabled={!newSubtask.trim()}
+          className="h-8"
+        >
+          <Plus className="h-3 w-3" />
+        </Button>
       </div>
     </div>
   );

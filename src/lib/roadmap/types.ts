@@ -50,6 +50,18 @@ export interface RoadmapItemMetrics {
   roi?: string; // Qualitative ROI description
 }
 
+export interface RoadmapTag {
+  id: string;
+  name: string;
+  color: string;
+}
+
+export interface RoadmapSubtask {
+  id: string;
+  title: string;
+  done: boolean;
+}
+
 export interface RoadmapItem {
   id: string;
   title: string;
@@ -76,6 +88,12 @@ export interface RoadmapItem {
 
   // Links
   links?: RoadmapItemLink[];
+
+  // Tags
+  tags?: string[]; // Tag IDs
+
+  // Subtasks
+  subtasks?: RoadmapSubtask[];
 
   // Source tracking
   source?: 'manual' | 'ai' | 'import';
@@ -131,6 +149,9 @@ export interface Roadmap {
 
   // Backlog / dump area
   backlog: RoadmapBacklogItem[];
+
+  // Tags available in this roadmap
+  tags?: RoadmapTag[];
 
   // Success metrics for the overall roadmap
   successMetrics?: {
@@ -242,6 +263,22 @@ export const AI_PATTERNS = {
   addMetric: /📊\s*METRIC:\s*["']?([^"'\n]+)["']?/gi,
   bulkItems: /(?:📋|🗒️)\s*ITEMS:\s*\n?((?:[-•*]\s*.+\n?)+)/gi,
 };
+
+// Default tag colors for new tags
+export const TAG_COLORS = [
+  '#ef4444', // red
+  '#f97316', // orange
+  '#f59e0b', // amber
+  '#84cc16', // lime
+  '#22c55e', // green
+  '#14b8a6', // teal
+  '#06b6d4', // cyan
+  '#3b82f6', // blue
+  '#6366f1', // indigo
+  '#8b5cf6', // violet
+  '#a855f7', // purple
+  '#ec4899', // pink
+] as const;
 
 // Link type icons
 export const LINK_TYPE_CONFIG = {

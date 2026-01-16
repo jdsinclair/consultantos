@@ -986,6 +986,18 @@ export interface RoadmapItemMetrics {
   roi?: string;
 }
 
+export interface RoadmapTag {
+  id: string;
+  name: string;
+  color: string;
+}
+
+export interface RoadmapSubtask {
+  id: string;
+  title: string;
+  done: boolean;
+}
+
 export interface RoadmapItem {
   id: string;
   title: string;
@@ -1002,6 +1014,8 @@ export interface RoadmapItem {
   risks?: string[];
   dependencies?: string[];
   links?: RoadmapItemLink[];
+  tags?: string[];
+  subtasks?: RoadmapSubtask[];
   source?: 'manual' | 'ai' | 'import';
   sourceContext?: string;
   createdAt: string;
@@ -1048,6 +1062,9 @@ export const roadmaps = pgTable('roadmaps', {
 
   // Backlog / dump area
   backlog: jsonb('backlog').$type<RoadmapBacklogItem[]>(),
+
+  // Tags available in this roadmap
+  tags: jsonb('tags').$type<RoadmapTag[]>(),
 
   // Success metrics
   successMetrics: jsonb('success_metrics').$type<RoadmapSuccessMetrics>(),
