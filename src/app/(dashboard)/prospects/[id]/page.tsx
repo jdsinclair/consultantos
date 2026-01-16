@@ -72,6 +72,8 @@ interface ProspectEvaluation {
 interface Prospect {
   id: string;
   name: string;
+  email: string | null;
+  phone: string | null;
   company: string | null;
   website: string | null;
   industry: string | null;
