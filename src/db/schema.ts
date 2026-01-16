@@ -524,7 +524,7 @@ export const actionItems = pgTable('action_items', {
   dueDate: timestamp('due_date'),
   priority: text('priority').default('medium'), // low, medium, high, urgent
   status: text('status').default('pending'), // pending, in_progress, completed, cancelled
-  source: text('source').default('manual'), // manual, detected, note, transcript, email
+  source: text('source').default('manual'), // manual, detected, note, transcript, email, session
   sourceContext: text('source_context'), // excerpt or context from source
   transcriptTimestamp: text('transcript_timestamp'), // when in the call it was mentioned
   completedAt: timestamp('completed_at'),
