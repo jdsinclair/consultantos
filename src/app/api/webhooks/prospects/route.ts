@@ -49,7 +49,16 @@ export async function POST(req: NextRequest) {
     }
 
     // Parse payload - handle both array and single object
-    const rawPayload = await req.json();
+    let rawPayload: any;
+    try {
+      rawPayload = await req.json();
+    } catch (parseError) {
+      return NextResponse.json(
+        { error: "Invalid JSON payload", details: String(parseError) },
+        { status: 400 }
+      );
+    }
+
     const payloads = Array.isArray(rawPayload) ? rawPayload : [rawPayload];
 
     const results: { id: string; name: string }[] = [];
@@ -105,29 +114,45 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      // Create the prospect
-      const prospect = await createProspectFromWebhook({
-        userId,
-        firstName,
-        lastName,
-        email: email || undefined,
-        phone: phone || undefined,
-      });
+      try {
+        // Create the prospect
+        const prospect = await createProspectFromWebhook({
+          userId,
+          firstName,
+          lastName,
+          email: email || undefined,
+          phone: phone || undefined,
+        });
 
-      console.log(`Webhook: Created prospect ${prospect.id} - ${prospect.name}`);
-      results.push({ id: prospect.id, name: prospect.name });
+        console.log(`Webhook: Created prospect ${prospect.id} - ${prospect.name}`);
+        results.push({ id: prospect.id, name: prospect.name });
+      } catch (dbError) {
+        console.error("DB error creating prospect:", dbError);
+        errors.push({
+          index: i,
+          error: `Database error: ${dbError instanceof Error ? dbError.message : String(dbError)}`
+        });
+      }
     }
 
-    // Return success (ACK for Zapier)
+    // Return response with debug info
     return NextResponse.json({
-      success: true,
+      success: results.length > 0,
       created: results,
       errors: errors.length > 0 ? errors : undefined,
+      debug: {
+        receivedPayload: rawPayload,
+        userId: userId,
+        payloadCount: payloads.length,
+      },
     });
   } catch (error) {
     console.error("Prospect webhook error:", error);
     return NextResponse.json(
-      { error: "Failed to create prospect" },
+      {
+        error: "Failed to create prospect",
+        details: error instanceof Error ? error.message : String(error),
+      },
       { status: 500 }
     );
   }
