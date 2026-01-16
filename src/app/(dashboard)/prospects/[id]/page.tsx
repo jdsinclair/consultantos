@@ -5,6 +5,11 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import {
   ArrowLeft,
@@ -34,6 +39,12 @@ import {
   CheckCircle,
   HelpCircle,
   XCircle,
+  ContactRound,
+  Mail,
+  Phone,
+  Building2,
+  Copy,
+  Check,
 } from "lucide-react";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
@@ -108,6 +119,7 @@ export default function ProspectDetailPage({ params }: { params: { id: string } 
   const [evaluating, setEvaluating] = useState(false);
   const [converting, setConverting] = useState(false);
   const [showQuickSummary, setShowQuickSummary] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
   const [quickSummary, setQuickSummary] = useState<QuickSummary | null>(null);
   const [loadingQuickSummary, setLoadingQuickSummary] = useState(false);
   const [textExtractionConfirm, setTextExtractionConfirm] = useState<TextExtractionConfirm | null>(null);
@@ -139,6 +151,14 @@ export default function ProspectDetailPage({ params }: { params: { id: string } 
     // Mark as viewed (clears "NEW" badge in CRM)
     fetch(`/api/clients/${params.id}/viewed`, { method: "POST" }).catch(() => {});
   }, [params.id]);
+
+  const handleCopyContact = async (value: string, field: string) => {
+    await navigator.clipboard.writeText(value);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
+
+  const hasContactInfo = prospect?.email || prospect?.phone || prospect?.company || prospect?.website;
 
   const fetchProspect = async () => {
     try {
@@ -559,6 +579,76 @@ export default function ProspectDetailPage({ params }: { params: { id: string } 
             <div>
               <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                 <CardTitle className="text-xl sm:text-2xl">{prospect.name}</CardTitle>
+                {/* Contact Card Popover */}
+                {hasContactInfo && (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" title="Contact info">
+                        <ContactRound className="h-4 w-4" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-72 p-3" align="start">
+                      <div className="space-y-2">
+                        {prospect.email && (
+                          <button
+                            onClick={() => handleCopyContact(prospect.email!, "email")}
+                            className="flex items-center gap-2 w-full text-left text-sm hover:bg-muted p-2 rounded transition-colors"
+                          >
+                            <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <span className="truncate flex-1">{prospect.email}</span>
+                            {copiedField === "email" ? (
+                              <Check className="h-4 w-4 text-green-500" />
+                            ) : (
+                              <Copy className="h-4 w-4 text-muted-foreground" />
+                            )}
+                          </button>
+                        )}
+                        {prospect.phone && (
+                          <button
+                            onClick={() => handleCopyContact(prospect.phone!, "phone")}
+                            className="flex items-center gap-2 w-full text-left text-sm hover:bg-muted p-2 rounded transition-colors"
+                          >
+                            <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <span className="truncate flex-1">{prospect.phone}</span>
+                            {copiedField === "phone" ? (
+                              <Check className="h-4 w-4 text-green-500" />
+                            ) : (
+                              <Copy className="h-4 w-4 text-muted-foreground" />
+                            )}
+                          </button>
+                        )}
+                        {prospect.company && (
+                          <button
+                            onClick={() => handleCopyContact(prospect.company!, "company")}
+                            className="flex items-center gap-2 w-full text-left text-sm hover:bg-muted p-2 rounded transition-colors"
+                          >
+                            <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <span className="truncate flex-1">{prospect.company}</span>
+                            {copiedField === "company" ? (
+                              <Check className="h-4 w-4 text-green-500" />
+                            ) : (
+                              <Copy className="h-4 w-4 text-muted-foreground" />
+                            )}
+                          </button>
+                        )}
+                        {prospect.website && (
+                          <button
+                            onClick={() => handleCopyContact(prospect.website!, "website")}
+                            className="flex items-center gap-2 w-full text-left text-sm hover:bg-muted p-2 rounded transition-colors"
+                          >
+                            <Globe className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <span className="truncate flex-1">{prospect.website}</span>
+                            {copiedField === "website" ? (
+                              <Check className="h-4 w-4 text-green-500" />
+                            ) : (
+                              <Copy className="h-4 w-4 text-muted-foreground" />
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                )}
                 <Badge variant="secondary">Prospect</Badge>
               </div>
               {prospect.company && (

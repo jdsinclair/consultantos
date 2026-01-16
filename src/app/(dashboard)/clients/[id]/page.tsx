@@ -17,6 +17,11 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   Mic,
   FileText,
   Globe,
@@ -48,6 +53,10 @@ import {
   Map,
   Maximize2,
   Minimize2,
+  ContactRound,
+  Phone,
+  Copy,
+  Check,
 } from "lucide-react";
 import Link from "next/link";
 import { formatDistanceToNow, isPast } from "date-fns";
@@ -200,6 +209,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   const [actionItems, setActionItems] = useState<ActionItem[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
   const [clarityMethod, setClarityMethod] = useState<ClarityMethodStatus>({ exists: false });
+  const [copiedField, setCopiedField] = useState<string | null>(null);
   const [executionPlans, setExecutionPlans] = useState<ExecutionPlan[]>([]);
   const [roadmaps, setRoadmaps] = useState<Roadmap[]>([]);
   const [loading, setLoading] = useState(true);
@@ -345,6 +355,14 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
       console.error("Failed to update action item:", error);
     }
   };
+
+  const handleCopyContact = async (value: string, field: string) => {
+    await navigator.clipboard.writeText(value);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
+
+  const hasContactInfo = client?.email || client?.phone || client?.company || client?.website;
 
   const handleOpenEditDialog = () => {
     if (client) {
@@ -547,6 +565,76 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                 >
                   <Edit2 className="h-4 w-4" />
                 </Button>
+                {/* Contact Card Popover */}
+                {hasContactInfo && (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" title="Contact info">
+                        <ContactRound className="h-4 w-4" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-72 p-3" align="start">
+                      <div className="space-y-2">
+                        {client.email && (
+                          <button
+                            onClick={() => handleCopyContact(client.email!, "email")}
+                            className="flex items-center gap-2 w-full text-left text-sm hover:bg-muted p-2 rounded transition-colors"
+                          >
+                            <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <span className="truncate flex-1">{client.email}</span>
+                            {copiedField === "email" ? (
+                              <Check className="h-4 w-4 text-green-500" />
+                            ) : (
+                              <Copy className="h-4 w-4 text-muted-foreground" />
+                            )}
+                          </button>
+                        )}
+                        {client.phone && (
+                          <button
+                            onClick={() => handleCopyContact(client.phone!, "phone")}
+                            className="flex items-center gap-2 w-full text-left text-sm hover:bg-muted p-2 rounded transition-colors"
+                          >
+                            <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <span className="truncate flex-1">{client.phone}</span>
+                            {copiedField === "phone" ? (
+                              <Check className="h-4 w-4 text-green-500" />
+                            ) : (
+                              <Copy className="h-4 w-4 text-muted-foreground" />
+                            )}
+                          </button>
+                        )}
+                        {client.company && (
+                          <button
+                            onClick={() => handleCopyContact(client.company!, "company")}
+                            className="flex items-center gap-2 w-full text-left text-sm hover:bg-muted p-2 rounded transition-colors"
+                          >
+                            <Building className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <span className="truncate flex-1">{client.company}</span>
+                            {copiedField === "company" ? (
+                              <Check className="h-4 w-4 text-green-500" />
+                            ) : (
+                              <Copy className="h-4 w-4 text-muted-foreground" />
+                            )}
+                          </button>
+                        )}
+                        {client.website && (
+                          <button
+                            onClick={() => handleCopyContact(client.website!, "website")}
+                            className="flex items-center gap-2 w-full text-left text-sm hover:bg-muted p-2 rounded transition-colors"
+                          >
+                            <Globe className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <span className="truncate flex-1">{client.website}</span>
+                            {copiedField === "website" ? (
+                              <Check className="h-4 w-4 text-green-500" />
+                            ) : (
+                              <Copy className="h-4 w-4 text-muted-foreground" />
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                )}
                 <Badge variant={client.status === "active" ? "default" : "secondary"}>
                   {client.status}
                 </Badge>
