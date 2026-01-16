@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { z } from "zod";
-import { 
-  getExecutionPlan, 
-  updateExecutionPlan, 
-  deleteExecutionPlan 
+import {
+  getExecutionPlan,
+  updateExecutionPlan,
+  deleteExecutionPlan
 } from "@/lib/db/execution-plans";
+import { pushExecutionPlanToRAG, deleteMethodSource } from "@/lib/methods/rag-integration";
 
 export const dynamic = "force-dynamic";
 
@@ -107,6 +108,11 @@ export async function PATCH(
       return NextResponse.json({ error: "Plan not found" }, { status: 404 });
     }
 
+    // Sync to RAG in background (non-blocking)
+    pushExecutionPlanToRAG(params.id, user.id).catch((err) => {
+      console.error("[ExecutionPlan] Background RAG sync failed:", err);
+    });
+
     return NextResponse.json(plan);
   } catch (error) {
     console.error("Failed to update execution plan:", error);
@@ -129,6 +135,10 @@ export async function DELETE(
 ) {
   try {
     const user = await requireUser();
+
+    // Delete RAG source first (non-blocking, but before deleting plan)
+    await deleteMethodSource(params.id, user.id, "execution_plan");
+
     await deleteExecutionPlan(params.id, user.id);
     return NextResponse.json({ success: true });
   } catch (error) {
