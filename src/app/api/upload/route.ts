@@ -269,7 +269,7 @@ async function processDocument(
 
     // Generate embeddings for RAG
     if (content && !content.startsWith("[Error") && !content.startsWith("[Unsupported")) {
-      await processSourceEmbeddings(sourceId, clientId, userId, content, {
+      await processSourceEmbeddings(sourceId, clientId, userId, false, content, {
         type: isImage ? "image" : "document",
         fileType,
         fileName: file.name,

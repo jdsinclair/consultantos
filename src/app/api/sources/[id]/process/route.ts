@@ -24,9 +24,15 @@ export async function POST(
     // Process based on type
     switch (source.type) {
       case "website":
+        if (!source.clientId) {
+          return NextResponse.json({ error: "Website sources require a client" }, { status: 400 });
+        }
         await processWebsite(params.id, source.clientId, user.id, source.url!);
         break;
       case "repo":
+        if (!source.clientId) {
+          return NextResponse.json({ error: "Repo sources require a client" }, { status: 400 });
+        }
         await processRepo(params.id, source.clientId, user.id, source.url!);
         break;
       case "local_folder":
@@ -97,7 +103,7 @@ async function processWebsite(sourceId: string, clientId: string, userId: string
     await updateSource(sourceId, userId, { metadata });
 
     // Generate embeddings for RAG (in background, don't block response)
-    processSourceEmbeddings(sourceId, clientId, userId, fullContent, { type: 'website', url })
+    processSourceEmbeddings(sourceId, clientId, userId, false, fullContent, { type: 'website', url })
       .catch(err => console.error('Embedding generation failed:', err));
 
   } catch (error) {
@@ -159,7 +165,7 @@ async function processRepo(sourceId: string, clientId: string, userId: string, u
     });
 
     // Generate embeddings for RAG
-    processSourceEmbeddings(sourceId, clientId, userId, fullContent, { type: 'repo', owner, repo })
+    processSourceEmbeddings(sourceId, clientId, userId, false, fullContent, { type: 'repo', owner, repo })
       .catch(err => console.error('Embedding generation failed:', err));
 
   } catch (error) {

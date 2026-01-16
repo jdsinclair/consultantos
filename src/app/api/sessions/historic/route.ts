@@ -231,7 +231,7 @@ async function processTranscriptToRAG(
 
     // Generate embeddings for RAG
     console.log(`[Session RAG] Generating embeddings for: ${sessionTitle}`);
-    await processSourceEmbeddings(source.id, clientId, userId, formattedContent, {
+    await processSourceEmbeddings(source.id, clientId, userId, false, formattedContent, {
       type: "session_transcript",
       sessionId,
       sessionTitle,
@@ -360,7 +360,7 @@ async function processAttachmentsToSources(
       // Generate embeddings for RAG (if we have meaningful text)
       if (content && content.length > 50 && !content.startsWith("[Error")) {
         console.log(`[Session Attachment] Generating embeddings for: ${file.name}`);
-        await processSourceEmbeddings(source.id, clientId, userId, content, {
+        await processSourceEmbeddings(source.id, clientId, userId, false, content, {
           type: sourceType,
           fileType,
           fileName: file.name,
@@ -460,7 +460,7 @@ async function processNotesToRAG(
 
     // Generate embeddings for RAG
     console.log(`[Session RAG] Generating embeddings for notes: ${sessionTitle}`);
-    await processSourceEmbeddings(source.id, clientId, userId, formattedContent, {
+    await processSourceEmbeddings(source.id, clientId, userId, false, formattedContent, {
       type: "session_notes",
       sessionId,
       sessionTitle,

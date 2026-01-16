@@ -53,6 +53,9 @@ export async function POST(
     if (!session) {
       return NextResponse.json({ error: "Session not found" }, { status: 404 });
     }
+    if (!session.clientId) {
+      return NextResponse.json({ error: "Session has no client" }, { status: 400 });
+    }
 
     const formData = await req.formData();
     const existingAttachments: SessionAttachment[] = (session.attachments as SessionAttachment[]) || [];
@@ -210,7 +213,7 @@ async function processAttachmentsToSources(
 
       // Generate embeddings for RAG (if we have meaningful text)
       if (content && content.length > 50 && !content.startsWith("[Error")) {
-        await processSourceEmbeddings(source.id, clientId, userId, content, {
+        await processSourceEmbeddings(source.id, clientId, userId, false, content, {
           type: sourceType,
           fileType,
           fileName: file.name,

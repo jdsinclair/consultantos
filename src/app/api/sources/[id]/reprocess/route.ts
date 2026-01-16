@@ -22,8 +22,8 @@ export async function POST(
       return NextResponse.json({ error: "Source not found" }, { status: 404 });
     }
 
-    // Get client for context
-    const client = await getClient(source.clientId, user.id);
+    // Get client for context (may be null for personal sources)
+    const client = source.clientId ? await getClient(source.clientId, user.id) : null;
 
     // Update status to processing
     await updateSource(params.id, user.id, { processingStatus: "processing" });
@@ -38,8 +38,9 @@ export async function POST(
     };
 
     // Start async reprocessing - include existing content for sources without blobUrl
-    reprocessSource(params.id, source.clientId, user.id, {
+    reprocessSource(params.id, source.clientId ?? "", user.id, {
       ...source,
+      clientId: source.clientId ?? "", // Override nullable clientId from spread
       existingContent: source.content, // Pass existing content for session transcripts, notes, etc.
     }, userProfile, client?.name).catch(console.error);
 
@@ -131,7 +132,7 @@ async function reprocessSource(
     if (content && !content.startsWith("[")) {
       console.log(`[Reprocess] Generating embeddings for: ${source.name}`);
       try {
-        await processSourceEmbeddings(sourceId, clientId, userId, content, {
+        await processSourceEmbeddings(sourceId, clientId, userId, false, content, {
           type: source.type,
           fileType: source.fileType || undefined,
           fileName: source.name,

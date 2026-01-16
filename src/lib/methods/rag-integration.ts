@@ -338,7 +338,7 @@ export function serializeRoadmapToText(
     };
 
     for (const tf of timeframes) {
-      const tfItems = roadmap.items.filter(i => i.timeframe === tf);
+      const tfItems: RoadmapItem[] = roadmap.items.filter(i => i.timeframe === tf);
       if (tfItems.length > 0) {
         const tfSection: string[] = [`## ${timeframeLabels[tf]}`];
 
@@ -545,6 +545,7 @@ export async function pushExecutionPlanToRAG(
       sourceId,
       plan.clientId,
       userId,
+      false,
       content,
       {
         sourceType: EXECUTION_PLAN_SOURCE_TYPE,
@@ -659,6 +660,7 @@ export async function pushRoadmapToRAG(
       sourceId,
       roadmap.clientId,
       userId,
+      false,
       content,
       {
         sourceType: ROADMAP_SOURCE_TYPE,
