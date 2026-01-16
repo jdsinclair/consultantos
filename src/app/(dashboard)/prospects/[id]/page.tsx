@@ -87,6 +87,13 @@ interface QuickSummary {
   nextQuestion: string;
 }
 
+interface TextExtractionConfirm {
+  fileName: string;
+  fileSize: number;
+  fileType: string;
+  resolve: (proceed: boolean) => void;
+}
+
 export default function ProspectDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const [prospect, setProspect] = useState<Prospect | null>(null);
@@ -97,6 +104,7 @@ export default function ProspectDetailPage({ params }: { params: { id: string } 
   const [showQuickSummary, setShowQuickSummary] = useState(false);
   const [quickSummary, setQuickSummary] = useState<QuickSummary | null>(null);
   const [loadingQuickSummary, setLoadingQuickSummary] = useState(false);
+  const [textExtractionConfirm, setTextExtractionConfirm] = useState<TextExtractionConfirm | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { uploadFile, uploading, progress } = useFileUpload({
@@ -106,6 +114,16 @@ export default function ProspectDetailPage({ params }: { params: { id: string } 
     },
     onError: (error) => {
       console.error("Upload failed:", error);
+    },
+    onConfirmTextExtraction: async (info) => {
+      return new Promise((resolve) => {
+        setTextExtractionConfirm({
+          fileName: info.fileName,
+          fileSize: info.fileSize,
+          fileType: info.fileType,
+          resolve,
+        });
+      });
     },
   });
 
@@ -403,6 +421,63 @@ export default function ProspectDetailPage({ params }: { params: { id: string } 
                   Failed to load summary
                 </p>
               )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Text Extraction Confirmation Modal */}
+      {textExtractionConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <Card className="w-full max-w-md mx-4">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-yellow-500" />
+                Large File Detected
+              </CardTitle>
+              <CardDescription>
+                {textExtractionConfirm.fileName} ({(textExtractionConfirm.fileSize / 1024 / 1024).toFixed(1)}MB)
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="p-3 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
+                <p className="text-sm">
+                  This {textExtractionConfirm.fileType.toUpperCase()} is too large to upload directly.
+                  We can extract the <strong>text content only</strong>.
+                </p>
+                <p className="text-sm mt-2 text-muted-foreground">
+                  Images, charts, and graphics will NOT be included.
+                </p>
+              </div>
+              <div className="text-sm text-muted-foreground">
+                <p className="font-medium mb-1">Alternatives:</p>
+                <ul className="list-disc list-inside space-y-1">
+                  <li>Export as PDF and compress to under 4MB</li>
+                  <li>Describe key visuals in the Eval Chat</li>
+                </ul>
+              </div>
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => {
+                    textExtractionConfirm.resolve(false);
+                    setTextExtractionConfirm(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1"
+                  onClick={() => {
+                    textExtractionConfirm.resolve(true);
+                    setTextExtractionConfirm(null);
+                  }}
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  Extract Text Only
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>

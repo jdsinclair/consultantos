@@ -16,10 +16,18 @@ interface UploadResult {
   blobUrl: string;
 }
 
+interface TextExtractionInfo {
+  fileName: string;
+  fileSize: number;
+  fileType: "pptx" | "docx";
+}
+
 interface UseFileUploadOptions {
   clientId: string;
   onSuccess?: (result: UploadResult) => void;
   onError?: (error: Error) => void;
+  /** Called before extracting text from large Office files. Return true to proceed, false to cancel. */
+  onConfirmTextExtraction?: (info: TextExtractionInfo) => Promise<boolean>;
 }
 
 // Vercel serverless function body limit
@@ -76,7 +84,7 @@ async function extractDocxText(file: File): Promise<string> {
   return "";
 }
 
-export function useFileUpload({ clientId, onSuccess, onError }: UseFileUploadOptions) {
+export function useFileUpload({ clientId, onSuccess, onError, onConfirmTextExtraction }: UseFileUploadOptions) {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
 
@@ -89,6 +97,19 @@ export function useFileUpload({ clientId, onSuccess, onError }: UseFileUploadOpt
 
       // For large Office files, extract text and upload that instead
       if (file.size > SERVERLESS_LIMIT && (extension === "pptx" || extension === "docx")) {
+        // Ask for confirmation before extracting (imagery will be lost)
+        if (onConfirmTextExtraction) {
+          const proceed = await onConfirmTextExtraction({
+            fileName: file.name,
+            fileSize: file.size,
+            fileType: extension as "pptx" | "docx",
+          });
+          if (!proceed) {
+            setUploading(false);
+            return null; // User cancelled
+          }
+        }
+
         console.log(`Large ${extension} file detected, extracting text: ${file.name}`);
         setProgress(10);
 
@@ -174,7 +195,7 @@ export function useFileUpload({ clientId, onSuccess, onError }: UseFileUploadOpt
       setUploading(false);
       setProgress(0);
     }
-  }, [clientId, onSuccess, onError]);
+  }, [clientId, onSuccess, onError, onConfirmTextExtraction]);
 
   return {
     uploadFile,
