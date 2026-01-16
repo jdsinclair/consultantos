@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,18 @@ import {
   UserCheck,
   Globe,
   Brain,
+  Edit,
+  MessageSquare,
+  Zap,
+  Upload,
+  FileText,
+  ExternalLink,
+  Trash2,
+  X,
+  AlertCircle,
+  CheckCircle,
+  HelpCircle,
+  XCircle,
 } from "lucide-react";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
@@ -54,15 +66,42 @@ interface Prospect {
   createdAt: string;
 }
 
+interface Source {
+  id: string;
+  name: string;
+  type: string;
+  fileType: string | null;
+  blobUrl: string | null;
+  processingStatus: string;
+  createdAt: string;
+}
+
+interface QuickSummary {
+  verdict: "strong_pass" | "worth_exploring" | "proceed_with_caution" | "hard_pass";
+  oneLiner: string;
+  keyStrength: string;
+  keyRisk: string;
+  tarpitScore: number;
+  biasWarning: string;
+  nextQuestion: string;
+}
+
 export default function ProspectDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const [prospect, setProspect] = useState<Prospect | null>(null);
+  const [sources, setSources] = useState<Source[]>([]);
   const [loading, setLoading] = useState(true);
   const [evaluating, setEvaluating] = useState(false);
   const [converting, setConverting] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [showQuickSummary, setShowQuickSummary] = useState(false);
+  const [quickSummary, setQuickSummary] = useState<QuickSummary | null>(null);
+  const [loadingQuickSummary, setLoadingQuickSummary] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchProspect();
+    fetchSources();
   }, [params.id]);
 
   const fetchProspect = async () => {
@@ -79,6 +118,18 @@ export default function ProspectDetailPage({ params }: { params: { id: string } 
       router.push("/prospects");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSources = async () => {
+    try {
+      const res = await fetch(`/api/clients/${params.id}/sources`);
+      if (res.ok) {
+        const data = await res.json();
+        setSources(data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch sources:", error);
     }
   };
 
@@ -146,10 +197,81 @@ export default function ProspectDetailPage({ params }: { params: { id: string } 
     }
   };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("clientId", params.id);
+
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (res.ok) {
+        const { source } = await res.json();
+        setSources((prev) => [source, ...prev]);
+      }
+    } catch (error) {
+      console.error("Upload failed:", error);
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleDeleteSource = async (sourceId: string) => {
+    try {
+      await fetch(`/api/sources/${sourceId}`, { method: "DELETE" });
+      setSources((prev) => prev.filter((s) => s.id !== sourceId));
+    } catch (error) {
+      console.error("Failed to delete source:", error);
+    }
+  };
+
+  const handleQuickSummary = async () => {
+    setShowQuickSummary(true);
+    if (quickSummary) return; // Already loaded
+
+    setLoadingQuickSummary(true);
+    try {
+      const res = await fetch(`/api/prospects/${params.id}/quick-summary`, {
+        method: "POST",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setQuickSummary(data);
+      }
+    } catch (error) {
+      console.error("Quick summary failed:", error);
+    } finally {
+      setLoadingQuickSummary(false);
+    }
+  };
+
   const getFitScoreColor = (score: number) => {
     if (score >= 8) return "text-green-500";
     if (score >= 6) return "text-yellow-500";
     return "text-red-500";
+  };
+
+  const getVerdictConfig = (verdict: QuickSummary["verdict"]) => {
+    switch (verdict) {
+      case "strong_pass":
+        return { icon: CheckCircle, color: "text-green-500", bg: "bg-green-500/10", label: "Strong Pass" };
+      case "worth_exploring":
+        return { icon: HelpCircle, color: "text-blue-500", bg: "bg-blue-500/10", label: "Worth Exploring" };
+      case "proceed_with_caution":
+        return { icon: AlertCircle, color: "text-yellow-500", bg: "bg-yellow-500/10", label: "Proceed with Caution" };
+      case "hard_pass":
+        return { icon: XCircle, color: "text-red-500", bg: "bg-red-500/10", label: "Hard Pass" };
+    }
   };
 
   if (loading) {
@@ -172,6 +294,125 @@ export default function ProspectDetailPage({ params }: { params: { id: string } 
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto">
+      {/* Quick Summary Modal */}
+      {showQuickSummary && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <Card className="w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+            <CardHeader className="flex flex-row items-start justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Zap className="h-5 w-5 text-yellow-500" />
+                  Quick Analysis
+                </CardTitle>
+                <CardDescription>Aggressive, no-nonsense assessment</CardDescription>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowQuickSummary(false)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {loadingQuickSummary ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : quickSummary ? (
+                <div className="space-y-4">
+                  {/* Verdict */}
+                  {(() => {
+                    const config = getVerdictConfig(quickSummary.verdict);
+                    const Icon = config.icon;
+                    return (
+                      <div className={`flex items-center gap-3 p-3 rounded-lg ${config.bg}`}>
+                        <Icon className={`h-6 w-6 ${config.color}`} />
+                        <div>
+                          <p className={`font-bold ${config.color}`}>{config.label}</p>
+                          <p className="text-sm text-muted-foreground">{quickSummary.oneLiner}</p>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Tarpit Score */}
+                  <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                    <span className="text-sm font-medium">Tarpit Risk</span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-24 h-2 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className={`h-full ${
+                            quickSummary.tarpitScore <= 3
+                              ? "bg-green-500"
+                              : quickSummary.tarpitScore <= 6
+                              ? "bg-yellow-500"
+                              : "bg-red-500"
+                          }`}
+                          style={{ width: `${quickSummary.tarpitScore * 10}%` }}
+                        />
+                      </div>
+                      <span className="text-sm font-bold">{quickSummary.tarpitScore}/10</span>
+                    </div>
+                  </div>
+
+                  {/* Key Strength */}
+                  <div className="p-3 bg-green-500/10 rounded-lg border border-green-500/20">
+                    <div className="flex items-center gap-2 mb-1">
+                      <ThumbsUp className="h-4 w-4 text-green-500" />
+                      <span className="text-sm font-medium text-green-600">Key Strength</span>
+                    </div>
+                    <p className="text-sm">{quickSummary.keyStrength}</p>
+                  </div>
+
+                  {/* Key Risk */}
+                  <div className="p-3 bg-red-500/10 rounded-lg border border-red-500/20">
+                    <div className="flex items-center gap-2 mb-1">
+                      <AlertTriangle className="h-4 w-4 text-red-500" />
+                      <span className="text-sm font-medium text-red-600">Key Risk</span>
+                    </div>
+                    <p className="text-sm">{quickSummary.keyRisk}</p>
+                  </div>
+
+                  {/* Bias Warning */}
+                  <div className="p-3 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Brain className="h-4 w-4 text-yellow-500" />
+                      <span className="text-sm font-medium text-yellow-600">Watch Your Bias</span>
+                    </div>
+                    <p className="text-sm">{quickSummary.biasWarning}</p>
+                  </div>
+
+                  {/* Next Question */}
+                  <div className="p-3 bg-primary/10 rounded-lg border border-primary/20">
+                    <div className="flex items-center gap-2 mb-1">
+                      <MessageSquare className="h-4 w-4 text-primary" />
+                      <span className="text-sm font-medium text-primary">Ask This</span>
+                    </div>
+                    <p className="text-sm font-medium">{quickSummary.nextQuestion}</p>
+                  </div>
+
+                  <Button
+                    className="w-full mt-4"
+                    onClick={() => {
+                      setShowQuickSummary(false);
+                      router.push(`/prospects/${params.id}/eval`);
+                    }}
+                  >
+                    <MessageSquare className="h-4 w-4 mr-2" />
+                    Start Deep Evaluation
+                  </Button>
+                </div>
+              ) : (
+                <p className="text-center text-muted-foreground py-8">
+                  Failed to load summary
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <Link
           href="/prospects"
@@ -181,13 +422,37 @@ export default function ProspectDetailPage({ params }: { params: { id: string } 
           Back to Prospects
         </Link>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {/* Quick Summary Button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleQuickSummary}
+            className="gap-2"
+          >
+            <Zap className="h-4 w-4 text-yellow-500" />
+            Quick Analysis
+          </Button>
+
+          <Link href={`/prospects/${params.id}/edit`}>
+            <Button variant="outline" size="sm" className="gap-2">
+              <Edit className="h-4 w-4" />
+              Edit
+            </Button>
+          </Link>
+
+          <Link href={`/prospects/${params.id}/eval`}>
+            <Button variant="outline" size="sm" className="gap-2">
+              <MessageSquare className="h-4 w-4" />
+              Eval Chat
+            </Button>
+          </Link>
+
           <Button
             variant="outline"
             size="sm"
             onClick={handleEvaluate}
             disabled={evaluating}
-            className="flex-1 sm:flex-none"
           >
             {evaluating ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -197,7 +462,7 @@ export default function ProspectDetailPage({ params }: { params: { id: string } 
             {eval_ ? "Re-evaluate" : "Evaluate"}
           </Button>
 
-          <Button onClick={handleConvert} disabled={converting} className="gap-2 flex-1 sm:flex-none" size="sm">
+          <Button onClick={handleConvert} disabled={converting} className="gap-2" size="sm">
             {converting ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
@@ -264,6 +529,104 @@ export default function ProspectDetailPage({ params }: { params: { id: string } 
           {prospect.description && (
             <div className="mt-4 p-4 bg-muted/50 rounded-lg">
               <p className="text-sm whitespace-pre-wrap">{prospect.description}</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Documents/Sources Section */}
+      <Card className="mb-6">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <FileText className="h-5 w-5" />
+              Documents ({sources.length})
+            </CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+            >
+              {uploading ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Upload className="h-4 w-4 mr-2" />
+              )}
+              Upload
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              accept=".pdf,.doc,.docx,.txt,.md,.png,.jpg,.jpeg"
+              onChange={handleFileUpload}
+            />
+          </div>
+        </CardHeader>
+        <CardContent>
+          {sources.length === 0 ? (
+            <div className="text-center py-6 text-muted-foreground">
+              <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">No documents uploaded yet</p>
+              <Button
+                variant="link"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+                className="mt-2"
+              >
+                Upload a document
+              </Button>
+            </div>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {sources.map((source) => (
+                <div
+                  key={source.id}
+                  className="group flex items-center justify-between p-3 bg-muted/50 rounded-lg hover:bg-muted transition-colors"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{source.name}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {source.processingStatus === "processing" ? (
+                          <Badge variant="secondary" className="text-xs">
+                            <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                            Processing
+                          </Badge>
+                        ) : source.processingStatus === "completed" ? (
+                          <Badge variant="secondary" className="text-xs bg-green-500/10 text-green-600">
+                            Ready
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="text-xs bg-red-500/10 text-red-600">
+                            Failed
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {source.blobUrl && (
+                      <a
+                        href={source.blobUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1.5 hover:bg-background rounded"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </a>
+                    )}
+                    <button
+                      onClick={() => handleDeleteSource(source.id)}
+                      className="p-1.5 hover:bg-red-500/10 rounded text-muted-foreground hover:text-red-500"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </CardContent>
@@ -449,19 +812,27 @@ export default function ProspectDetailPage({ params }: { params: { id: string } 
               Run an AI evaluation to get insights before your first conversation.
               Works best with a website URL or some context about the prospect.
             </p>
-            <Button onClick={handleEvaluate} disabled={evaluating}>
-              {evaluating ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Evaluating...
-                </>
-              ) : (
-                <>
-                  <Brain className="h-4 w-4 mr-2" />
-                  Run Evaluation
-                </>
-              )}
-            </Button>
+            <div className="flex gap-3">
+              <Button onClick={handleEvaluate} disabled={evaluating}>
+                {evaluating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Evaluating...
+                  </>
+                ) : (
+                  <>
+                    <Brain className="h-4 w-4 mr-2" />
+                    Run Evaluation
+                  </>
+                )}
+              </Button>
+              <Link href={`/prospects/${params.id}/eval`}>
+                <Button variant="outline">
+                  <MessageSquare className="h-4 w-4 mr-2" />
+                  Start Eval Chat
+                </Button>
+              </Link>
+            </div>
           </CardContent>
         </Card>
       )}
