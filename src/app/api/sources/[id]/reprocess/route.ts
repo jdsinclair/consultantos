@@ -143,8 +143,8 @@ async function reprocessSource(
       }
     }
 
-    // Generate clarity insights from the source content
-    if (content && !content.startsWith("[Error") && !content.startsWith("[Unsupported")) {
+    // Generate clarity insights from the source content (only for client sources)
+    if (clientId && content && !content.startsWith("[Error") && !content.startsWith("[Unsupported")) {
       console.log(`[Reprocess] Generating clarity insights for: ${source.name}`);
       try {
         await generateClarityInsightsFromSource(content, {
