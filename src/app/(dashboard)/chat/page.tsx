@@ -185,7 +185,7 @@ export default function ChatPage() {
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 sm:gap-4 min-w-0">
               <h1 className="text-lg sm:text-xl font-semibold text-foreground flex-shrink-0">Chat</h1>
-              <div className="flex items-center gap-2 overflow-x-auto">
+              <div className="flex items-center gap-2">
                 {/* Client Selector */}
                 <div className="relative flex-shrink-0" data-dropdown>
                   <Button
@@ -202,7 +202,7 @@ export default function ChatPage() {
                   </Button>
                   {showClientDropdown && (
                     <div
-                      className="absolute top-full left-0 mt-2 w-52 bg-card border-2 border-border rounded-xl shadow-corporate-lg z-50 overflow-hidden animate-fade-in"
+                      className="absolute top-full left-0 mt-2 w-52 bg-card border-2 border-border rounded-xl shadow-corporate-lg z-50 overflow-hidden animate-fade-in max-h-64 overflow-y-auto"
                     >
                       <div
                         className={cn(
@@ -253,7 +253,7 @@ export default function ChatPage() {
                   </Button>
                   {showPersonaDropdown && (
                     <div
-                      className="absolute top-full left-0 mt-2 w-52 bg-card border-2 border-border rounded-xl shadow-corporate-lg z-50 overflow-hidden animate-fade-in"
+                      className="absolute top-full left-0 mt-2 w-52 bg-card border-2 border-border rounded-xl shadow-corporate-lg z-50 overflow-hidden animate-fade-in max-h-64 overflow-y-auto"
                     >
                       <div
                         className={cn(
