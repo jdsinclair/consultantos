@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { unstable_noStore } from "next/cache";
 import { getPortalByToken, logPortalAccess } from "@/lib/db/portals";
 import { getExecutionPlanPublic } from "@/lib/db/execution-plans";
+import { getRoadmapPublic } from "@/lib/db/roadmaps";
 import { db } from "@/db";
 import { clarityMethodCanvases, clients } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -58,6 +59,8 @@ export async function GET(
             },
           });
           itemData = canvas;
+        } else if (item.itemType === "roadmap") {
+          itemData = await getRoadmapPublic(item.itemId);
         }
 
         return {

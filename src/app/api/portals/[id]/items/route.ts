@@ -11,7 +11,7 @@ import {
 export const dynamic = "force-dynamic";
 
 const addItemSchema = z.object({
-  itemType: z.enum(["execution_plan", "clarity_canvas", "source", "note"]),
+  itemType: z.enum(["execution_plan", "clarity_canvas", "roadmap", "source", "note"]),
   itemId: z.string().uuid(),
   displayName: z.string().optional(),
 });

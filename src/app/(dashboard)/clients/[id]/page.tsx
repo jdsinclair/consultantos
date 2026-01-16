@@ -175,6 +175,14 @@ interface ExecutionPlan {
   updatedAt: string;
 }
 
+interface Roadmap {
+  id: string;
+  title: string;
+  status: string;
+  planningHorizon?: string;
+  updatedAt: string;
+}
+
 export default function ClientDetailPage({ params }: { params: { id: string } }) {
   const [client, setClient] = useState<Client | null>(null);
   const [sources, setSources] = useState<Source[]>([]);
@@ -183,6 +191,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   const [notes, setNotes] = useState<Note[]>([]);
   const [clarityMethod, setClarityMethod] = useState<ClarityMethodStatus>({ exists: false });
   const [executionPlans, setExecutionPlans] = useState<ExecutionPlan[]>([]);
+  const [roadmaps, setRoadmaps] = useState<Roadmap[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddTodo, setShowAddTodo] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -232,7 +241,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [clientRes, sourcesRes, sessionsRes, actionsRes, notesRes, clarityMethodRes, plansRes] = await Promise.all([
+        const [clientRes, sourcesRes, sessionsRes, actionsRes, notesRes, clarityMethodRes, plansRes, roadmapsRes] = await Promise.all([
           fetch(`/api/clients/${params.id}`),
           fetch(`/api/clients/${params.id}/sources`),
           fetch(`/api/sessions?clientId=${params.id}`),
@@ -240,6 +249,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
           fetch(`/api/notes?clientId=${params.id}&limit=5`),
           fetch(`/api/clarity-method/${params.id}`),
           fetch(`/api/execution-plans?clientId=${params.id}`),
+          fetch(`/api/roadmaps?clientId=${params.id}`),
         ]);
 
         if (clientRes.ok) setClient(await clientRes.json());
@@ -248,6 +258,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
         if (actionsRes.ok) setActionItems(await actionsRes.json());
         if (notesRes.ok) setNotes(await notesRes.json());
         if (plansRes.ok) setExecutionPlans(await plansRes.json());
+        if (roadmapsRes.ok) setRoadmaps(await roadmapsRes.json());
         if (clarityMethodRes.ok) {
           const data = await clarityMethodRes.json();
           const canvas = data.canvas;
@@ -1208,6 +1219,13 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                 type: "execution_plan" as const,
                 title: plan.title,
                 status: plan.status,
+              })),
+              // Add roadmaps
+              ...roadmaps.map((roadmap) => ({
+                id: roadmap.id,
+                type: "roadmap" as const,
+                title: roadmap.title,
+                status: roadmap.status,
               })),
             ]}
           />
