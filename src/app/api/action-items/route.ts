@@ -25,7 +25,7 @@ const createActionItemSchema = z.object({
   dueDate: z.string().optional(), // More flexible date parsing
   priority: z.enum(["low", "medium", "high", "urgent"]).default("medium"),
   source: z
-    .enum(["manual", "detected", "note", "transcript", "email"])
+    .enum(["manual", "detected", "note", "transcript", "email", "session"])
     .default("manual"),
   sourceContext: z.string().optional(),
 });
