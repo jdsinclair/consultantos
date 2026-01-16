@@ -524,6 +524,7 @@ export async function pushCanvasToRAG(
       sourceId,
       clientId,
       userId,
+      false,
       content,
       {
         sourceType: SOURCE_TYPE,

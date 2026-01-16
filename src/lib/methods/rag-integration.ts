@@ -545,6 +545,7 @@ export async function pushExecutionPlanToRAG(
       sourceId,
       plan.clientId,
       userId,
+      false,
       content,
       {
         sourceType: EXECUTION_PLAN_SOURCE_TYPE,
@@ -659,6 +660,7 @@ export async function pushRoadmapToRAG(
       sourceId,
       roadmap.clientId,
       userId,
+      false,
       content,
       {
         sourceType: ROADMAP_SOURCE_TYPE,

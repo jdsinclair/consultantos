@@ -210,7 +210,7 @@ async function processAttachmentsToSources(
 
       // Generate embeddings for RAG (if we have meaningful text)
       if (content && content.length > 50 && !content.startsWith("[Error")) {
-        await processSourceEmbeddings(source.id, clientId, userId, content, {
+        await processSourceEmbeddings(source.id, clientId, userId, false, content, {
           type: sourceType,
           fileType,
           fileName: file.name,

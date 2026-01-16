@@ -313,7 +313,7 @@ async function processTranscriptToRAG(
 
     // Generate embeddings
     console.log(`[Transcript RAG] Generating embeddings for: ${sessionTitle}`);
-    await processSourceEmbeddings(source.id, clientId, userId, formattedContent, {
+    await processSourceEmbeddings(source.id, clientId, userId, false, formattedContent, {
       type: "session_transcript",
       sessionId,
       sessionTitle,
@@ -373,7 +373,7 @@ async function processNotesToRAG(
       console.error(`[Transcript RAG] Failed to generate AI summary for notes:`, summaryError);
     }
 
-    await processSourceEmbeddings(source.id, clientId, userId, formattedContent, {
+    await processSourceEmbeddings(source.id, clientId, userId, false, formattedContent, {
       type: "session_notes",
       sessionId,
       sessionTitle,
