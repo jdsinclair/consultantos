@@ -59,7 +59,7 @@ async function reprocessSource(
     name: string;
     blobUrl: string | null;
     fileType: string | null;
-    clientId: string;
+    clientId: string | null;
     existingContent?: string | null; // For sources stored directly in DB (session transcripts, notes)
   },
   userProfile: {
