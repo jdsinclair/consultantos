@@ -479,6 +479,7 @@ export function PersonalSourcesSection() {
             </DialogContent>
           </Dialog>
         </div>
+      </div>
       </CardHeader>
       <CardContent>
         {loading ? (
