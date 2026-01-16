@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { put } from "@vercel/blob";
 import { requireUser } from "@/lib/auth";
 import { createSource, updateSourceContent, setSourceError, updateSourceSummary, updateSourceName } from "@/lib/db/sources";
 import { processSourceEmbeddings } from "@/lib/rag";
@@ -17,39 +16,32 @@ export const dynamic = "force-dynamic";
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser();
-    const formData = await req.formData();
-    const file = formData.get("file") as File;
-    const clientId = formData.get("clientId") as string;
+    const body = await req.json();
+    const { blobUrl, clientId, fileName, fileSize } = body;
 
-    if (!file) {
-      return NextResponse.json({ error: "No file provided" }, { status: 400 });
+    if (!blobUrl || !clientId || !fileName) {
+      return NextResponse.json(
+        { error: "Missing required fields: blobUrl, clientId, fileName" },
+        { status: 400 }
+      );
     }
 
-    if (!clientId) {
-      return NextResponse.json({ error: "No client ID provided" }, { status: 400 });
-    }
-
-    // Upload to Vercel Blob
-    const blob = await put(`${user.id}/${clientId}/${file.name}`, file, {
-      access: "public",
-    });
-
-    // Determine file type and source type
-    const extension = file.name.split(".").pop()?.toLowerCase() || "";
+    // Determine file type
+    const extension = fileName.split(".").pop()?.toLowerCase() || "";
     const fileType = getFileType(extension);
     const isImage = ["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(extension);
     const sourceType = isImage ? "image" : "document";
 
-    // Create source record (store original name, will update with AI name after processing)
+    // Create source record
     const source = await createSource({
       clientId,
       userId: user.id,
       type: sourceType,
-      name: file.name, // Temporary, will be replaced with AI-generated name
-      originalName: file.name, // Keep original filename
-      blobUrl: blob.url,
+      name: fileName,
+      originalName: fileName,
+      blobUrl,
       fileType,
-      fileSize: file.size,
+      fileSize: fileSize || 0,
       processingStatus: "processing",
     });
 
@@ -67,26 +59,23 @@ export async function POST(req: NextRequest) {
       businessName: user.businessName,
     };
 
-    // Start async processing (text extraction + embeddings + AI summary)
+    // Start async processing
     processDocument(
       source.id,
       clientId,
       user.id,
-      blob.url,
+      blobUrl,
       fileType,
-      file,
+      fileName,
       isImage,
       client?.name,
       userProfile
     ).catch(console.error);
 
-    return NextResponse.json({
-      source,
-      blobUrl: blob.url,
-    });
+    return NextResponse.json({ source, blobUrl });
   } catch (error) {
-    console.error("Upload error:", error);
-    return NextResponse.json({ error: "Upload failed" }, { status: 500 });
+    console.error("Process upload error:", error);
+    return NextResponse.json({ error: "Processing failed" }, { status: 500 });
   }
 }
 
@@ -103,7 +92,6 @@ function getFileType(extension: string): string {
     md: "md",
     csv: "csv",
     json: "json",
-    // Image types
     png: "png",
     jpg: "jpg",
     jpeg: "jpeg",
@@ -120,7 +108,7 @@ async function processDocument(
   userId: string,
   blobUrl: string,
   fileType: string,
-  file: File,
+  fileName: string,
   isImage: boolean,
   clientName?: string,
   userProfile?: {
@@ -134,17 +122,23 @@ async function processDocument(
   try {
     let content = "";
 
+    // Fetch the file from blob URL
+    const response = await fetch(blobUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch file: ${response.statusText}`);
+    }
+
     // Handle images with Vision AI
     if (isImage) {
-      console.log(`Processing image with Vision AI: ${file.name}`);
+      console.log(`Processing image with Vision AI: ${fileName}`);
       const extraction = await extractImageContent(blobUrl, {
         clientName,
-        fileName: file.name,
+        fileName,
       });
 
       content = formatImageContentForRAG({
         ...extraction,
-        fileName: file.name,
+        fileName,
       });
 
       console.log(`Image content extracted: ${content.slice(0, 200)}...`);
@@ -153,12 +147,11 @@ async function processDocument(
       switch (fileType) {
         case "pdf":
           try {
-            const arrayBuffer = await file.arrayBuffer();
+            const arrayBuffer = await response.arrayBuffer();
             const buffer = Buffer.from(arrayBuffer);
             const data = await pdf(buffer);
             let textContent = data.text || "";
 
-            // Clean up the text
             textContent = textContent
               .replace(/\r\n/g, "\n")
               .replace(/\n{3,}/g, "\n\n")
@@ -167,15 +160,15 @@ async function processDocument(
             content = `## Extracted Text\n\n${textContent}`;
 
             // Also extract visual content (charts, diagrams, images)
-            console.log(`Extracting visual content from PDF: ${file.name}`);
+            console.log(`Extracting visual content from PDF: ${fileName}`);
             try {
               const visualExtraction = await extractPdfVisualContent(blobUrl, {
                 clientName,
-                fileName: file.name,
+                fileName,
               });
               const visualContent = formatPdfVisualContentForRAG(visualExtraction);
               content = content + visualContent;
-              console.log(`Visual content extracted for: ${file.name}`);
+              console.log(`Visual content extracted for: ${fileName}`);
             } catch (visualError) {
               console.error("PDF visual extraction error (continuing with text only):", visualError);
             }
@@ -187,16 +180,16 @@ async function processDocument(
 
         case "txt":
         case "md":
-          content = await file.text();
+          content = await response.text();
           break;
 
         case "csv":
-          content = await file.text();
+          content = await response.text();
           content = `[CSV Data]\n${content}`;
           break;
 
         case "json":
-          const jsonText = await file.text();
+          const jsonText = await response.text();
           try {
             const parsed = JSON.parse(jsonText);
             content = JSON.stringify(parsed, null, 2);
@@ -205,10 +198,33 @@ async function processDocument(
           }
           break;
 
+        case "pptx":
+        case "ppt":
+          // For PPT files, we'll extract what we can or note it's a presentation
+          try {
+            const arrayBuffer = await response.arrayBuffer();
+            const text = new TextDecoder("utf-8", { fatal: false }).decode(arrayBuffer);
+            // Try to find text content in the PPTX XML
+            const textMatches = text.match(/<a:t>([^<]*)<\/a:t>/g);
+            if (textMatches && textMatches.length > 0) {
+              content = textMatches
+                .map(t => t.replace(/<[^>]+>/g, ""))
+                .filter(t => t.trim().length > 0)
+                .join("\n")
+                .trim();
+            }
+            if (!content || content.length < 50) {
+              content = `[PowerPoint presentation: ${fileName}]\n${content || "Content requires manual review"}`;
+            }
+          } catch {
+            content = `[PowerPoint presentation: ${fileName} - Could not extract text content]`;
+          }
+          break;
+
         case "docx":
           try {
-            const arrayBuffer = await file.arrayBuffer();
-            const text = new TextDecoder().decode(arrayBuffer);
+            const arrayBuffer = await response.arrayBuffer();
+            const text = new TextDecoder("utf-8", { fatal: false }).decode(arrayBuffer);
             const textContent = text.match(/<w:t[^>]*>([^<]*)<\/w:t>/g);
             if (textContent) {
               content = textContent
@@ -226,7 +242,7 @@ async function processDocument(
 
         default:
           try {
-            content = await file.text();
+            content = await response.text();
           } catch {
             content = "[Unsupported file type - could not extract content]";
           }
@@ -238,16 +254,16 @@ async function processDocument(
 
     // Generate AI name and summary for the source
     if (content && !content.startsWith("[Error") && !content.startsWith("[Unsupported")) {
-      console.log(`Generating AI name for: ${file.name}`);
+      console.log(`Generating AI name for: ${fileName}`);
 
       // Generate AI-friendly name
       try {
         const aiName = await generateSourceName(content, {
-          originalFileName: file.name,
+          originalFileName: fileName,
           fileType,
           clientName,
         });
-        if (aiName && aiName !== file.name) {
+        if (aiName && aiName !== fileName) {
           await updateSourceName(sourceId, userId, aiName);
           console.log(`AI name generated: ${aiName}`);
         }
@@ -256,9 +272,9 @@ async function processDocument(
       }
 
       // Generate AI summary
-      console.log(`Generating AI summary for: ${file.name}`);
+      console.log(`Generating AI summary for: ${fileName}`);
       const summary = await generateSourceSummary(content, {
-        fileName: file.name,
+        fileName,
         fileType,
         clientName,
         sourceType: isImage ? "image" : "document",
@@ -272,18 +288,18 @@ async function processDocument(
       await processSourceEmbeddings(sourceId, clientId, userId, false, content, {
         type: isImage ? "image" : "document",
         fileType,
-        fileName: file.name,
+        fileName,
       });
     }
 
     // Generate clarity insights from the source content
     if (content && !content.startsWith("[Error") && !content.startsWith("[Unsupported")) {
-      console.log(`Generating clarity insights for: ${file.name}`);
+      console.log(`Generating clarity insights for: ${fileName}`);
       await generateClarityInsightsFromSource(content, {
         sourceId,
         clientId,
         userId,
-        sourceName: file.name,
+        sourceName: fileName,
         sourceType: isImage ? "image" : "document",
         userProfile,
       });

@@ -25,10 +25,12 @@ import {
   X,
   TrendingUp,
   ScrollText,
+  Kanban,
 } from "lucide-react";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { name: "Pipeline", href: "/crm", icon: Kanban },
   { name: "Prospects", href: "/prospects", icon: UserPlus },
   { name: "Clients", href: "/clients", icon: Users },
   { name: "Sessions", href: "/session", icon: Mic },

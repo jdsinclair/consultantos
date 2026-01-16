@@ -53,6 +53,9 @@ export async function POST(
     if (!session) {
       return NextResponse.json({ error: "Session not found" }, { status: 404 });
     }
+    if (!session.clientId) {
+      return NextResponse.json({ error: "Session has no client" }, { status: 400 });
+    }
 
     const formData = await req.formData();
     const existingAttachments: SessionAttachment[] = (session.attachments as SessionAttachment[]) || [];
