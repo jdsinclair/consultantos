@@ -107,8 +107,10 @@ export const clients = pgTable('clients', {
   evaluation: jsonb('evaluation').$type<ProspectEvaluation>(), // AI evaluation of the prospect
   evaluatedAt: timestamp('evaluated_at'),
   // Source info (how they came to us)
-  sourceType: text('source_type'), // email, referral, inbound, outreach
+  sourceType: text('source_type'), // email, referral, inbound, outreach, webhook
   sourceNotes: text('source_notes'),
+  // Tracking
+  viewedAt: timestamp('viewed_at'), // null = "new" badge, set on first view
   metadata: jsonb('metadata'), // flexible storage for client-specific data
   // "At Some Point" - dumping ground for future ideas/thoughts
   atSomePoint: jsonb('at_some_point').$type<AtSomePointItem[]>(),

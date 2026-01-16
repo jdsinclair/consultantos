@@ -129,3 +129,96 @@ export async function getClientStats(userId: string) {
 
   return result[0];
 }
+
+// Create prospect from webhook (Zapier, etc.)
+export async function createProspectFromWebhook(data: {
+  userId: string;
+  firstName: string;
+  lastName: string;
+  email?: string;
+  phone?: string;
+}) {
+  const name = `${data.firstName} ${data.lastName}`.trim();
+
+  const [prospect] = await db
+    .insert(clients)
+    .values({
+      userId: data.userId,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      name,
+      email: data.email,
+      phone: data.phone,
+      status: "prospect",
+      dealValue: 500000, // $5,000 default in cents
+      dealStatus: "none", // No quote
+      sourceType: "webhook",
+      // viewedAt is null by default = "new"
+    })
+    .returning();
+
+  return prospect;
+}
+
+// Mark client/prospect as viewed (clears "new" badge)
+export async function markClientViewed(clientId: string, userId: string) {
+  const [client] = await db
+    .update(clients)
+    .set({
+      viewedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(and(eq(clients.id, clientId), eq(clients.userId, userId)))
+    .returning();
+  return client;
+}
+
+// Get all clients grouped by status for CRM view
+export async function getClientsForCRM(userId: string) {
+  return db.query.clients.findMany({
+    where: eq(clients.userId, userId),
+    orderBy: [desc(clients.updatedAt)],
+    columns: {
+      id: true,
+      name: true,
+      firstName: true,
+      lastName: true,
+      company: true,
+      email: true,
+      status: true,
+      dealValue: true,
+      dealStatus: true,
+      viewedAt: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  });
+}
+
+// Update client status (for CRM drag-and-drop)
+export async function updateClientStatus(
+  clientId: string,
+  userId: string,
+  status: string
+) {
+  const [client] = await db
+    .update(clients)
+    .set({ status, updatedAt: new Date() })
+    .where(and(eq(clients.id, clientId), eq(clients.userId, userId)))
+    .returning();
+  return client;
+}
+
+// Update client deal value
+export async function updateClientDealValue(
+  clientId: string,
+  userId: string,
+  dealValue: number
+) {
+  const [client] = await db
+    .update(clients)
+    .set({ dealValue, updatedAt: new Date() })
+    .where(and(eq(clients.id, clientId), eq(clients.userId, userId)))
+    .returning();
+  return client;
+}
