@@ -257,6 +257,9 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   };
 
   useEffect(() => {
+    // Mark as viewed (clears "NEW" badge in CRM)
+    fetch(`/api/clients/${params.id}/viewed`, { method: "POST" }).catch(() => {});
+
     const fetchData = async () => {
       try {
         const [clientRes, sourcesRes, sessionsRes, actionsRes, notesRes, clarityMethodRes, plansRes, roadmapsRes, personasRes] = await Promise.all([

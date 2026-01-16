@@ -136,6 +136,8 @@ export default function ProspectDetailPage({ params }: { params: { id: string } 
   useEffect(() => {
     fetchProspect();
     fetchSources();
+    // Mark as viewed (clears "NEW" badge in CRM)
+    fetch(`/api/clients/${params.id}/viewed`, { method: "POST" }).catch(() => {});
   }, [params.id]);
 
   const fetchProspect = async () => {
