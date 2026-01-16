@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useFileUpload } from "@/hooks/use-file-upload";
 import {
   ArrowLeft,
   Loader2,
@@ -93,11 +94,20 @@ export default function ProspectDetailPage({ params }: { params: { id: string } 
   const [loading, setLoading] = useState(true);
   const [evaluating, setEvaluating] = useState(false);
   const [converting, setConverting] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [showQuickSummary, setShowQuickSummary] = useState(false);
   const [quickSummary, setQuickSummary] = useState<QuickSummary | null>(null);
   const [loadingQuickSummary, setLoadingQuickSummary] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const { uploadFile, uploading, progress } = useFileUpload({
+    clientId: params.id,
+    onSuccess: (result) => {
+      setSources((prev) => [result.source as Source, ...prev]);
+    },
+    onError: (error) => {
+      console.error("Upload failed:", error);
+    },
+  });
 
   useEffect(() => {
     fetchProspect();
@@ -201,25 +211,11 @@ export default function ProspectDetailPage({ params }: { params: { id: string } 
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setUploading(true);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("clientId", params.id);
-
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (res.ok) {
-        const { source } = await res.json();
-        setSources((prev) => [source, ...prev]);
-      }
+      await uploadFile(file);
     } catch (error) {
-      console.error("Upload failed:", error);
+      // Error already handled by hook
     } finally {
-      setUploading(false);
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
