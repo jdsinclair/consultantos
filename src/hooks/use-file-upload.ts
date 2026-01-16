@@ -43,10 +43,10 @@ export function useFileUpload({ clientId, onSuccess, onError }: UseFileUploadOpt
         const blob = await upload(file.name, file, {
           access: "public",
           handleUploadUrl: "/api/upload/client",
-          onUploadProgress: (e) => {
-            setProgress(Math.round((e.loaded / e.total) * 100));
-          },
         });
+
+        // Progress tracking not supported by Vercel Blob SDK
+        setProgress(100);
 
         blobUrl = blob.url;
 
