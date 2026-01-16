@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +20,9 @@ import {
   Loader2,
   Trash2,
   ExternalLink,
+  Upload,
+  FileUp,
+  Files,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import Link from "next/link";
@@ -48,6 +51,8 @@ interface TranscriptUpload {
   updatedAt: string;
 }
 
+type AddMode = "paste" | "upload" | "upload-many";
+
 export default function TranscriptsPage() {
   const [transcripts, setTranscripts] = useState<TranscriptUpload[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -55,13 +60,20 @@ export default function TranscriptsPage() {
   const [selectedTranscript, setSelectedTranscript] = useState<TranscriptUpload | null>(null);
   const [filter, setFilter] = useState<"inbox" | "assigned" | "archived">("inbox");
   const [showNewForm, setShowNewForm] = useState(false);
+  const [addMode, setAddMode] = useState<AddMode>("paste");
   const [submitting, setSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<string>("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const multiFileInputRef = useRef<HTMLInputElement>(null);
 
   // New transcript form state
   const [newTranscript, setNewTranscript] = useState({
     content: "",
     title: "",
   });
+
+  // File upload state
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
   // Assignment form state
   const [assignForm, setAssignForm] = useState({
@@ -125,6 +137,101 @@ export default function TranscriptsPage() {
       console.error("Failed to create transcript:", error);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // Handle single file upload
+  const handleFileUpload = async (file: File) => {
+    if (!file.name.match(/\.(txt|md|text)$/i)) {
+      alert("Please upload a text file (.txt, .md)");
+      return;
+    }
+
+    setSubmitting(true);
+    setUploadProgress(`Reading ${file.name}...`);
+
+    try {
+      const content = await file.text();
+
+      const res = await fetch("/api/transcripts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content,
+          title: file.name.replace(/\.(txt|md|text)$/i, ""),
+          sourceType: "upload",
+          originalFilename: file.name,
+        }),
+      });
+
+      if (res.ok) {
+        setShowNewForm(false);
+        setSelectedFiles([]);
+        fetchTranscripts();
+      }
+    } catch (error) {
+      console.error("Failed to upload file:", error);
+    } finally {
+      setSubmitting(false);
+      setUploadProgress("");
+    }
+  };
+
+  // Handle multiple file uploads
+  const handleMultiFileUpload = async () => {
+    if (selectedFiles.length === 0) return;
+
+    setSubmitting(true);
+    let successCount = 0;
+
+    for (let i = 0; i < selectedFiles.length; i++) {
+      const file = selectedFiles[i];
+      setUploadProgress(`Uploading ${i + 1}/${selectedFiles.length}: ${file.name}`);
+
+      try {
+        const content = await file.text();
+
+        const res = await fetch("/api/transcripts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            content,
+            title: file.name.replace(/\.(txt|md|text)$/i, ""),
+            sourceType: "upload",
+            originalFilename: file.name,
+          }),
+        });
+
+        if (res.ok) successCount++;
+      } catch (error) {
+        console.error(`Failed to upload ${file.name}:`, error);
+      }
+    }
+
+    setUploadProgress(`Uploaded ${successCount}/${selectedFiles.length} files`);
+    setTimeout(() => {
+      setShowNewForm(false);
+      setSelectedFiles([]);
+      setUploadProgress("");
+      fetchTranscripts();
+    }, 1500);
+
+    setSubmitting(false);
+  };
+
+  // Handle file input change
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>, multi: boolean) => {
+    const files = Array.from(e.target.files || []);
+    const validFiles = files.filter(f => f.name.match(/\.(txt|md|text)$/i));
+
+    if (validFiles.length !== files.length) {
+      alert("Some files were skipped. Only .txt and .md files are supported.");
+    }
+
+    if (multi) {
+      setSelectedFiles(validFiles);
+    } else if (validFiles[0]) {
+      handleFileUpload(validFiles[0]);
     }
   };
 
@@ -292,49 +399,199 @@ export default function TranscriptsPage() {
       <div className="flex-1 overflow-auto">
         {showNewForm ? (
           <div className="p-6 max-w-2xl mx-auto">
-            <h2 className="text-xl font-semibold mb-4">Paste New Transcript</h2>
-            <form onSubmit={handleCreateTranscript} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="title">Title (optional)</Label>
-                <Input
-                  id="title"
-                  placeholder="AI will generate a title if not provided"
-                  value={newTranscript.title}
-                  onChange={(e) =>
-                    setNewTranscript({ ...newTranscript, title: e.target.value })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="content">Transcript Content *</Label>
-                <Textarea
-                  id="content"
-                  placeholder="Paste your transcript here..."
-                  className="min-h-[400px] font-mono text-sm"
-                  value={newTranscript.content}
-                  onChange={(e) =>
-                    setNewTranscript({ ...newTranscript, content: e.target.value })
-                  }
-                  required
-                />
-              </div>
-              <div className="flex gap-2">
-                <Button type="submit" disabled={submitting || !newTranscript.content.trim()}>
-                  {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  Save Transcript
-                </Button>
+            <h2 className="text-xl font-semibold mb-4">Add Transcript</h2>
+
+            {/* Mode selector */}
+            <div className="flex gap-2 mb-6">
+              <Button
+                type="button"
+                variant={addMode === "paste" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setAddMode("paste")}
+                className="gap-2"
+              >
+                <FileText className="h-4 w-4" />
+                Paste Text
+              </Button>
+              <Button
+                type="button"
+                variant={addMode === "upload" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setAddMode("upload")}
+                className="gap-2"
+              >
+                <FileUp className="h-4 w-4" />
+                Upload File
+              </Button>
+              <Button
+                type="button"
+                variant={addMode === "upload-many" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setAddMode("upload-many")}
+                className="gap-2"
+              >
+                <Files className="h-4 w-4" />
+                Upload Many
+              </Button>
+            </div>
+
+            {/* Hidden file inputs */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              className="hidden"
+              accept=".txt,.md,.text"
+              onChange={(e) => handleFileInputChange(e, false)}
+            />
+            <input
+              type="file"
+              ref={multiFileInputRef}
+              className="hidden"
+              accept=".txt,.md,.text"
+              multiple
+              onChange={(e) => handleFileInputChange(e, true)}
+            />
+
+            {/* Paste Mode */}
+            {addMode === "paste" && (
+              <form onSubmit={handleCreateTranscript} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="title">Title (optional)</Label>
+                  <Input
+                    id="title"
+                    placeholder="AI will generate a title if not provided"
+                    value={newTranscript.title}
+                    onChange={(e) =>
+                      setNewTranscript({ ...newTranscript, title: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="content">Transcript Content *</Label>
+                  <Textarea
+                    id="content"
+                    placeholder="Paste your transcript here..."
+                    className="min-h-[400px] font-mono text-sm"
+                    value={newTranscript.content}
+                    onChange={(e) =>
+                      setNewTranscript({ ...newTranscript, content: e.target.value })
+                    }
+                    required
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button type="submit" disabled={submitting || !newTranscript.content.trim()}>
+                    {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                    Save Transcript
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setShowNewForm(false);
+                      setNewTranscript({ content: "", title: "" });
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            )}
+
+            {/* Upload Single File Mode */}
+            {addMode === "upload" && (
+              <div className="space-y-4">
+                <div
+                  className="border-2 border-dashed border-border rounded-lg p-12 text-center hover:border-primary/50 transition-colors cursor-pointer"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Upload className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-lg font-medium mb-2">Click to upload a file</p>
+                  <p className="text-sm text-muted-foreground">
+                    Supports .txt and .md files
+                  </p>
+                  {uploadProgress && (
+                    <div className="mt-4 flex items-center justify-center gap-2 text-sm">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      {uploadProgress}
+                    </div>
+                  )}
+                </div>
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => {
                     setShowNewForm(false);
-                    setNewTranscript({ content: "", title: "" });
+                    setSelectedFiles([]);
                   }}
                 >
                   Cancel
                 </Button>
               </div>
-            </form>
+            )}
+
+            {/* Upload Multiple Files Mode */}
+            {addMode === "upload-many" && (
+              <div className="space-y-4">
+                <div
+                  className="border-2 border-dashed border-border rounded-lg p-12 text-center hover:border-primary/50 transition-colors cursor-pointer"
+                  onClick={() => multiFileInputRef.current?.click()}
+                >
+                  <Files className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-lg font-medium mb-2">Click to select multiple files</p>
+                  <p className="text-sm text-muted-foreground">
+                    Supports .txt and .md files
+                  </p>
+                </div>
+
+                {selectedFiles.length > 0 && (
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm">Selected Files ({selectedFiles.length})</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2 max-h-[200px] overflow-auto">
+                        {selectedFiles.map((file, i) => (
+                          <div key={i} className="flex items-center justify-between text-sm">
+                            <span className="truncate">{file.name}</span>
+                            <Badge variant="secondary">
+                              {Math.ceil(file.size / 1024)}kb
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {uploadProgress && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {uploadProgress}
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleMultiFileUpload}
+                    disabled={submitting || selectedFiles.length === 0}
+                  >
+                    {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                    Upload {selectedFiles.length} File{selectedFiles.length !== 1 ? "s" : ""}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setShowNewForm(false);
+                      setSelectedFiles([]);
+                    }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+            )}
           </div>
         ) : selectedTranscript ? (
           <div className="p-6">
