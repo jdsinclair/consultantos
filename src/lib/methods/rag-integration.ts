@@ -8,6 +8,7 @@ import { processSourceEmbeddings } from "@/lib/rag";
 import type {
   ExecutionPlan,
   ExecutionPlanSection,
+  ExecutionPlanItem,
   Roadmap,
   RoadmapItem,
   RoadmapSwimlane,
@@ -20,16 +21,6 @@ const ROADMAP_SOURCE_TYPE = "roadmap";
 // ============================================================================
 // EXECUTION PLAN SERIALIZATION
 // ============================================================================
-
-interface ExecutionPlanItem {
-  id: string;
-  title: string;
-  status?: string;
-  notes?: string;
-  assignee?: string;
-  dueDate?: string;
-  items?: ExecutionPlanItem[]; // Nested items
-}
 
 /**
  * Serialize a single section of an execution plan
@@ -82,7 +73,7 @@ function serializeSection(section: ExecutionPlanSection, depth = 0): string {
   if (section.items?.length) {
     parts.push(`${indent}Items:`);
     for (const item of section.items) {
-      parts.push(serializeItem(item as ExecutionPlanItem, depth + 1));
+      parts.push(serializeItem(item, depth + 1));
     }
   }
 
@@ -96,9 +87,12 @@ function serializeItem(item: ExecutionPlanItem, depth = 1): string {
   const indent = "  ".repeat(depth);
   const parts: string[] = [];
 
-  let line = `${indent}- ${item.title}`;
-  if (item.status) {
-    line += ` [${item.status}]`;
+  let line = `${indent}- ${item.text}`;
+  if (item.done) {
+    line += ` [DONE]`;
+  }
+  if (item.priority) {
+    line += ` [${item.priority}]`;
   }
   if (item.assignee) {
     line += ` (${item.assignee})`;
@@ -111,11 +105,14 @@ function serializeItem(item: ExecutionPlanItem, depth = 1): string {
   if (item.notes) {
     parts.push(`${indent}  Notes: ${item.notes}`);
   }
+  if (item.blockedBy) {
+    parts.push(`${indent}  Blocked by: ${item.blockedBy}`);
+  }
 
-  // Nested items
-  if (item.items?.length) {
-    for (const subItem of item.items) {
-      parts.push(serializeItem(subItem, depth + 1));
+  // Nested children
+  if (item.children?.length) {
+    for (const child of item.children) {
+      parts.push(serializeItem(child, depth + 1));
     }
   }
 
