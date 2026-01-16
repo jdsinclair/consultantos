@@ -1,14 +1,50 @@
 import { NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
-import { Resend } from "resend";
 import { db } from "@/db";
 import { users, inboundEmails, clients } from "@/db/schema";
 import { eq, ilike } from "drizzle-orm";
 import { extractTodosFromEmail } from "@/lib/ai/extract-todos";
 import { createActionItem } from "@/lib/db/action-items";
 
-// Initialize Resend client for fetching email content
-const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+// Resend Receiving API - direct REST calls (SDK may use wrong endpoint)
+async function getResendEmail(emailId: string): Promise<{ data: any; error: string | null }> {
+  try {
+    const res = await fetch(`https://api.resend.com/emails/receiving/${emailId}`, {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${process.env.RESEND_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      return { data: null, error: errText };
+    }
+    return { data: await res.json(), error: null };
+  } catch (err) {
+    return { data: null, error: String(err) };
+  }
+}
+
+async function getResendAttachments(emailId: string): Promise<{ data: any[]; error: string | null }> {
+  try {
+    const res = await fetch(`https://api.resend.com/emails/receiving/${emailId}/attachments`, {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${process.env.RESEND_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      return { data: [], error: errText };
+    }
+    const json = await res.json();
+    return { data: json.data || json || [], error: null };
+  } catch (err) {
+    return { data: [], error: String(err) };
+  }
+}
 
 // Webhook endpoint for receiving emails
 // Supports both Resend and Cloudflare Email Worker formats
@@ -79,50 +115,45 @@ export async function POST(req: NextRequest) {
         })),
       };
 
-      // If we have email_id and SDK, try to fetch full content (enhances the data)
-      if (emailId && resend) {
-        try {
-          // Fetch full email content (body, headers)
-          const { data: fullEmail, error: emailError } = await resend.emails.receiving.get(emailId);
+      // If we have email_id, try to fetch full content via Resend Receiving API
+      if (emailId && process.env.RESEND_API_KEY) {
+        // Fetch full email content (body, headers)
+        const { data: fullEmail, error: emailError } = await getResendEmail(emailId);
 
-          if (!emailError && fullEmail) {
-            // Parse from field to extract name and email
-            const fromField = fullEmail.from || emailData.from || "";
-            const fromMatch = fromField.match(/^(.+?)\s*<(.+)>$/);
+        if (!emailError && fullEmail) {
+          // Parse from field to extract name and email
+          const fromField = fullEmail.from || emailData.from || "";
+          const fromMatch = fromField.match(/^(.+?)\s*<(.+)>$/);
 
-            // Enhance with full content
-            emailData.to = Array.isArray(fullEmail.to) ? fullEmail.to[0] : (fullEmail.to || emailData.to);
-            emailData.from = fromField || emailData.from;
-            emailData.fromName = fromMatch ? fromMatch[1].trim() : emailData.fromName;
-            emailData.fromEmail = fromMatch ? fromMatch[2] : (emailData.fromEmail || fromField);
-            emailData.subject = fullEmail.subject || emailData.subject;
-            emailData.text = fullEmail.text || emailData.text;
-            emailData.html = fullEmail.html || emailData.html;
-            emailData.messageId = fullEmail.message_id || emailData.messageId;
-            emailData.rawHeaders = fullEmail.headers;
+          // Enhance with full content
+          emailData.to = Array.isArray(fullEmail.to) ? fullEmail.to[0] : (fullEmail.to || emailData.to);
+          emailData.from = fromField || emailData.from;
+          emailData.fromName = fromMatch ? fromMatch[1].trim() : emailData.fromName;
+          emailData.fromEmail = fromMatch ? fromMatch[2] : (emailData.fromEmail || fromField);
+          emailData.subject = fullEmail.subject || emailData.subject;
+          emailData.text = fullEmail.text || emailData.text;
+          emailData.html = fullEmail.html || emailData.html;
+          emailData.messageId = fullEmail.message_id || emailData.messageId;
+          emailData.rawHeaders = fullEmail.headers;
 
-            console.log("Enhanced email with full content from Resend API");
-          } else {
-            console.warn("Could not fetch full email from Resend:", emailError);
-          }
+          console.log("Enhanced email with full content from Resend Receiving API");
+        } else {
+          console.warn("Could not fetch full email from Resend Receiving API:", emailError);
+        }
 
-          // Fetch attachments list
-          const { data: attachmentsList, error: attachmentsError } = await resend.emails.receiving.attachments.list({ emailId });
+        // Fetch attachments list
+        const { data: attachmentsList, error: attachmentsError } = await getResendAttachments(emailId);
 
-          if (!attachmentsError && attachmentsList && attachmentsList.length > 0) {
-            emailData.attachments = attachmentsList.map((att: any) => ({
-              filename: att.filename,
-              contentType: att.content_type,
-              size: att.size,
-              url: att.download_url,
-            }));
-            console.log(`Enhanced email with ${attachmentsList.length} attachments from Resend API`);
-          } else if (attachmentsError) {
-            console.warn("Could not fetch attachments from Resend:", attachmentsError);
-          }
-        } catch (apiError) {
-          console.error("Resend API error (continuing with webhook data):", apiError);
-          // Continue with what we have from the webhook payload
+        if (!attachmentsError && attachmentsList && attachmentsList.length > 0) {
+          emailData.attachments = attachmentsList.map((att: any) => ({
+            filename: att.filename,
+            contentType: att.content_type,
+            size: att.size,
+            url: att.download_url,
+          }));
+          console.log(`Enhanced email with ${attachmentsList.length} attachments from Resend API`);
+        } else if (attachmentsError) {
+          console.warn("Could not fetch attachments from Resend:", attachmentsError);
         }
       }
     } else {
