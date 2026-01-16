@@ -10,6 +10,12 @@ export const dynamic = "force-dynamic";
 
 const evaluationSchema = z.object({
   summary: z.string().describe("2-3 sentence summary of the business/idea"),
+  positioningStatement: z.object({
+    niche: z.string().describe("Their specific target customer/market niche"),
+    desiredOutcome: z.string().describe("The primary outcome/transformation they promise"),
+    offer: z.string().describe("Their core product/service/solution"),
+    complete: z.string().describe("The complete positioning statement: We help [niche] achieve [desired outcome] with [offer]"),
+  }).describe("Their positioning statement breakdown"),
   whyWeLoveIt: z.array(z.string()).describe("3-5 reasons why this is compelling"),
   whyWeHateIt: z.array(z.string()).describe("3-5 concerns, red flags, or weaknesses"),
   potentialBiases: z.array(z.string()).describe("2-3 cognitive biases that might affect our judgment"),
@@ -34,6 +40,12 @@ Your insights should make them feel "this person really gets us."
 
 The evaluation framework:
 - Summary: Quick 2-3 sentence overview
+- Positioning Statement: Break down their positioning using this template:
+  "We help [NICHE] achieve [DESIRED OUTCOME] with [OFFER]"
+  - Identify their specific niche/target customer
+  - Identify the outcome/transformation they promise
+  - Identify their core offer/product/service
+  - Write the complete statement
 - Why We Love It: What's genuinely compelling
 - Why We Hate It: Real concerns (not surface-level)
 - Potential Biases: What biases might cloud our judgment
