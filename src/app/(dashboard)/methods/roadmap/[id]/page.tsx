@@ -68,6 +68,7 @@ import {
   PlayCircle,
   PauseCircle,
   XCircle,
+  FileSpreadsheet,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -656,6 +657,19 @@ export default function RoadmapPage({ params }: { params: { id: string } }) {
                 }}>
                   <Link2 className="h-4 w-4 mr-2" />
                   Copy Link
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => {
+                  window.location.href = `/api/roadmaps/${params.id}/export?format=xlsx`;
+                }}>
+                  <FileSpreadsheet className="h-4 w-4 mr-2" />
+                  Export to Excel (.xlsx)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => {
+                  window.location.href = `/api/roadmaps/${params.id}/export?format=csv`;
+                }}>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Export to CSV
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
