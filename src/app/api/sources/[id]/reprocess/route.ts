@@ -131,7 +131,7 @@ async function reprocessSource(
     if (content && !content.startsWith("[")) {
       console.log(`[Reprocess] Generating embeddings for: ${source.name}`);
       try {
-        await processSourceEmbeddings(sourceId, clientId, userId, content, {
+        await processSourceEmbeddings(sourceId, clientId, userId, false, content, {
           type: source.type,
           fileType: source.fileType || undefined,
           fileName: source.name,

@@ -78,7 +78,7 @@ async function processTranscriptToRAG(
   const formattedContent = `# Session Transcript: ${sessionTitle}\n\n${cleanTranscript}`;
 
   await updateSourceContent(source.id, userId, formattedContent);
-  await processSourceEmbeddings(source.id, clientId, userId, formattedContent, {
+  await processSourceEmbeddings(source.id, clientId, userId, false, formattedContent, {
     type: "session_transcript",
     sessionId,
     sessionTitle,
@@ -123,7 +123,7 @@ async function processNotesToRAG(
   const formattedContent = `# Session Notes: ${sessionTitle}\n\n${cleanNotes}`;
 
   await updateSourceContent(source.id, userId, formattedContent);
-  await processSourceEmbeddings(source.id, clientId, userId, formattedContent, {
+  await processSourceEmbeddings(source.id, clientId, userId, false, formattedContent, {
     type: "session_notes",
     sessionId,
     sessionTitle,
