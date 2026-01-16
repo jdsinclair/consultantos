@@ -40,6 +40,12 @@ import { formatDistanceToNow } from "date-fns";
 
 interface ProspectEvaluation {
   summary: string;
+  positioningStatement?: {
+    niche: string;
+    desiredOutcome: string;
+    offer: string;
+    complete: string;
+  };
   whyWeLoveIt: string[];
   whyWeHateIt: string[];
   potentialBiases: string[];
@@ -529,7 +535,7 @@ export default function ProspectDetailPage({ params }: { params: { id: string } 
             ) : (
               <RefreshCw className="h-4 w-4 mr-2" />
             )}
-            {eval_ ? "Re-evaluate" : "Evaluate"}
+            {eval_ ? "Refresh" : "Quick Look"}
           </Button>
 
           <Button onClick={handleConvert} disabled={converting} className="gap-2" size="sm">
@@ -721,6 +727,35 @@ export default function ProspectDetailPage({ params }: { params: { id: string } 
             </CardContent>
           </Card>
 
+          {/* Positioning Statement */}
+          {eval_.positioningStatement && (
+            <Card className="border-primary/30 bg-primary/5">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2">
+                  <Target className="h-5 w-5 text-primary" />
+                  Positioning Statement
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-lg font-medium mb-4">{eval_.positioningStatement.complete}</p>
+                <div className="grid gap-3 sm:grid-cols-3 text-sm">
+                  <div className="p-3 bg-background rounded-lg">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Niche</p>
+                    <p className="font-medium">{eval_.positioningStatement.niche}</p>
+                  </div>
+                  <div className="p-3 bg-background rounded-lg">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Desired Outcome</p>
+                    <p className="font-medium">{eval_.positioningStatement.desiredOutcome}</p>
+                  </div>
+                  <div className="p-3 bg-background rounded-lg">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Offer</p>
+                    <p className="font-medium">{eval_.positioningStatement.offer}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
             {/* Why We Love It */}
             <Card className="border-green-500/30">
@@ -877,9 +912,9 @@ export default function ProspectDetailPage({ params }: { params: { id: string } 
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Brain className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No Evaluation Yet</h3>
+            <h3 className="text-lg font-semibold mb-2">No Quick Look Yet</h3>
             <p className="text-muted-foreground text-center max-w-md mb-4">
-              Run an AI evaluation to get insights before your first conversation.
+              Run a Quick Look to get AI insights before your first conversation.
               Works best with a website URL or some context about the prospect.
             </p>
             <div className="flex gap-3">
@@ -887,12 +922,12 @@ export default function ProspectDetailPage({ params }: { params: { id: string } 
                 {evaluating ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Evaluating...
+                    Analyzing...
                   </>
                 ) : (
                   <>
                     <Brain className="h-4 w-4 mr-2" />
-                    Run Evaluation
+                    Quick Look
                   </>
                 )}
               </Button>
