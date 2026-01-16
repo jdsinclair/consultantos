@@ -1265,21 +1265,21 @@ function RoadmapPreview({
   const completedItems = items.filter((item: any) => item.status === "done").length;
   const progressPercent = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
 
-  // Count items by swimlane
+  // Count items by swimlane (use swimlaneKey to match lane.key)
   const swimlaneStats = swimlanes.map((lane: any) => {
-    const laneItems = items.filter((item: any) => item.swimlane === lane.id);
+    const laneItems = items.filter((item: any) => item.swimlaneKey === lane.key);
     const completed = laneItems.filter((item: any) => item.status === "done").length;
     return {
-      id: lane.id,
-      name: lane.name,
+      key: lane.key,
+      name: lane.label || lane.name,
       total: laneItems.length,
       completed,
     };
   });
 
   // Get items by status for quick overview
-  const inProgress = items.filter((item: any) => item.status === "in-progress").length;
-  const notStarted = items.filter((item: any) => item.status === "not-started" || !item.status).length;
+  const inProgress = items.filter((item: any) => item.status === "in_progress").length;
+  const notStarted = items.filter((item: any) => item.status === "idea" || item.status === "planned" || !item.status).length;
 
   return (
     <div className="space-y-6">
@@ -1361,7 +1361,7 @@ function RoadmapPreview({
           <p className="text-xs text-muted-foreground uppercase tracking-wide mb-3">Swimlanes</p>
           <div className="grid gap-2 md:grid-cols-2">
             {swimlaneStats.filter((s: any) => s.total > 0).map((lane: any) => (
-              <div key={lane.id} className="p-3 rounded-lg bg-muted/30 border flex items-center justify-between">
+              <div key={lane.key} className="p-3 rounded-lg bg-muted/30 border flex items-center justify-between">
                 <span className="text-sm font-medium">{lane.name}</span>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-muted-foreground">
@@ -1425,16 +1425,18 @@ function RoadmapFullView({
   // Get tag by ID
   const getTag = (tagId: string) => tags.find((t: any) => t.id === tagId);
 
-  // Group items by swimlane
-  const getItemsForSwimlane = (swimlaneId: string) =>
-    items.filter((item: any) => item.swimlane === swimlaneId);
+  // Group items by swimlane (use swimlaneKey to match lane.key)
+  const getItemsForSwimlane = (swimlaneKey: string) =>
+    items.filter((item: any) => item.swimlaneKey === swimlaneKey);
 
   // Get status color
   const getStatusColor = (status: string) => {
     switch (status) {
       case "done": return "bg-green-500";
-      case "in-progress": return "bg-blue-500";
+      case "in_progress": return "bg-blue-500";
       case "blocked": return "bg-red-500";
+      case "planned": return "bg-yellow-500";
+      case "idea": return "bg-slate-400";
       default: return "bg-muted-foreground/50";
     }
   };
@@ -1442,10 +1444,17 @@ function RoadmapFullView({
   const getStatusBadgeStyle = (status: string) => {
     switch (status) {
       case "done": return "bg-green-500/20 text-green-600 border-green-500/30";
-      case "in-progress": return "bg-blue-500/20 text-blue-600 border-blue-500/30";
+      case "in_progress": return "bg-blue-500/20 text-blue-600 border-blue-500/30";
       case "blocked": return "bg-red-500/20 text-red-600 border-red-500/30";
+      case "planned": return "bg-yellow-500/20 text-yellow-600 border-yellow-500/30";
+      case "idea": return "bg-slate-500/20 text-slate-600 border-slate-500/30";
       default: return "bg-muted text-muted-foreground";
     }
+  };
+
+  const formatStatus = (status: string) => {
+    if (!status) return "idea";
+    return status.replace(/_/g, " ");
   };
 
   return (
@@ -1530,15 +1539,15 @@ function RoadmapFullView({
         </h3>
 
         {swimlanes.map((swimlane: any) => {
-          const laneItems = getItemsForSwimlane(swimlane.id);
+          const laneItems = getItemsForSwimlane(swimlane.key);
           if (laneItems.length === 0) return null;
 
           return (
-            <div key={swimlane.id} className="border rounded-lg overflow-hidden">
+            <div key={swimlane.key} className="border rounded-lg overflow-hidden">
               <div className="bg-muted/30 px-4 py-3 border-b flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Layers className="h-4 w-4" style={{ color: brandColor }} />
-                  <span className="font-medium">{swimlane.name}</span>
+                  <Layers className="h-4 w-4" style={{ color: swimlane.color || brandColor }} />
+                  <span className="font-medium">{swimlane.label || swimlane.name}</span>
                 </div>
                 <Badge variant="outline" className="text-xs">
                   {laneItems.filter((i: any) => i.status === "done").length}/{laneItems.length} complete
@@ -1555,13 +1564,13 @@ function RoadmapFullView({
                         <div className="flex items-center gap-2 flex-wrap">
                           <h4 className="font-medium text-sm">{item.title || "Untitled"}</h4>
                           <Badge variant="outline" className={cn("text-[10px]", getStatusBadgeStyle(item.status))}>
-                            {item.status?.replace("-", " ") || "not started"}
+                            {formatStatus(item.status)}
                           </Badge>
                         </div>
 
                         {/* Description */}
-                        {item.notes && (
-                          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.notes}</p>
+                        {(item.description || item.notes) && (
+                          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.description || item.notes}</p>
                         )}
 
                         {/* Tags */}
@@ -1614,19 +1623,19 @@ function RoadmapFullView({
         })}
 
         {/* Items without swimlane */}
-        {items.filter((item: any) => !item.swimlane || !swimlanes.find((s: any) => s.id === item.swimlane)).length > 0 && (
+        {items.filter((item: any) => !item.swimlaneKey || !swimlanes.find((s: any) => s.key === item.swimlaneKey)).length > 0 && (
           <div className="border rounded-lg overflow-hidden">
             <div className="bg-muted/30 px-4 py-3 border-b">
               <span className="font-medium text-muted-foreground">Unassigned Items</span>
             </div>
             <div className="p-4 space-y-3">
-              {items.filter((item: any) => !item.swimlane || !swimlanes.find((s: any) => s.id === item.swimlane)).map((item: any) => (
+              {items.filter((item: any) => !item.swimlaneKey || !swimlanes.find((s: any) => s.key === item.swimlaneKey)).map((item: any) => (
                 <div key={item.id} className="p-3 rounded-lg border bg-card">
                   <div className="flex items-center gap-2">
                     <div className={cn("w-2 h-2 rounded-full flex-shrink-0", getStatusColor(item.status))} />
                     <span className="text-sm">{item.title || "Untitled"}</span>
                     <Badge variant="outline" className={cn("text-[10px]", getStatusBadgeStyle(item.status))}>
-                      {item.status?.replace("-", " ") || "not started"}
+                      {formatStatus(item.status)}
                     </Badge>
                   </div>
                 </div>
