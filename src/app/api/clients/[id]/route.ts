@@ -8,15 +8,22 @@ export const dynamic = "force-dynamic";
 
 const updateClientSchema = z.object({
   name: z.string().min(1).optional(),
-  company: z.string().optional(),
-  industry: z.string().optional(),
-  website: z.string().url().optional().or(z.literal("")),
-  description: z.string().optional(),
+  firstName: z.string().nullable().optional(),
+  lastName: z.string().nullable().optional(),
+  email: z.string().email().nullable().optional().or(z.literal("")).or(z.null()),
+  phone: z.string().nullable().optional(),
+  phoneCountryCode: z.string().nullable().optional(),
+  company: z.string().nullable().optional(),
+  industry: z.string().nullable().optional(),
+  website: z.string().url().optional().or(z.literal("")).or(z.null()),
+  description: z.string().nullable().optional(),
   status: z.enum(["prospect", "active", "paused", "completed", "prospect_lost", "client_cancelled"]).optional(),
   color: z.string().optional(),
   dealValue: z.number().optional(),
   dealStatus: z.enum(["none", "placeholder", "presented", "active"]).optional(),
   dealNotes: z.string().optional(),
+  sourceType: z.string().nullable().optional(),
+  sourceNotes: z.string().nullable().optional(),
 });
 
 export async function GET(
