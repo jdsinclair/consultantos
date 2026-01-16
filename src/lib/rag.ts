@@ -110,15 +110,32 @@ export function chunkContent(
 
 /**
  * Process and embed a source's content, storing chunks in database
+ * @param sourceId - The source ID
+ * @param clientId - The client ID (null for personal sources)
+ * @param userId - The user ID
+ * @param isPersonal - Whether this is a personal/user-level source
+ * @param contentOverride - Optional content override (otherwise fetches from source)
+ * @param metadata - Optional metadata for chunks
  */
 export async function processSourceEmbeddings(
   sourceId: string,
-  clientId: string,
+  clientId: string | null,
   userId: string,
-  content: string,
+  isPersonal: boolean = false,
+  contentOverride?: string,
   metadata?: Record<string, unknown>
 ): Promise<void> {
-  console.log(`[Embeddings] Starting embedding process for source ${sourceId}`);
+  console.log(`[Embeddings] Starting embedding process for source ${sourceId} (personal: ${isPersonal})`);
+
+  // Get content from source if not overridden
+  let content = contentOverride;
+  if (!content) {
+    const source = await db.query.sources.findFirst({
+      where: eq(sources.id, sourceId),
+    });
+    content = source?.content || '';
+  }
+
   console.log(`[Embeddings] Content length: ${content.length} characters`);
 
   const startTime = Date.now();
@@ -126,7 +143,7 @@ export async function processSourceEmbeddings(
     operation: "embeddings",
     model: "text-embedding-3-small",
     status: "pending",
-    metadata: { sourceId, contentLength: content.length },
+    metadata: { sourceId, contentLength: content.length, isPersonal },
   });
 
   try {
@@ -142,7 +159,7 @@ export async function processSourceEmbeddings(
       await updateAILog(logId, {
         status: "success",
         duration: Date.now() - startTime,
-        metadata: { sourceId, contentLength: content.length, chunks: 0 },
+        metadata: { sourceId, contentLength: content.length, chunks: 0, isPersonal },
       });
       return;
     }
@@ -162,8 +179,9 @@ export async function processSourceEmbeddings(
       for (let j = 0; j < batch.length; j++) {
         allChunkData.push({
           sourceId,
-          clientId,
+          clientId, // Can be null for personal sources
           userId,
+          isPersonal,
           content: batch[j].content,
           chunkIndex: i + j,
           startChar: batch[j].startChar,
@@ -182,7 +200,7 @@ export async function processSourceEmbeddings(
     await updateAILog(logId, {
       status: "success",
       duration: Date.now() - startTime,
-      metadata: { sourceId, contentLength: content.length, chunks: allChunkData.length },
+      metadata: { sourceId, contentLength: content.length, chunks: allChunkData.length, isPersonal },
     });
 
     console.log(`[Embeddings] Generated ${allChunkData.length} chunks for source ${sourceId}`);
@@ -205,13 +223,15 @@ export async function processSourceEmbeddings(
 /**
  * Search for relevant chunks using vector similarity
  * Returns chunks sorted by relevance with their source info
+ * @param includePersonal - If true, also includes user's personal knowledge sources
  */
 export async function searchRelevantChunks(
   query: string,
   clientId: string,
   userId: string,
   limit = 10,
-  minSimilarity = 0.7
+  minSimilarity = 0.7,
+  includePersonal = false
 ): Promise<Array<{
   content: string;
   sourceName: string;
@@ -219,6 +239,7 @@ export async function searchRelevantChunks(
   sourceId: string;
   similarity: number;
   metadata: unknown;
+  isPersonal?: boolean;
 }>> {
   // Generate embedding for query
   const queryEmbedding = await generateEmbedding(query);
@@ -227,17 +248,23 @@ export async function searchRelevantChunks(
   // Search using cosine similarity
   // Note: This uses raw SQL for pgvector operations
   // Excludes sources marked with exclude_from_rag = true
+  // Optionally includes personal sources
+  const personalCondition = includePersonal
+    ? sql`(sc.client_id = ${clientId} OR (sc.is_personal = true AND sc.user_id = ${userId}))`
+    : sql`sc.client_id = ${clientId}`;
+
   const results = await db.execute(sql`
     SELECT
       sc.content,
       sc.metadata,
       sc.source_id,
+      sc.is_personal,
       s.name as source_name,
       s.type as source_type,
       1 - (sc.embedding <=> ${embeddingStr}::vector) as similarity
     FROM source_chunks sc
     JOIN sources s ON s.id = sc.source_id
-    WHERE sc.client_id = ${clientId}
+    WHERE ${personalCondition}
       AND sc.user_id = ${userId}
       AND sc.embedding IS NOT NULL
       AND (s.exclude_from_rag IS NULL OR s.exclude_from_rag = false)
@@ -253,6 +280,7 @@ export async function searchRelevantChunks(
     source_id: string;
     similarity: number;
     metadata: unknown;
+    is_personal: boolean;
   }>).map(row => ({
     content: row.content,
     sourceName: row.source_name,
@@ -260,6 +288,64 @@ export async function searchRelevantChunks(
     sourceId: row.source_id,
     similarity: row.similarity,
     metadata: row.metadata,
+    isPersonal: row.is_personal,
+  }));
+}
+
+/**
+ * Search for relevant personal knowledge chunks only
+ * For queries that should draw from user's own expertise/methodology
+ */
+export async function searchPersonalKnowledge(
+  query: string,
+  userId: string,
+  limit = 5,
+  minSimilarity = 0.6
+): Promise<Array<{
+  content: string;
+  sourceName: string;
+  sourceType: string;
+  sourceId: string;
+  similarity: number;
+  personalCategory: string | null;
+}>> {
+  // Generate embedding for query
+  const queryEmbedding = await generateEmbedding(query);
+  const embeddingStr = `[${queryEmbedding.join(',')}]`;
+
+  const results = await db.execute(sql`
+    SELECT
+      sc.content,
+      sc.source_id,
+      s.name as source_name,
+      s.type as source_type,
+      s.personal_category,
+      1 - (sc.embedding <=> ${embeddingStr}::vector) as similarity
+    FROM source_chunks sc
+    JOIN sources s ON s.id = sc.source_id
+    WHERE sc.user_id = ${userId}
+      AND sc.is_personal = true
+      AND sc.embedding IS NOT NULL
+      AND (s.exclude_from_rag IS NULL OR s.exclude_from_rag = false)
+      AND 1 - (sc.embedding <=> ${embeddingStr}::vector) >= ${minSimilarity}
+    ORDER BY sc.embedding <=> ${embeddingStr}::vector
+    LIMIT ${limit}
+  `);
+
+  return (results.rows as Array<{
+    content: string;
+    source_id: string;
+    source_name: string;
+    source_type: string;
+    personal_category: string | null;
+    similarity: number;
+  }>).map(row => ({
+    content: row.content,
+    sourceId: row.source_id,
+    sourceName: row.source_name,
+    sourceType: row.source_type,
+    personalCategory: row.personal_category,
+    similarity: row.similarity,
   }));
 }
 
