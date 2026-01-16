@@ -6,6 +6,7 @@ import {
   updateRoadmap,
   deleteRoadmap,
 } from "@/lib/db/roadmaps";
+import { pushRoadmapToRAG, deleteMethodSource } from "@/lib/methods/rag-integration";
 
 export const dynamic = "force-dynamic";
 
@@ -146,6 +147,11 @@ export async function PATCH(
       return NextResponse.json({ error: "Roadmap not found" }, { status: 404 });
     }
 
+    // Sync to RAG in background (non-blocking)
+    pushRoadmapToRAG(params.id, user.id).catch((err) => {
+      console.error("[Roadmap] Background RAG sync failed:", err);
+    });
+
     return NextResponse.json(roadmap);
   } catch (error) {
     console.error("Failed to update roadmap:", error);
@@ -168,6 +174,10 @@ export async function DELETE(
 ) {
   try {
     const user = await requireUser();
+
+    // Delete RAG source first
+    await deleteMethodSource(params.id, user.id, "roadmap");
+
     await deleteRoadmap(params.id, user.id);
     return NextResponse.json({ success: true });
   } catch (error) {

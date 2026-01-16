@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { z } from "zod";
-import { 
-  getExecutionPlans, 
-  createExecutionPlan, 
-  createDefaultSections 
+import {
+  getExecutionPlans,
+  createExecutionPlan,
+  createDefaultSections
 } from "@/lib/db/execution-plans";
+import { pushExecutionPlanToRAG } from "@/lib/methods/rag-integration";
 
 export const dynamic = "force-dynamic";
 
@@ -60,6 +61,11 @@ export async function POST(req: NextRequest) {
       sections: data.sections || createDefaultSections(),
       rules: data.rules || [],
       status: "draft",
+    });
+
+    // Sync to RAG in background (non-blocking)
+    pushExecutionPlanToRAG(plan.id, user.id).catch((err) => {
+      console.error("[ExecutionPlan] Background RAG sync failed:", err);
     });
 
     return NextResponse.json(plan);

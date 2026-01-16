@@ -6,6 +6,7 @@ import {
   createRoadmap,
   createDefaultSwimlanes,
 } from "@/lib/db/roadmaps";
+import { pushRoadmapToRAG } from "@/lib/methods/rag-integration";
 
 export const dynamic = "force-dynamic";
 
@@ -67,6 +68,11 @@ export async function POST(req: NextRequest) {
         qualitative: [],
       },
       status: "draft",
+    });
+
+    // Sync to RAG in background (non-blocking)
+    pushRoadmapToRAG(roadmap.id, user.id).catch((err) => {
+      console.error("[Roadmap] Background RAG sync failed:", err);
     });
 
     return NextResponse.json(roadmap);
