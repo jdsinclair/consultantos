@@ -22,8 +22,8 @@ export async function POST(
       return NextResponse.json({ error: "Source not found" }, { status: 404 });
     }
 
-    // Get client for context
-    const client = await getClient(source.clientId, user.id);
+    // Get client for context (only if source has a clientId)
+    const client = source.clientId ? await getClient(source.clientId, user.id) : null;
 
     // Update status to processing
     await updateSource(params.id, user.id, { processingStatus: "processing" });
@@ -52,7 +52,7 @@ export async function POST(
 
 async function reprocessSource(
   sourceId: string,
-  clientId: string,
+  clientId: string | null,
   userId: string,
   source: {
     type: string;
