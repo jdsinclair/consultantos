@@ -27,6 +27,7 @@ import type {
   RoadmapBacklogItem,
   RoadmapSwimlane,
   RoadmapTimeframe,
+  RoadmapTag,
 } from "@/lib/roadmap/types";
 
 interface Client {
@@ -45,6 +46,7 @@ interface Roadmap {
   swimlanes: RoadmapSwimlane[];
   items: RoadmapItem[];
   backlog: RoadmapBacklogItem[];
+  tags?: RoadmapTag[];
   successMetrics?: {
     quantitative: string[];
     qualitative: string[];
@@ -211,7 +213,7 @@ export default function RoadmapFocusPage({ params }: { params: { id: string } })
                         className="min-h-[120px] rounded-xl border border-muted/50 p-3 space-y-3 bg-muted/10"
                       >
                         {items.map((item) => (
-                          <FocusItemCard key={item.id} item={item} />
+                          <FocusItemCard key={item.id} item={item} tags={roadmap?.tags} />
                         ))}
                         {items.length === 0 && (
                           <div className="h-full flex items-center justify-center text-muted-foreground/50">
@@ -242,8 +244,11 @@ export default function RoadmapFocusPage({ params }: { params: { id: string } })
 }
 
 // Focus Item Card (clean, presentation-friendly)
-function FocusItemCard({ item }: { item: RoadmapItem }) {
+function FocusItemCard({ item, tags }: { item: RoadmapItem; tags?: RoadmapTag[] }) {
   const statusConfig = STATUS_CONFIG[item.status];
+  const itemTags = tags?.filter(t => item.tags?.includes(t.id)) || [];
+  const subtasksDone = item.subtasks?.filter(s => s.done).length || 0;
+  const subtasksTotal = item.subtasks?.length || 0;
 
   return (
     <div className="p-4 bg-background border rounded-xl shadow-sm">
@@ -256,6 +261,23 @@ function FocusItemCard({ item }: { item: RoadmapItem }) {
           <p className="font-medium text-base">{item.title}</p>
           {item.description && (
             <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{item.description}</p>
+          )}
+          {/* Tags */}
+          {itemTags.length > 0 && (
+            <div className="flex items-center gap-1 mt-2 flex-wrap">
+              {itemTags.map(tag => (
+                <span
+                  key={tag.id}
+                  className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
+                  style={{
+                    backgroundColor: `${tag.color}20`,
+                    color: tag.color,
+                  }}
+                >
+                  {tag.name}
+                </span>
+              ))}
+            </div>
           )}
           <div className="flex items-center gap-2 mt-2 flex-wrap">
             <Badge variant="outline" className="text-xs">
@@ -277,6 +299,11 @@ function FocusItemCard({ item }: { item: RoadmapItem }) {
                 }}
               >
                 {IMPACT_CONFIG[item.metrics.impact].label}
+              </Badge>
+            )}
+            {subtasksTotal > 0 && (
+              <Badge variant="outline" className="text-xs">
+                ✓ {subtasksDone}/{subtasksTotal}
               </Badge>
             )}
           </div>

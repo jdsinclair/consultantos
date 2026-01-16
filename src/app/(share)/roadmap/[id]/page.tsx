@@ -25,6 +25,7 @@ import type {
   RoadmapBacklogItem,
   RoadmapSwimlane,
   RoadmapTimeframe,
+  RoadmapTag,
 } from "@/lib/roadmap/types";
 
 interface Client {
@@ -43,6 +44,7 @@ interface Roadmap {
   swimlanes: RoadmapSwimlane[];
   items: RoadmapItem[];
   backlog: RoadmapBacklogItem[];
+  tags?: RoadmapTag[];
   successMetrics?: {
     quantitative: string[];
     qualitative: string[];
@@ -217,7 +219,7 @@ export default function RoadmapSharePage({ params }: { params: { id: string } })
                         className="min-h-[80px] rounded-lg border border-muted p-2 space-y-2 bg-muted/10"
                       >
                         {items.map((item) => (
-                          <ShareItemCard key={item.id} item={item} />
+                          <ShareItemCard key={item.id} item={item} tags={roadmap?.tags} />
                         ))}
                         {items.length === 0 && (
                           <div className="h-full flex items-center justify-center text-xs text-muted-foreground">
@@ -287,8 +289,11 @@ export default function RoadmapSharePage({ params }: { params: { id: string } })
 }
 
 // Share Item Card (read-only)
-function ShareItemCard({ item }: { item: RoadmapItem }) {
+function ShareItemCard({ item, tags }: { item: RoadmapItem; tags?: RoadmapTag[] }) {
   const statusConfig = STATUS_CONFIG[item.status];
+  const itemTags = tags?.filter(t => item.tags?.includes(t.id)) || [];
+  const subtasksDone = item.subtasks?.filter(s => s.done).length || 0;
+  const subtasksTotal = item.subtasks?.length || 0;
 
   return (
     <div className="p-3 bg-background border rounded-lg">
@@ -301,6 +306,23 @@ function ShareItemCard({ item }: { item: RoadmapItem }) {
           <p className="font-medium">{item.title}</p>
           {item.description && (
             <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{item.description}</p>
+          )}
+          {/* Tags */}
+          {itemTags.length > 0 && (
+            <div className="flex items-center gap-1 mt-2 flex-wrap">
+              {itemTags.map(tag => (
+                <span
+                  key={tag.id}
+                  className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
+                  style={{
+                    backgroundColor: `${tag.color}20`,
+                    color: tag.color,
+                  }}
+                >
+                  {tag.name}
+                </span>
+              ))}
+            </div>
           )}
           <div className="flex items-center gap-1.5 mt-2 flex-wrap">
             <Badge variant="outline" className="text-xs">
@@ -324,9 +346,14 @@ function ShareItemCard({ item }: { item: RoadmapItem }) {
                 {IMPACT_CONFIG[item.metrics.impact].label}
               </Badge>
             )}
+            {subtasksTotal > 0 && (
+              <Badge variant="outline" className="text-xs">
+                ✓ {subtasksDone}/{subtasksTotal}
+              </Badge>
+            )}
           </div>
           {item.notes && (
-            <p className="text-xs text-muted-foreground mt-2 italic">
+            <p className="text-xs text-muted-foreground mt-2 italic break-all line-clamp-2">
               💡 {item.notes}
             </p>
           )}
