@@ -51,6 +51,9 @@ export default function ClientsPage() {
   }, []);
 
   const filteredClients = clients.filter((client) => {
+    // Exclude prospects - they have their own page
+    if (client.status === "prospect") return false;
+
     const matchesSearch =
       !searchQuery ||
       client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||

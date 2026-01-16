@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useChat } from "ai/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { useFileUpload } from "@/hooks/use-file-upload";
 import {
   ArrowLeft,
   Loader2,
@@ -67,12 +68,23 @@ export default function ProspectEvalPage({ params }: { params: { id: string } })
   const [prospect, setProspect] = useState<Prospect | null>(null);
   const [sources, setSources] = useState<Source[]>([]);
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
   const [showAddText, setShowAddText] = useState(false);
   const [prospectReply, setProspectReply] = useState("");
   const [addingReply, setAddingReply] = useState(false);
+  const [pendingFileName, setPendingFileName] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const { uploadFile, uploading, progress } = useFileUpload({
+    clientId: params.id,
+    onSuccess: (result) => {
+      setSources((prev) => [result.source as Source, ...prev]);
+    },
+    onError: (error) => {
+      console.error("Upload failed:", error);
+      setPendingFileName(null);
+    },
+  });
 
   const { messages, input, handleInputChange, handleSubmit, isLoading, setMessages, append } = useChat({
     api: "/api/chat",
@@ -125,31 +137,19 @@ export default function ProspectEvalPage({ params }: { params: { id: string } })
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setUploading(true);
+    setPendingFileName(file.name);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("clientId", params.id);
+      await uploadFile(file);
 
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
+      // Add a system message about the new file
+      await append({
+        role: "user",
+        content: `I've just uploaded a new document: "${file.name}". Please review it and incorporate any relevant information into your evaluation of this prospect.`,
       });
-
-      if (res.ok) {
-        const { source } = await res.json();
-        setSources((prev) => [source, ...prev]);
-
-        // Add a system message about the new file
-        await append({
-          role: "user",
-          content: `I've just uploaded a new document: "${file.name}". Please review it and incorporate any relevant information into your evaluation of this prospect.`,
-        });
-      }
     } catch (error) {
-      console.error("Upload failed:", error);
+      // Error already handled by hook
     } finally {
-      setUploading(false);
+      setPendingFileName(null);
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
