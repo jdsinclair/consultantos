@@ -40,6 +40,12 @@ import { formatDistanceToNow } from "date-fns";
 
 interface ProspectEvaluation {
   summary: string;
+  positioningStatement?: {
+    niche: string;
+    desiredOutcome: string;
+    offer: string;
+    complete: string;
+  };
   whyWeLoveIt: string[];
   whyWeHateIt: string[];
   potentialBiases: string[];
@@ -87,6 +93,13 @@ interface QuickSummary {
   nextQuestion: string;
 }
 
+interface TextExtractionConfirm {
+  fileName: string;
+  fileSize: number;
+  fileType: string;
+  resolve: (proceed: boolean) => void;
+}
+
 export default function ProspectDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const [prospect, setProspect] = useState<Prospect | null>(null);
@@ -97,6 +110,7 @@ export default function ProspectDetailPage({ params }: { params: { id: string } 
   const [showQuickSummary, setShowQuickSummary] = useState(false);
   const [quickSummary, setQuickSummary] = useState<QuickSummary | null>(null);
   const [loadingQuickSummary, setLoadingQuickSummary] = useState(false);
+  const [textExtractionConfirm, setTextExtractionConfirm] = useState<TextExtractionConfirm | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { uploadFile, uploading, progress } = useFileUpload({
@@ -106,6 +120,16 @@ export default function ProspectDetailPage({ params }: { params: { id: string } 
     },
     onError: (error) => {
       console.error("Upload failed:", error);
+    },
+    onConfirmTextExtraction: async (info) => {
+      return new Promise((resolve) => {
+        setTextExtractionConfirm({
+          fileName: info.fileName,
+          fileSize: info.fileSize,
+          fileType: info.fileType,
+          resolve,
+        });
+      });
     },
   });
 
@@ -192,10 +216,9 @@ export default function ProspectDetailPage({ params }: { params: { id: string } 
     setConverting(true);
 
     try {
-      const res = await fetch(`/api/clients/${prospect.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "active" }),
+      // Use the dedicated convert endpoint that saves eval chat and creates clarity doc
+      const res = await fetch(`/api/prospects/${prospect.id}/convert`, {
+        method: "POST",
       });
 
       if (res.ok) {
@@ -409,6 +432,63 @@ export default function ProspectDetailPage({ params }: { params: { id: string } 
         </div>
       )}
 
+      {/* Text Extraction Confirmation Modal */}
+      {textExtractionConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <Card className="w-full max-w-md mx-4">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-yellow-500" />
+                Large File Detected
+              </CardTitle>
+              <CardDescription>
+                {textExtractionConfirm.fileName} ({(textExtractionConfirm.fileSize / 1024 / 1024).toFixed(1)}MB)
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="p-3 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
+                <p className="text-sm">
+                  This {textExtractionConfirm.fileType.toUpperCase()} is too large to upload directly.
+                  We can extract the <strong>text content only</strong>.
+                </p>
+                <p className="text-sm mt-2 text-muted-foreground">
+                  Images, charts, and graphics will NOT be included.
+                </p>
+              </div>
+              <div className="text-sm text-muted-foreground">
+                <p className="font-medium mb-1">Alternatives:</p>
+                <ul className="list-disc list-inside space-y-1">
+                  <li>Export as PDF and compress to under 4MB</li>
+                  <li>Describe key visuals in the Eval Chat</li>
+                </ul>
+              </div>
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => {
+                    textExtractionConfirm.resolve(false);
+                    setTextExtractionConfirm(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1"
+                  onClick={() => {
+                    textExtractionConfirm.resolve(true);
+                    setTextExtractionConfirm(null);
+                  }}
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  Extract Text Only
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <Link
           href="/prospects"
@@ -455,7 +535,7 @@ export default function ProspectDetailPage({ params }: { params: { id: string } 
             ) : (
               <RefreshCw className="h-4 w-4 mr-2" />
             )}
-            {eval_ ? "Re-evaluate" : "Evaluate"}
+            {eval_ ? "Refresh" : "Quick Look"}
           </Button>
 
           <Button onClick={handleConvert} disabled={converting} className="gap-2" size="sm">
@@ -647,6 +727,35 @@ export default function ProspectDetailPage({ params }: { params: { id: string } 
             </CardContent>
           </Card>
 
+          {/* Positioning Statement */}
+          {eval_.positioningStatement && (
+            <Card className="border-primary/30 bg-primary/5">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2">
+                  <Target className="h-5 w-5 text-primary" />
+                  Positioning Statement
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-lg font-medium mb-4">{eval_.positioningStatement.complete}</p>
+                <div className="grid gap-3 sm:grid-cols-3 text-sm">
+                  <div className="p-3 bg-background rounded-lg">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Niche</p>
+                    <p className="font-medium">{eval_.positioningStatement.niche}</p>
+                  </div>
+                  <div className="p-3 bg-background rounded-lg">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Desired Outcome</p>
+                    <p className="font-medium">{eval_.positioningStatement.desiredOutcome}</p>
+                  </div>
+                  <div className="p-3 bg-background rounded-lg">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Offer</p>
+                    <p className="font-medium">{eval_.positioningStatement.offer}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
             {/* Why We Love It */}
             <Card className="border-green-500/30">
@@ -803,9 +912,9 @@ export default function ProspectDetailPage({ params }: { params: { id: string } 
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Brain className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No Evaluation Yet</h3>
+            <h3 className="text-lg font-semibold mb-2">No Quick Look Yet</h3>
             <p className="text-muted-foreground text-center max-w-md mb-4">
-              Run an AI evaluation to get insights before your first conversation.
+              Run a Quick Look to get AI insights before your first conversation.
               Works best with a website URL or some context about the prospect.
             </p>
             <div className="flex gap-3">
@@ -813,12 +922,12 @@ export default function ProspectDetailPage({ params }: { params: { id: string } 
                 {evaluating ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Evaluating...
+                    Analyzing...
                   </>
                 ) : (
                   <>
                     <Brain className="h-4 w-4 mr-2" />
-                    Run Evaluation
+                    Quick Look
                   </>
                 )}
               </Button>

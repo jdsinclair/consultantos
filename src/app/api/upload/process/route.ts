@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { createSource, updateSourceContent, setSourceError, updateSourceSummary, updateSourceName } from "@/lib/db/sources";
 import { processSourceEmbeddings } from "@/lib/rag";
-import { extractImageContent, formatImageContentForRAG } from "@/lib/ai/vision";
+import { extractImageContent, formatImageContentForRAG, extractPdfVisualContent, formatPdfVisualContentForRAG } from "@/lib/ai/vision";
 import { generateSourceSummary, generateSourceName } from "@/lib/ai/source-summary";
 import { generateClarityInsightsFromSource } from "@/lib/ai/clarity-insights";
 import { db } from "@/db";
@@ -150,12 +150,28 @@ async function processDocument(
             const arrayBuffer = await response.arrayBuffer();
             const buffer = Buffer.from(arrayBuffer);
             const data = await pdf(buffer);
-            content = data.text || "";
+            let textContent = data.text || "";
 
-            content = content
+            textContent = textContent
               .replace(/\r\n/g, "\n")
               .replace(/\n{3,}/g, "\n\n")
               .trim();
+
+            content = `## Extracted Text\n\n${textContent}`;
+
+            // Also extract visual content (charts, diagrams, images)
+            console.log(`Extracting visual content from PDF: ${fileName}`);
+            try {
+              const visualExtraction = await extractPdfVisualContent(blobUrl, {
+                clientName,
+                fileName,
+              });
+              const visualContent = formatPdfVisualContentForRAG(visualExtraction);
+              content = content + visualContent;
+              console.log(`Visual content extracted for: ${fileName}`);
+            } catch (visualError) {
+              console.error("PDF visual extraction error (continuing with text only):", visualError);
+            }
           } catch (pdfError) {
             console.error("PDF parsing error:", pdfError);
             content = "[Error extracting PDF content]";
