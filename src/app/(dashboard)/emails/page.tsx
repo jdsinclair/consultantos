@@ -5,6 +5,24 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Mail,
   Paperclip,
@@ -12,10 +30,11 @@ import {
   Calendar,
   Inbox,
   Archive,
-  CheckCircle,
   Search,
-  MoreVertical,
   ArrowRight,
+  Loader2,
+  FileText,
+  Shield,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -25,21 +44,46 @@ interface InboundEmail {
   fromName: string | null;
   subject: string | null;
   bodyText: string | null;
-  attachments: Array<{ filename: string; size: number }> | null;
+  bodyHtml: string | null;
+  attachments: Array<{ id: string; filename: string; size: number; contentType: string }> | null;
   status: string;
   clientId: string | null;
   client: { id: string; name: string } | null;
   createdAt: string;
 }
 
+interface Client {
+  id: string;
+  name: string;
+}
+
+const SOURCE_CATEGORIES = [
+  { value: "client_docs", label: "Client Documents" },
+  { value: "meeting_notes", label: "Meeting Notes" },
+  { value: "competitor_info", label: "Competitor Info" },
+  { value: "reference", label: "Reference Material" },
+  { value: "internal", label: "Internal" },
+  { value: "other", label: "Other" },
+];
+
 export default function EmailsPage() {
   const [emails, setEmails] = useState<InboundEmail[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedEmail, setSelectedEmail] = useState<InboundEmail | null>(null);
   const [filter, setFilter] = useState<"inbox" | "processed" | "archived">("inbox");
 
+  // Assign dialog state
+  const [showAssignDialog, setShowAssignDialog] = useState(false);
+  const [assignLoading, setAssignLoading] = useState(false);
+  const [selectedClientId, setSelectedClientId] = useState<string>("");
+  const [sourceCategory, setSourceCategory] = useState<string>("client_docs");
+  const [excludeFromRag, setExcludeFromRag] = useState(false);
+  const [excludeReason, setExcludeReason] = useState("");
+
   useEffect(() => {
     fetchEmails();
+    fetchClients();
   }, [filter]);
 
   const fetchEmails = async () => {
@@ -55,17 +99,50 @@ export default function EmailsPage() {
     }
   };
 
-  const handleAssignToClient = async (emailId: string, clientId: string) => {
+  const fetchClients = async () => {
     try {
-      await fetch(`/api/emails/${emailId}`, {
+      const res = await fetch("/api/clients");
+      const data = await res.json();
+      setClients(data);
+    } catch (error) {
+      console.error("Failed to fetch clients:", error);
+    }
+  };
+
+  const openAssignDialog = () => {
+    setSelectedClientId("");
+    setSourceCategory("client_docs");
+    setExcludeFromRag(false);
+    setExcludeReason("");
+    setShowAssignDialog(true);
+  };
+
+  const handleAssignToClient = async () => {
+    if (!selectedEmail || !selectedClientId) return;
+
+    setAssignLoading(true);
+    try {
+      const res = await fetch(`/api/emails/${selectedEmail.id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "add_to_sources", clientId }),
+        body: JSON.stringify({
+          action: "add_to_sources",
+          clientId: selectedClientId,
+          sourceCategory,
+          excludeFromRag,
+          excludeReason: excludeFromRag ? excludeReason : undefined,
+        }),
       });
+
+      if (!res.ok) throw new Error("Failed to assign");
+
+      setShowAssignDialog(false);
       fetchEmails();
       setSelectedEmail(null);
     } catch (error) {
       console.error("Failed to assign email:", error);
+    } finally {
+      setAssignLoading(false);
     }
   };
 
@@ -233,9 +310,10 @@ export default function EmailsPage() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <p className="text-sm text-muted-foreground">
-                    Assign this email and its attachments to a client:
+                    Assign this email and its attachments to a client. The content will be processed for AI context.
                   </p>
-                  <Button className="w-full gap-2">
+                  <Button className="w-full gap-2" onClick={openAssignDialog}>
+                    <FileText className="h-4 w-4" />
                     Add to Client Sources
                     <ArrowRight className="h-4 w-4" />
                   </Button>
@@ -252,6 +330,123 @@ export default function EmailsPage() {
           </div>
         )}
       </div>
+
+      {/* Assign to Client Dialog */}
+      <Dialog open={showAssignDialog} onOpenChange={setShowAssignDialog}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Add to Client Sources</DialogTitle>
+            <DialogDescription>
+              Assign this email and its attachments to a client. The content will be indexed for AI context.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* Client Selector */}
+            <div className="space-y-2">
+              <Label htmlFor="client">Client *</Label>
+              <Select value={selectedClientId} onValueChange={setSelectedClientId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a client" />
+                </SelectTrigger>
+                <SelectContent>
+                  {clients.map((client) => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Source Category */}
+            <div className="space-y-2">
+              <Label htmlFor="category">Category</Label>
+              <Select value={sourceCategory} onValueChange={setSourceCategory}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SOURCE_CATEGORIES.map((cat) => (
+                    <SelectItem key={cat.value} value={cat.value}>
+                      {cat.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Exclude from RAG */}
+            <div className="space-y-3 rounded-lg border p-4">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="excludeRag"
+                  checked={excludeFromRag}
+                  onCheckedChange={(checked) => setExcludeFromRag(checked === true)}
+                />
+                <Label htmlFor="excludeRag" className="flex items-center gap-2 cursor-pointer">
+                  <Shield className="h-4 w-4 text-amber-500" />
+                  Exclude from AI context
+                </Label>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Check this for competitor decks, confidential info, or content that shouldn&apos;t be used in AI responses.
+              </p>
+
+              {excludeFromRag && (
+                <div className="space-y-2 pt-2">
+                  <Label htmlFor="reason">Reason (optional)</Label>
+                  <Textarea
+                    id="reason"
+                    value={excludeReason}
+                    onChange={(e) => setExcludeReason(e.target.value)}
+                    placeholder="e.g., Competitor pricing deck - for reference only"
+                    rows={2}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Preview */}
+            {selectedEmail && (
+              <div className="rounded-lg bg-muted/50 p-3 space-y-2">
+                <p className="text-sm font-medium">Will add:</p>
+                <ul className="text-sm text-muted-foreground space-y-1">
+                  <li className="flex items-center gap-2">
+                    <Mail className="h-3 w-3" />
+                    Email body: {selectedEmail.subject || "(No subject)"}
+                  </li>
+                  {selectedEmail.attachments && selectedEmail.attachments.length > 0 && (
+                    <li className="flex items-center gap-2">
+                      <Paperclip className="h-3 w-3" />
+                      {selectedEmail.attachments.length} attachment(s)
+                    </li>
+                  )}
+                </ul>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAssignDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAssignToClient}
+              disabled={!selectedClientId || assignLoading}
+            >
+              {assignLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                "Add to Sources"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
