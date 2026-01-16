@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
+import { handleUpload, type HandleUploadBody } from "@vercel/blob";
 import { requireUser } from "@/lib/auth";
 
 // Prevent static caching - auth routes must be dynamic
