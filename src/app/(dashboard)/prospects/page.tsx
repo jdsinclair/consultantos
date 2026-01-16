@@ -6,6 +6,21 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Plus,
   Search,
   Loader2,
@@ -15,6 +30,13 @@ import {
   Globe,
   Sparkles,
   UserPlus,
+  ContactRound,
+  Mail,
+  Phone,
+  Building2,
+  Copy,
+  Check,
+  Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
@@ -23,6 +45,8 @@ import { DealValueBadge, DealStatusBadge } from "@/components/deal-badge";
 interface Prospect {
   id: string;
   name: string;
+  email: string | null;
+  phone: string | null;
   company: string | null;
   website: string | null;
   industry: string | null;
@@ -41,6 +65,10 @@ export default function ProspectsPage() {
   const [prospects, setProspects] = useState<Prospect[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<Prospect | null>(null);
+  const [deleteConfirmStep, setDeleteConfirmStep] = useState(0);
+  const [deleting, setDeleting] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
 
   useEffect(() => {
     fetchProspects();
@@ -60,6 +88,36 @@ export default function ProspectsPage() {
     }
   };
 
+  const handleDeleteClick = (prospect: Prospect) => {
+    setDeleteTarget(prospect);
+    setDeleteConfirmStep(1);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (deleteConfirmStep === 1) {
+      setDeleteConfirmStep(2);
+      return;
+    }
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await fetch(`/api/clients/${deleteTarget.id}`, { method: "DELETE" });
+      setProspects((prev) => prev.filter((p) => p.id !== deleteTarget.id));
+    } catch (error) {
+      console.error("Delete failed:", error);
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+      setDeleteConfirmStep(0);
+    }
+  };
+
+  const handleCopy = async (value: string, field: string) => {
+    await navigator.clipboard.writeText(value);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
+
   const filteredProspects = prospects.filter((p) => {
     if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
@@ -75,6 +133,8 @@ export default function ProspectsPage() {
     if (score >= 6) return "text-yellow-500";
     return "text-red-500";
   };
+
+  const hasContactInfo = (p: Prospect) => p.email || p.phone || p.company || p.website;
 
   if (loading) {
     return (
@@ -122,13 +182,85 @@ export default function ProspectsPage() {
             >
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      {prospect.name}
-                      <DealValueBadge value={prospect.dealValue} />
-                    </CardTitle>
-                    {prospect.company && (
-                      <CardDescription>{prospect.company}</CardDescription>
+                  <div className="flex items-start gap-2">
+                    <div>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        {prospect.name}
+                        <DealValueBadge value={prospect.dealValue} />
+                      </CardTitle>
+                      {prospect.company && (
+                        <CardDescription>{prospect.company}</CardDescription>
+                      )}
+                    </div>
+                    {/* Contact Card Popover */}
+                    {hasContactInfo(prospect) && (
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
+                            <ContactRound className="h-4 w-4 text-muted-foreground" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-64 p-3" align="start">
+                          <div className="space-y-2">
+                            {prospect.email && (
+                              <button
+                                onClick={() => handleCopy(prospect.email!, `${prospect.id}-email`)}
+                                className="flex items-center gap-2 w-full text-left text-sm hover:bg-muted p-1.5 rounded transition-colors"
+                              >
+                                <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                <span className="truncate flex-1">{prospect.email}</span>
+                                {copiedField === `${prospect.id}-email` ? (
+                                  <Check className="h-3.5 w-3.5 text-green-500" />
+                                ) : (
+                                  <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                                )}
+                              </button>
+                            )}
+                            {prospect.phone && (
+                              <button
+                                onClick={() => handleCopy(prospect.phone!, `${prospect.id}-phone`)}
+                                className="flex items-center gap-2 w-full text-left text-sm hover:bg-muted p-1.5 rounded transition-colors"
+                              >
+                                <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                <span className="truncate flex-1">{prospect.phone}</span>
+                                {copiedField === `${prospect.id}-phone` ? (
+                                  <Check className="h-3.5 w-3.5 text-green-500" />
+                                ) : (
+                                  <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                                )}
+                              </button>
+                            )}
+                            {prospect.company && (
+                              <button
+                                onClick={() => handleCopy(prospect.company!, `${prospect.id}-company`)}
+                                className="flex items-center gap-2 w-full text-left text-sm hover:bg-muted p-1.5 rounded transition-colors"
+                              >
+                                <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                <span className="truncate flex-1">{prospect.company}</span>
+                                {copiedField === `${prospect.id}-company` ? (
+                                  <Check className="h-3.5 w-3.5 text-green-500" />
+                                ) : (
+                                  <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                                )}
+                              </button>
+                            )}
+                            {prospect.website && (
+                              <button
+                                onClick={() => handleCopy(prospect.website!, `${prospect.id}-website`)}
+                                className="flex items-center gap-2 w-full text-left text-sm hover:bg-muted p-1.5 rounded transition-colors"
+                              >
+                                <Globe className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                <span className="truncate flex-1">{prospect.website}</span>
+                                {copiedField === `${prospect.id}-website` ? (
+                                  <Check className="h-3.5 w-3.5 text-green-500" />
+                                ) : (
+                                  <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                                )}
+                              </button>
+                            )}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
                     )}
                   </div>
                   <div className="flex flex-col items-end gap-1">
@@ -165,12 +297,22 @@ export default function ProspectsPage() {
                   <span className="text-xs text-muted-foreground">
                     Added {formatDistanceToNow(new Date(prospect.createdAt), { addSuffix: true })}
                   </span>
-                  <Link href={`/prospects/${prospect.id}`}>
-                    <Button variant="ghost" size="sm" className="gap-1">
-                      View
-                      <ArrowRight className="h-3 w-3" />
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      onClick={() => handleDeleteClick(prospect)}
+                    >
+                      <Trash2 className="h-4 w-4" />
                     </Button>
-                  </Link>
+                    <Link href={`/prospects/${prospect.id}`}>
+                      <Button variant="ghost" size="sm" className="gap-1">
+                        View
+                        <ArrowRight className="h-3 w-3" />
+                      </Button>
+                    </Link>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -211,6 +353,46 @@ export default function ProspectsPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Delete Confirmation Dialog - Double Confirm */}
+      <AlertDialog open={deleteConfirmStep > 0} onOpenChange={(open) => !open && setDeleteConfirmStep(0)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {deleteConfirmStep === 1 ? "Delete Prospect?" : "Are you absolutely sure?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteConfirmStep === 1 ? (
+                <>
+                  This will permanently delete <strong>{deleteTarget?.name}</strong> and all associated data
+                  (sources, notes, evaluations).
+                </>
+              ) : (
+                <>
+                  This action cannot be undone. All data for <strong>{deleteTarget?.name}</strong> will be
+                  permanently removed from the system.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteConfirmStep(0)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : deleteConfirmStep === 1 ? (
+                "Yes, Delete"
+              ) : (
+                "Delete Forever"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

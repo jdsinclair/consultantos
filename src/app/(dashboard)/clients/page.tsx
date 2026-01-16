@@ -5,7 +5,37 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, Building2, Calendar, FileText, Loader2 } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Plus,
+  Search,
+  Building2,
+  Calendar,
+  FileText,
+  Loader2,
+  ContactRound,
+  Mail,
+  Phone,
+  Globe,
+  Copy,
+  Check,
+  Trash2,
+  ArrowRight,
+} from "lucide-react";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { DealValueBadge, DealStatusBadge } from "@/components/deal-badge";
@@ -13,7 +43,10 @@ import { DealValueBadge, DealStatusBadge } from "@/components/deal-badge";
 interface Client {
   id: string;
   name: string;
+  email: string | null;
+  phone: string | null;
   company: string | null;
+  website: string | null;
   industry: string | null;
   status: string;
   description: string | null;
@@ -31,6 +64,10 @@ export default function ClientsPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Client | null>(null);
+  const [deleteConfirmStep, setDeleteConfirmStep] = useState(0);
+  const [deleting, setDeleting] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchClients = async () => {
@@ -49,6 +86,42 @@ export default function ClientsPage() {
 
     fetchClients();
   }, []);
+
+  const handleDeleteClick = (e: React.MouseEvent, client: Client) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDeleteTarget(client);
+    setDeleteConfirmStep(1);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (deleteConfirmStep === 1) {
+      setDeleteConfirmStep(2);
+      return;
+    }
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await fetch(`/api/clients/${deleteTarget.id}`, { method: "DELETE" });
+      setClients((prev) => prev.filter((c) => c.id !== deleteTarget.id));
+    } catch (error) {
+      console.error("Delete failed:", error);
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+      setDeleteConfirmStep(0);
+    }
+  };
+
+  const handleCopy = async (e: React.MouseEvent, value: string, field: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    await navigator.clipboard.writeText(value);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
+
+  const hasContactInfo = (c: Client) => c.email || c.phone || c.company || c.website;
 
   const filteredClients = clients.filter((client) => {
     // Exclude prospects - they have their own page
@@ -131,10 +204,10 @@ export default function ClientsPage() {
       {filteredClients.length > 0 ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filteredClients.map((client) => (
-            <Link key={client.id} href={`/clients/${client.id}`}>
-              <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
+            <Card key={client.id} className="hover:border-primary/50 transition-colors h-full">
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start gap-2">
                     <div>
                       <CardTitle className="text-lg flex items-center gap-2">
                         {client.name}
@@ -144,29 +217,101 @@ export default function ClientsPage() {
                         <p className="text-sm text-muted-foreground">{client.company}</p>
                       )}
                     </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <Badge variant={client.status === "active" ? "default" : "secondary"}>
-                        {client.status}
-                      </Badge>
-                      <DealStatusBadge dealStatus={client.dealStatus} status={client.status} />
+                    {/* Contact Card Popover */}
+                    {hasContactInfo(client) && (
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
+                            <ContactRound className="h-4 w-4 text-muted-foreground" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-64 p-3" align="start">
+                          <div className="space-y-2">
+                            {client.email && (
+                              <button
+                                onClick={(e) => handleCopy(e, client.email!, `${client.id}-email`)}
+                                className="flex items-center gap-2 w-full text-left text-sm hover:bg-muted p-1.5 rounded transition-colors"
+                              >
+                                <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                <span className="truncate flex-1">{client.email}</span>
+                                {copiedField === `${client.id}-email` ? (
+                                  <Check className="h-3.5 w-3.5 text-green-500" />
+                                ) : (
+                                  <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                                )}
+                              </button>
+                            )}
+                            {client.phone && (
+                              <button
+                                onClick={(e) => handleCopy(e, client.phone!, `${client.id}-phone`)}
+                                className="flex items-center gap-2 w-full text-left text-sm hover:bg-muted p-1.5 rounded transition-colors"
+                              >
+                                <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                <span className="truncate flex-1">{client.phone}</span>
+                                {copiedField === `${client.id}-phone` ? (
+                                  <Check className="h-3.5 w-3.5 text-green-500" />
+                                ) : (
+                                  <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                                )}
+                              </button>
+                            )}
+                            {client.company && (
+                              <button
+                                onClick={(e) => handleCopy(e, client.company!, `${client.id}-company`)}
+                                className="flex items-center gap-2 w-full text-left text-sm hover:bg-muted p-1.5 rounded transition-colors"
+                              >
+                                <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                <span className="truncate flex-1">{client.company}</span>
+                                {copiedField === `${client.id}-company` ? (
+                                  <Check className="h-3.5 w-3.5 text-green-500" />
+                                ) : (
+                                  <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                                )}
+                              </button>
+                            )}
+                            {client.website && (
+                              <button
+                                onClick={(e) => handleCopy(e, client.website!, `${client.id}-website`)}
+                                className="flex items-center gap-2 w-full text-left text-sm hover:bg-muted p-1.5 rounded transition-colors"
+                              >
+                                <Globe className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                <span className="truncate flex-1">{client.website}</span>
+                                {copiedField === `${client.id}-website` ? (
+                                  <Check className="h-3.5 w-3.5 text-green-500" />
+                                ) : (
+                                  <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                                )}
+                              </button>
+                            )}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    )}
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <Badge variant={client.status === "active" ? "default" : "secondary"}>
+                      {client.status}
+                    </Badge>
+                    <DealStatusBadge dealStatus={client.dealStatus} status={client.status} />
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {client.description && (
+                  <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
+                    {client.description}
+                  </p>
+                )}
+                {client.industry && (
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground mb-3">
+                    <div className="flex items-center gap-1">
+                      <Building2 className="h-3 w-3" />
+                      {client.industry}
                     </div>
                   </div>
-                </CardHeader>
-                <CardContent>
-                  {client.description && (
-                    <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
-                      {client.description}
-                    </p>
-                  )}
-                  {client.industry && (
-                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <Building2 className="h-3 w-3" />
-                        {client.industry}
-                      </div>
-                    </div>
-                  )}
-                  <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+                )}
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <div className="flex items-center gap-3">
                     <div className="flex items-center gap-1">
                       <Calendar className="h-3 w-3" />
                       {formatDistanceToNow(new Date(client.updatedAt), { addSuffix: true })}
@@ -174,13 +319,29 @@ export default function ClientsPage() {
                     {client._count && (
                       <div className="flex items-center gap-1">
                         <FileText className="h-3 w-3" />
-                        {client._count.sources} sources
+                        {client._count.sources}
                       </div>
                     )}
                   </div>
-                </CardContent>
-              </Card>
-            </Link>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      onClick={(e) => handleDeleteClick(e, client)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                    <Link href={`/clients/${client.id}`}>
+                      <Button variant="ghost" size="sm" className="gap-1">
+                        View
+                        <ArrowRight className="h-3 w-3" />
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           ))}
         </div>
       ) : (
@@ -206,6 +367,46 @@ export default function ClientsPage() {
           )}
         </div>
       )}
+
+      {/* Delete Confirmation Dialog - Double Confirm */}
+      <AlertDialog open={deleteConfirmStep > 0} onOpenChange={(open) => !open && setDeleteConfirmStep(0)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {deleteConfirmStep === 1 ? "Delete Client?" : "Are you absolutely sure?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteConfirmStep === 1 ? (
+                <>
+                  This will permanently delete <strong>{deleteTarget?.name}</strong> and all associated data
+                  (sources, sessions, notes, action items).
+                </>
+              ) : (
+                <>
+                  This action cannot be undone. All data for <strong>{deleteTarget?.name}</strong> will be
+                  permanently removed from the system.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteConfirmStep(0)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : deleteConfirmStep === 1 ? (
+                "Yes, Delete"
+              ) : (
+                "Delete Forever"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

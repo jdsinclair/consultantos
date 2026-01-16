@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { updateProspectEvaluation, getClient } from "@/lib/db/clients";
+import { getSources } from "@/lib/db/sources";
 import { openai } from "@ai-sdk/openai";
 import { generateObject } from "ai";
 import { z } from "zod";
@@ -71,12 +72,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Client not found" }, { status: 404 });
     }
 
+    // Get uploaded sources/documents
+    const sources = await getSources(clientId, user.id);
+    const sourceContext = sources
+      .filter(s => s.content && s.processingStatus === "completed")
+      .map(s => `[${s.name}]: ${(s.content || "").slice(0, 3000)}`)
+      .join("\n\n")
+      .slice(0, 12000);
+
     const contextParts = [
       `Company: ${client.company || client.name}`,
       client.website ? `Website: ${client.website}` : null,
       client.industry ? `Industry: ${client.industry}` : null,
       client.description ? `Description: ${client.description}` : null,
       websiteContent ? `\n--- Website Content ---\n${websiteContent}` : null,
+      sourceContext ? `\n--- Uploaded Documents ---\n${sourceContext}` : null,
       additionalContext ? `\n--- Additional Context ---\n${additionalContext}` : null,
     ].filter(Boolean).join("\n");
 
