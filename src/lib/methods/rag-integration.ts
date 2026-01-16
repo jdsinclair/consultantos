@@ -338,7 +338,7 @@ export function serializeRoadmapToText(
     };
 
     for (const tf of timeframes) {
-      const tfItems = roadmap.items.filter(i => i.timeframe === tf);
+      const tfItems: RoadmapItem[] = roadmap.items.filter(i => i.timeframe === tf);
       if (tfItems.length > 0) {
         const tfSection: string[] = [`## ${timeframeLabels[tf]}`];
 
