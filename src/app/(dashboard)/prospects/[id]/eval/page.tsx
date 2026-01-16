@@ -68,10 +68,12 @@ export default function ProspectEvalPage({ params }: { params: { id: string } })
   const [prospect, setProspect] = useState<Prospect | null>(null);
   const [sources, setSources] = useState<Source[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMessages, setLoadingMessages] = useState(true);
   const [showAddText, setShowAddText] = useState(false);
   const [prospectReply, setProspectReply] = useState("");
   const [addingReply, setAddingReply] = useState(false);
   const [pendingFileName, setPendingFileName] = useState<string | null>(null);
+  const [clearing, setClearing] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -86,23 +88,87 @@ export default function ProspectEvalPage({ params }: { params: { id: string } })
     },
   });
 
-  const { messages, input, handleInputChange, handleSubmit, isLoading, setMessages, append } = useChat({
+  // Save message to database
+  const saveMessageToDb = async (role: "user" | "assistant", content: string) => {
+    try {
+      await fetch(`/api/prospects/${params.id}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role, content }),
+      });
+    } catch (error) {
+      console.error("Failed to save message:", error);
+    }
+  };
+
+  const { messages, input, handleInputChange, handleSubmit: originalHandleSubmit, isLoading, setMessages, append } = useChat({
     api: "/api/chat",
     body: {
       clientId: params.id,
       context: "prospect-eval",
     },
     initialMessages: [],
+    onFinish: (message) => {
+      // Save assistant response to database
+      saveMessageToDb("assistant", message.content);
+    },
   });
+
+  // Custom submit that saves user message first
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!input.trim()) return;
+
+    // Save user message to database
+    await saveMessageToDb("user", input);
+
+    // Then submit to chat
+    originalHandleSubmit(e);
+  };
 
   useEffect(() => {
     fetchProspect();
     fetchSources();
+    fetchMessages();
   }, [params.id]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Load existing messages from database
+  const fetchMessages = async () => {
+    try {
+      const res = await fetch(`/api/prospects/${params.id}/messages`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.messages && data.messages.length > 0) {
+          setMessages(data.messages.map((m: { id: string; role: string; content: string }) => ({
+            id: m.id,
+            role: m.role,
+            content: m.content,
+          })));
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch messages:", error);
+    } finally {
+      setLoadingMessages(false);
+    }
+  };
+
+  // Clear conversation and start fresh
+  const clearConversation = async () => {
+    setClearing(true);
+    try {
+      await fetch(`/api/prospects/${params.id}/messages`, { method: "DELETE" });
+      setMessages([]);
+    } catch (error) {
+      console.error("Failed to clear conversation:", error);
+    } finally {
+      setClearing(false);
+    }
+  };
 
   const fetchProspect = async () => {
     try {
@@ -141,10 +207,15 @@ export default function ProspectEvalPage({ params }: { params: { id: string } })
     try {
       await uploadFile(file);
 
+      const userMessage = `I've just uploaded a new document: "${file.name}". Please review it and incorporate any relevant information into your evaluation of this prospect.`;
+
+      // Save to database first
+      await saveMessageToDb("user", userMessage);
+
       // Add a system message about the new file
       await append({
         role: "user",
-        content: `I've just uploaded a new document: "${file.name}". Please review it and incorporate any relevant information into your evaluation of this prospect.`,
+        content: userMessage,
       });
     } catch (error) {
       // Error already handled by hook
@@ -161,10 +232,15 @@ export default function ProspectEvalPage({ params }: { params: { id: string } })
 
     setAddingReply(true);
     try {
+      const userMessage = `The prospect replied with the following message:\n\n---\n${prospectReply}\n---\n\nPlease analyze this response. What does it tell us? Are there any red flags or positive signals? What follow-up questions should I ask?`;
+
+      // Save to database first
+      await saveMessageToDb("user", userMessage);
+
       // Add the prospect's reply as a user message with context
       await append({
         role: "user",
-        content: `The prospect replied with the following message:\n\n---\n${prospectReply}\n---\n\nPlease analyze this response. What does it tell us? Are there any red flags or positive signals? What follow-up questions should I ask?`,
+        content: userMessage,
       });
 
       setProspectReply("");
@@ -174,7 +250,7 @@ export default function ProspectEvalPage({ params }: { params: { id: string } })
     }
   };
 
-  const startEvaluation = () => {
+  const startEvaluation = async () => {
     const contextParts = [
       prospect?.company ? `Company: ${prospect.company}` : null,
       prospect?.website ? `Website: ${prospect.website}` : null,
@@ -195,6 +271,9 @@ Please start by:
 4. What tarpit indicators do you see, if any?
 
 Be direct and contrarian. I want honest assessment, not validation.`;
+
+    // Save to database first
+    await saveMessageToDb("user", initialPrompt);
 
     append({
       role: "user",
@@ -274,6 +353,23 @@ Be direct and contrarian. I want honest assessment, not validation.`;
             >
               Fit: {prospect.evaluation.fitScore}/10
             </Badge>
+          )}
+          {messages.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearConversation}
+              disabled={clearing}
+              className="text-muted-foreground hover:text-destructive"
+              title="Clear conversation and start fresh"
+            >
+              {clearing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+              <span className="ml-2 hidden sm:inline">Clear</span>
+            </Button>
           )}
           <Button
             variant="outline"
