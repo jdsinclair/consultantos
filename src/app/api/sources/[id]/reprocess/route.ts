@@ -53,14 +53,14 @@ export async function POST(
 
 async function reprocessSource(
   sourceId: string,
-  clientId: string,
+  clientId: string | null,
   userId: string,
   source: {
     type: string;
     name: string;
     blobUrl: string | null;
     fileType: string | null;
-    clientId: string;
+    clientId: string | null;
     existingContent?: string | null; // For sources stored directly in DB (session transcripts, notes)
   },
   userProfile: {
@@ -143,8 +143,8 @@ async function reprocessSource(
       }
     }
 
-    // Generate clarity insights from the source content
-    if (content && !content.startsWith("[Error") && !content.startsWith("[Unsupported")) {
+    // Generate clarity insights from the source content (only for client sources)
+    if (clientId && content && !content.startsWith("[Error") && !content.startsWith("[Unsupported")) {
       console.log(`[Reprocess] Generating clarity insights for: ${source.name}`);
       try {
         await generateClarityInsightsFromSource(content, {

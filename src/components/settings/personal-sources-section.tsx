@@ -37,6 +37,8 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
+  Upload,
+  FileJson,
 } from "lucide-react";
 
 interface PersonalSource {
@@ -77,11 +79,22 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
   failed: <XCircle className="h-4 w-4 text-red-500" />,
 };
 
+interface BulkImportResult {
+  success: boolean;
+  total: number;
+  created: number;
+  errors: number;
+  message: string;
+}
+
 export function PersonalSourcesSection() {
   const [sources, setSources] = useState<PersonalSource[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showBulkDialog, setShowBulkDialog] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<BulkImportResult | null>(null);
 
   // Form state
   const [newSource, setNewSource] = useState({
@@ -91,6 +104,10 @@ export function PersonalSourcesSection() {
     url: "",
     content: "",
   });
+
+  // Bulk import state
+  const [bulkJson, setBulkJson] = useState("");
+  const [bulkType, setBulkType] = useState<"newsletter" | "framework">("newsletter");
 
   useEffect(() => {
     fetchSources();
@@ -180,6 +197,71 @@ export function PersonalSourcesSection() {
     }
   };
 
+  const handleBulkImport = async () => {
+    if (!bulkJson.trim()) return;
+
+    setImporting(true);
+    setImportResult(null);
+
+    try {
+      // Parse JSON to validate
+      let items;
+      try {
+        items = JSON.parse(bulkJson);
+        if (!Array.isArray(items)) {
+          throw new Error("JSON must be an array");
+        }
+      } catch (parseError) {
+        setImportResult({
+          success: false,
+          total: 0,
+          created: 0,
+          errors: 1,
+          message: `Invalid JSON: ${parseError instanceof Error ? parseError.message : "Parse error"}`,
+        });
+        setImporting(false);
+        return;
+      }
+
+      const res = await fetch("/api/sources/personal/bulk-import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items, type: bulkType }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        setImportResult(data);
+        // Refresh sources list
+        fetchSources();
+        // Clear the JSON input on success
+        if (data.success) {
+          setBulkJson("");
+        }
+      } else {
+        setImportResult({
+          success: false,
+          total: 0,
+          created: 0,
+          errors: 1,
+          message: data.error || "Import failed",
+        });
+      }
+    } catch (error) {
+      console.error("Bulk import failed:", error);
+      setImportResult({
+        success: false,
+        total: 0,
+        created: 0,
+        errors: 1,
+        message: error instanceof Error ? error.message : "Unknown error",
+      });
+    } finally {
+      setImporting(false);
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -193,13 +275,113 @@ export function PersonalSourcesSection() {
               Your content, frameworks, and knowledge that AI can reference
             </CardDescription>
           </div>
-          <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-            <DialogTrigger asChild>
-              <Button size="sm" className="gap-2">
-                <Plus className="h-4 w-4" />
-                Add Source
-              </Button>
-            </DialogTrigger>
+          <div className="flex gap-2">
+            {/* Bulk Import Dialog */}
+            <Dialog open={showBulkDialog} onOpenChange={(open) => {
+              setShowBulkDialog(open);
+              if (!open) {
+                setImportResult(null);
+              }
+            }}>
+              <DialogTrigger asChild>
+                <Button size="sm" variant="outline" className="gap-2">
+                  <FileJson className="h-4 w-4" />
+                  Bulk Import
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Bulk Import JSON</DialogTitle>
+                  <DialogDescription>
+                    Paste your newsletters or frameworks JSON array to import them all at once
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label>Content Type</Label>
+                    <Select
+                      value={bulkType}
+                      onValueChange={(v) => setBulkType(v as "newsletter" | "framework")}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="newsletter">Newsletters</SelectItem>
+                        <SelectItem value="framework">Frameworks</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {bulkType === "newsletter"
+                        ? "Expects: title, body, coreTakeaway, tldr, faqs"
+                        : "Expects: title, moduleCode, introText, whatYoulearn, tldr, faqs"}
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="bulkJson">JSON Array</Label>
+                    <Textarea
+                      id="bulkJson"
+                      value={bulkJson}
+                      onChange={(e) => setBulkJson(e.target.value)}
+                      placeholder='[{"title": "...", "body": "..."}, ...]'
+                      rows={12}
+                      className="font-mono text-xs"
+                    />
+                  </div>
+
+                  {importResult && (
+                    <div
+                      className={`p-3 rounded-lg text-sm ${
+                        importResult.success
+                          ? "bg-green-500/10 text-green-700 dark:text-green-400"
+                          : "bg-red-500/10 text-red-700 dark:text-red-400"
+                      }`}
+                    >
+                      {importResult.success ? (
+                        <>
+                          <CheckCircle2 className="h-4 w-4 inline mr-2" />
+                          {importResult.message}
+                        </>
+                      ) : (
+                        <>
+                          <XCircle className="h-4 w-4 inline mr-2" />
+                          {importResult.message}
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  <Button
+                    onClick={handleBulkImport}
+                    disabled={importing || !bulkJson.trim()}
+                    className="w-full"
+                  >
+                    {importing ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Importing...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-4 w-4 mr-2" />
+                        Import All
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            {/* Add Single Source Dialog */}
+            <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+              <DialogTrigger asChild>
+                <Button size="sm" className="gap-2">
+                  <Plus className="h-4 w-4" />
+                  Add Source
+                </Button>
+              </DialogTrigger>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Add Knowledge Source</DialogTitle>
@@ -297,6 +479,7 @@ export function PersonalSourcesSection() {
             </DialogContent>
           </Dialog>
         </div>
+      </div>
       </CardHeader>
       <CardContent>
         {loading ? (

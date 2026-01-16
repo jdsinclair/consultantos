@@ -51,7 +51,7 @@ export async function POST(
   }
 }
 
-async function processWebsite(sourceId: string, clientId: string, userId: string, url: string) {
+async function processWebsite(sourceId: string, clientId: string | null, userId: string, url: string) {
   try {
     // Try to fetch sitemap first
     const sitemapUrl = new URL("/sitemap.xml", url).toString();
@@ -112,7 +112,7 @@ async function processWebsite(sourceId: string, clientId: string, userId: string
   }
 }
 
-async function processRepo(sourceId: string, clientId: string, userId: string, url: string) {
+async function processRepo(sourceId: string, clientId: string | null, userId: string, url: string) {
   try {
     // Parse GitHub URL
     const match = url.match(/github\.com\/([^\/]+)\/([^\/]+)/);
